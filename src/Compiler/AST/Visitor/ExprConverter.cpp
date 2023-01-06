@@ -498,6 +498,9 @@ void ExprConverter::ConvertExpr(ExprPtr& expr, const Flags& flags)
         if (enabled(ConvertLog10))
             ConvertExprIntrinsicCallLog10(expr);
 
+        if (enabled(ConvertStorageTextureLoad))
+            ConvertExprTextureIntrinsicCallLoad(expr);
+
         if (enabled(ConvertVectorCompare))
             ConvertExprVectorCompare(expr);
 
@@ -651,7 +654,7 @@ void ExprConverter::ConvertExprVectorCompareTernary(ExprPtr& expr, TernaryExpr* 
     {
         expr = ASTFactory::MakeIntrinsicCallExpr(
             Intrinsic::Lerp, "lerp", nullptr,
-            { ternaryExpr->thenExpr, ternaryExpr->elseExpr, ternaryExpr->condExpr }
+            { ternaryExpr->elseExpr, ternaryExpr->thenExpr, ternaryExpr->condExpr }
         );
     }
 }
@@ -1115,6 +1118,28 @@ void ExprConverter::ConvertExprCompatibleStruct(ExprPtr& expr)
     }
 }
 
+void ExprConverter::ConvertExprTextureIntrinsicCallLoad(ExprPtr& expression)
+{
+    if (auto callExpression = expression->As<CallExpr>())
+    {
+        if (callExpression->intrinsic != Intrinsic::Texture_Load_1 || callExpression->arguments.size() != 1)
+            return;
+
+        const auto& typeDenoter = callExpression->prefixExpr->GetTypeDenoter()->GetAliased();
+        if (auto bufferTypeDenoter = typeDenoter.As<BufferTypeDenoter>())
+        {
+            if (!IsRWBufferType(bufferTypeDenoter->bufferType))
+                return;
+
+            // Convert intrinsic from 'texelFetch' to 'imageLoad'
+            callExpression->intrinsic = Intrinsic::Image_Load;
+
+            // Ensure valid dimensions
+            const int textureDimension = GetTextureDimFromExpr(callExpression->prefixExpr.get(), expression.get());
+            ConvertExprIfCastRequired(callExpression->arguments.front(), VectorDataType(DataType::Int, textureDimension), true);
+        }
+    }
+}
 
 } // /namespace Xsc
 

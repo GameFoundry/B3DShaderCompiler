@@ -679,7 +679,7 @@ std::vector<TypeDenoterPtr> HLSLIntrinsicAdept::GetIntrinsicParameterTypes(const
     switch (intrinsic)
     {
         case Intrinsic::Dot:
-            DeriveParameterTypes(paramTypeDenoters, intrinsic, args, true);
+            DeriveParameterTypes(paramTypeDenoters, intrinsic, args);
             break;
         case Intrinsic::Mul:
             DeriveParameterTypesMul(paramTypeDenoters, args);

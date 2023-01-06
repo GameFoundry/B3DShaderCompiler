@@ -308,6 +308,8 @@ DECL_REPORT( ConstantBuffer,                    "constant buffer"               
 DECL_REPORT( ExplicitBindingSlot,               "explicit binding slot"                                                                                         );
 DECL_REPORT( MultiSampledTexture,               "multi-sampled texture"                                                                                         );
 DECL_REPORT( BitwiseOperator,                   "bitwise operator"                                                                                              );
+DECL_REPORT( TargetIndexExtension,              "vertex or tesselation shader is outputting a render target or a viewport index"                                );
+
 
 /* ----- GLSLGenerator ----- */
 

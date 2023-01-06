@@ -51,6 +51,7 @@ class ExprConverter : public VisitorTracker
             ConvertMatrixSubscripts     = (1 << 11), // Converts matrix subscripts into function calls to the respective wrapper function.
             ConvertCompatibleStructs    = (1 << 12), // Converts type denoters and struct members when the underlying struct type has a compatible struct.
             ConvertLiteralHalfToFloat   = (1 << 13), // Converts all half literals to float literals (e.g. "1.5h to 1.5f").
+            ConvertStorageTextureLoad   = (1 << 14), // Converts texelFetch to an imageLoad intrinsic for storage textures
 
             // All conversion flags commonly used before visiting the sub nodes.
             AllPreVisit                 = (
@@ -59,7 +60,8 @@ class ExprConverter : public VisitorTracker
                 ConvertLog10                |
                 ConvertSamplerBufferAccess  |
                 ConvertTextureBracketOp     |
-                ConvertCompatibleStructs
+                ConvertCompatibleStructs    |
+                ConvertStorageTextureLoad
             ),
 
             // All conversion flags commonly used after visiting the sub nodes.
@@ -168,6 +170,9 @@ class ExprConverter : public VisitorTracker
 
         // Converts the specified expression when it refers to a member variable of a struct that has a compatible struct.
         void ConvertExprCompatibleStruct(ExprPtr& expr);
+
+        // Converts the specified expression from 'texelFetch' to 'imageLoad', in case the object is a storage texture or a buffer.
+        void ConvertExprTextureIntrinsicCallLoad(ExprPtr& expr);
 
         /* === Members === */
 

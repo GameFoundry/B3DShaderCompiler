@@ -3040,10 +3040,18 @@ void GLSLGenerator::WriteWrapperIntrinsicsMemoryBarrier(const Intrinsic intrinsi
             }
             else
             {
+                // In GLSL 4.5/EESL 3.2 or later it is enough to issue just a barrier(), as shared memory is implicitly synchronized. In previous versions the specification is unclear so we issues it explicitly.
+
+                const bool isGLSLPre450 = versionOut_ >= OutputShaderVersion::GLSL110 && versionOut_ < OutputShaderVersion::GLSL450;
+                const bool isELSLPre320 = versionOut_ >= OutputShaderVersion::ESSL100 && versionOut_ < OutputShaderVersion::ESSL320;
+
                 switch (intrinsic)
                 {
                 case Intrinsic::GroupMemoryBarrier:
-                    WriteLn("memoryBarrierShared();");
+                    if (!groupSync || isGLSLPre450 || isELSLPre320)
+                    {
+                        WriteLn("memoryBarrierShared();");
+                    }
                     break;
                 case Intrinsic::DeviceMemoryBarrier:
                     WriteLn("memoryBarrierAtomicCounter();");
@@ -3193,7 +3201,7 @@ void GLSLGenerator::WriteBufferDeclTexture(BufferDecl* bufferDecl)
     auto imageLayoutFormat  = ImageLayoutFormat::Undefined;
     auto isRWBuffer         = IsRWImageBufferType(bufferDecl->GetBufferType());
 
-    if (!isWriteOnly && isRWBuffer)
+    if (isRWBuffer)
     {
         #ifdef XSC_ENABLE_LANGUAGE_EXT
 
@@ -3223,7 +3231,7 @@ void GLSLGenerator::WriteBufferDeclTexture(BufferDecl* bufferDecl)
             {
                 [&]()
                 {
-                    if (!isWriteOnly)
+                    if (isRWBuffer)
                     {
                         if (auto keyword = ImageLayoutFormatToGLSLKeyword(imageLayoutFormat))
                             Write(*keyword);
@@ -3294,13 +3302,16 @@ void GLSLGenerator::WriteBufferDeclStorageBuffer(BufferDecl* bufferDecl)
         WriteScopeOpen(false, true);
         {
             // BEGIN BANSHEE CHANGES
-            // Banshee: Don't write the 'readonly' qualifier as it requires any function accepting this variable to have the same
-            // qualifier, meaning potentially multiple versions of the same function need to exist. In short it compilicates the
-            // design too much, and benefits might be non-existent.
             
-            /* Write optional memory type qualifier */
-            //if (!IsRWBufferType(bufferDecl->GetBufferType()))
-            //    Write("readonly ");
+            if (!IsRWBufferType(bufferDecl->GetBufferType()))
+                Write("readonly ");
+            else
+            {
+                const bool isWriteOnly = !bufferDecl->flags(BufferDecl::isUsedForImageRead) && !bufferDecl->flags(BufferDecl::isReadFrom);
+                if (isWriteOnly)
+                    Write("writeonly ");
+            }
+
             // END BANSHEE CHANGES
 
             /* Write generic type denoterand identifier */

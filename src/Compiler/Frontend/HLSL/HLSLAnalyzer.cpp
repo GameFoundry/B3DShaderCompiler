@@ -2079,7 +2079,7 @@ void HLSLAnalyzer::AnalyzeEntryPointSemantics(FunctionDecl* funcDecl, const std:
             else
             {
                 ValidateInSemantics({ COMMON_SEMANTICS });
-                ValidateOutSemantics({ COMMON_SEMANTICS_EX, T::VertexPosition, T::PointSize });
+                ValidateOutSemantics({ COMMON_SEMANTICS_EX, T::VertexPosition, T::PointSize, T::ViewportArrayIndex, T::RenderTargetArrayIndex });
             }
             break;
 
@@ -2090,7 +2090,7 @@ void HLSLAnalyzer::AnalyzeEntryPointSemantics(FunctionDecl* funcDecl, const std:
 
         case ShaderTarget::TessellationEvaluationShader:
             ValidateInSemantics({ COMMON_SEMANTICS_EX, T::VertexPosition, T::PointSize, T::InsideTessFactor, T::TessFactor, T::DomainLocation });
-            ValidateOutSemantics({ COMMON_SEMANTICS_EX, T::VertexPosition, T::PointSize });
+            ValidateOutSemantics({ COMMON_SEMANTICS_EX, T::VertexPosition, T::PointSize, T::ViewportArrayIndex, T::RenderTargetArrayIndex });
             break;
 
         case ShaderTarget::GeometryShader:

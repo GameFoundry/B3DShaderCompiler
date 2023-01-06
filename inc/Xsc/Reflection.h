@@ -115,6 +115,7 @@ struct SamplerState
 
     // BEGIN BANSHEE CHANGES
     bool                isNonDefault    = false;
+    bool                isComparison    = false;
     std::string         alias;
     // END BANSHEE CHANGES
 };

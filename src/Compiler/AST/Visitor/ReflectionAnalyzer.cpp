@@ -119,6 +119,7 @@ IMPLEMENT_VISIT_PROC(SamplerDecl)
     }
 
     samplerState.alias = ast->alias;
+    samplerState.isComparison = ast->GetSamplerType() == SamplerType::SamplerComparisonState;
     data_->samplerStates[ast->ident] = samplerState;
 
     // BEGIN BANSHEE CHANGES
@@ -608,6 +609,12 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
                 uniform.ident = bufferDecl->ident;
                 uniform.type = Reflection::VariableType::Buffer;
                 uniform.baseType = (int)BufferTypeToReflType(ast->typeDenoter->bufferType);
+
+                for (auto& arrayDimensions : bufferDecl->arrayDims)
+                {
+                    const int arraySize = arrayDimensions->size <= 0 ? 1 : arrayDimensions->size;
+                    uniform.arraySize *= arraySize;
+                }
 
                 if ((ast->typeDenoter->extModifiers & ExtModifiers::Internal) != 0)
                     uniform.flags |= Reflection::Uniform::Flags::Internal;

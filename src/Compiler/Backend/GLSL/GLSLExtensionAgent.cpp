@@ -175,6 +175,35 @@ IMPLEMENT_VISIT_PROC(Program)
     if (ast->layoutFragment.fragCoordUsed)
         AcquireExtension(E_GL_ARB_fragment_coord_conventions, R_FragmentCoordinate);
 
+    // Check if SV_RenderTargetArrayIndex is used in vertex or tesselation shader
+    switch (shaderTarget_)
+    {
+    case ShaderTarget::VertexShader:
+    case ShaderTarget::TessellationControlShader:
+
+        if (ast->entryPointRef)
+        {
+            ast->entryPointRef->outputSemantics.ForEach(
+                [this](VarDecl* varDecl)
+                {
+                    switch (varDecl->semantic)
+                    {
+                    case Semantic::RenderTargetArrayIndex:
+                    case Semantic::ViewportArrayIndex:
+                        AcquireExtension(E_GL_ARB_shader_viewport_layer_array, R_TargetIndexExtension);
+                        break;
+                    default:
+                        break;
+                    }
+                }
+            );
+        }
+
+        break;
+    default:
+        break;
+    }
+
     VISIT_DEFAULT(Program);
 }
 

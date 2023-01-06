@@ -1072,6 +1072,7 @@ static IndexedSemantic HLSLKeywordToSemanticD3D10(const CiString& ident)
         { "SV_VertexID",               { T::VertexID                    } },
       //{ "SV_Position",               { T::VertexPosition              } }, // Special case (SV_Position is overloaded)
         { "SV_ViewportArrayIndex",     { T::ViewportArrayIndex          } },
+        { "SV_PointSize",              { T::PointSize                   } },
     };
 
     /* Has identifier at the the length of the shortest semantic? */

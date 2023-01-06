@@ -184,7 +184,7 @@ IMPLEMENT_VISIT_PROC(CallExpr)
     if (ast->intrinsic != Intrinsic::Undefined)
     {
         /* Insert prefix expression as first argument into function call, if this is a texture intrinsic call */
-        if (IsTextureIntrinsic(ast->intrinsic) && ast->prefixExpr)
+        if ((IsTextureIntrinsic(ast->intrinsic) || ast->intrinsic == Intrinsic::Image_Load) && ast->prefixExpr)
         {
             /* Move object prefix into argument list as first argument */
             ast->PushPrefixToArguments();
@@ -1240,15 +1240,16 @@ void GLSLConverter::ConvertIntrinsicCallSampleCmp(CallExpr* ast)
     auto& args = ast->arguments;
 
     /* Determine vector size for texture intrinsic */
-    if (auto textureDim = GetTextureDimFromIntrinsicCall(ast))
+    int textureDimension = GetTextureDimFromIntrinsicCall(ast);
+    if (textureDimension != 0)
     {
         /* Ensure argument: float[1,2,3,4] Location */
         if (args.size() >= 2)
-            ExprConverter::ConvertExprIfCastRequired(args[1], VectorDataType(DataType::Float, textureDim), true);
+            ExprConverter::ConvertExprIfCastRequired(args[1], VectorDataType(DataType::Float, textureDimension), true);
 
         /* Ensure argument: int[1,2,3] Offset */
         if (args.size() >= 4)
-            ExprConverter::ConvertExprIfCastRequired(args[3], VectorDataType(DataType::Int, textureDim), true);
+            ExprConverter::ConvertExprIfCastRequired(args[3], VectorDataType(DataType::Int, textureDimension), true);
 
         /* Cast and move the compare argument as the last component of the Location argument */
         if (args.size() >= 3)
@@ -1257,9 +1258,9 @@ void GLSLConverter::ConvertIntrinsicCallSampleCmp(CallExpr* ast)
             ExprConverter::ConvertExprIfCastRequired(args[2], DataType::Float, true);
 
             /* Not enough room if texture dimension is 4 (cube array), in which case the argument remains as is */
-            if (textureDim < 4)
+            if (textureDimension < 4)
             {
-                DataType targetType = VectorDataType(DataType::Float, textureDim + 1);
+                DataType targetType = VectorDataType(DataType::Float, textureDimension + 1);
                 auto typeDenoter = std::make_shared<BaseTypeDenoter>(targetType);
 
                 args[1] = ASTFactory::MakeTypeCtorCallExpr(typeDenoter, { args[1], args[2] });
@@ -1270,7 +1271,42 @@ void GLSLConverter::ConvertIntrinsicCallSampleCmp(CallExpr* ast)
 
     /* Insert '0' as the mip level parameter */
     if (IsTextureCompareLevelZeroIntrinsic(ast->intrinsic))
-        args.insert(args.begin() + 2, ASTFactory::MakeLiteralExpr(DataType::Float, "0"));
+    {
+        // Fall-back to 'textureGrad' if 'textureLod' isn't supported
+        bool usingTextureGrad = false;
+        if (args.size() >= 2)
+        {
+            const auto& argumentTypeDenoter = args[0]->GetTypeDenoter()->GetAliased();
+            bool isTextureCubemap = false;
+
+            if (auto bufferTypeDenoter = argumentTypeDenoter.As<BufferTypeDenoter>())
+            {
+                if (bufferTypeDenoter->bufferType == BufferType::TextureCube)
+                    isTextureCubemap = true;
+            }
+            else if (auto samplerTypeDenoter = argumentTypeDenoter.As<SamplerTypeDenoter>())
+            {
+                if (samplerTypeDenoter->samplerType == SamplerType::SamplerCubeShadow)
+                    isTextureCubemap = true;
+            }
+
+            if (isTextureCubemap)
+            {
+                ast->intrinsic = Intrinsic::TexCubeGrad;
+
+                args.insert(args.begin() + 2, ASTFactory::MakeLiteralExpr(DataType::Float, "0"));
+                args.insert(args.begin() + 2, ASTFactory::MakeLiteralExpr(DataType::Float, "0"));
+
+                ExprConverter::ConvertExprIfCastRequired(args[2], VectorDataType(DataType::Float, textureDimension), true);
+                ExprConverter::ConvertExprIfCastRequired(args[3], VectorDataType(DataType::Float, textureDimension), true);
+
+                usingTextureGrad = true;
+            }
+        }
+
+        if (!usingTextureGrad)
+            args.insert(args.begin() + 2, ASTFactory::MakeLiteralExpr(DataType::Float, "0"));
+    }
 }
 
 void GLSLConverter::ConvertFunctionCall(CallExpr* ast)

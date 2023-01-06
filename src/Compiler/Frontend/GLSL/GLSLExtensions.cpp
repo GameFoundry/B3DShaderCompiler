@@ -50,7 +50,7 @@ const std::map<std::string, int>& GetGLSLExtensionVersionMap()
         { E_GL_ARB_shader_storage_buffer_object,            430 },
         { E_GL_ARB_shader_texture_image_samples,            110 },
         { E_GL_ARB_shader_texture_lod,                      110 },
-        { E_GL_ARB_shader_viewport_layer_array,             110 },
+        { E_GL_ARB_shader_viewport_layer_array,             000 },
         { E_GL_ARB_sparse_texture2,                         110 },
         { E_GL_ARB_sparse_texture_clamp,                    110 },
         { E_GL_ARB_tessellation_shader,                     110 },
