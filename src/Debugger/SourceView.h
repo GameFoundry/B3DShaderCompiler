@@ -8,7 +8,8 @@
 #ifndef XSC_SOURCE_VIEW_H
 #define XSC_SOURCE_VIEW_H
 
-
+#define __WXMSW__
+#define WXUSINGDLL
 #include <wx/stc/stc.h>
 #include <functional>
 

@@ -10,6 +10,9 @@
 
 
 #include <Xsc/Xsc.h>
+
+#define __WXMSW__
+#define WXUSINGDLL
 #include <wx/frame.h>
 #include <wx/splitter.h>
 #include <wx/propgrid/propgrid.h>

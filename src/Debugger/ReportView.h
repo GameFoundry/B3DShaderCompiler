@@ -10,6 +10,9 @@
 
 
 #include <Xsc/Log.h>
+
+#define __WXMSW__
+#define WXUSINGDLL
 #include <wx/richtext/richtextctrl.h>
 
 

@@ -8,7 +8,8 @@
 #ifndef XSC_DEBUGGER_H
 #define XSC_DEBUGGER_H
 
-
+#define __WXMSW__
+#define WXUSINGDLL
 #include <wx/app.h>
 
 
