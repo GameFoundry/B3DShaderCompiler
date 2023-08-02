@@ -25,6 +25,20 @@ void ReferenceAnalyzer::MarkReferencesFromEntryPoint(Program& program, const Sha
     /* Visit all entry points */
     Visit(program.entryPointRef);
     Visit(program.layoutTessControl.patchConstFunctionRef);
+
+    /* Visit all uniforms. We always wish to maintain the same uniform interface between shaders, so don't optimize these out even if unused. */
+    for(const auto& stmt : program.globalStmnts)
+    {
+        if (const auto& basicDeclStmnt = stmt->As<BasicDeclStmnt>())
+        {
+            if(basicDeclStmnt->declObject != nullptr && basicDeclStmnt->declObject->As<UniformBufferDecl>())
+                Visit(basicDeclStmnt);
+        }
+        else if (const auto& bufferDeclStmnt = stmt->As<BufferDeclStmnt>())
+            Visit(bufferDeclStmnt);
+        else if (const auto& samplerDeclStmnt = stmt->As<SamplerDeclStmnt>())
+            Visit(samplerDeclStmnt);
+    }
 }
 
 
