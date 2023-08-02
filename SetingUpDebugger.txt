@@ -1,0 +1,10 @@
+Download wxWidgets from https://www.wxwidgets.org/downloads
+ - Version 3.2.1 is confirmed working, but older or newer versions should work as well
+ - Hit Download Windows Binaries
+ - Download Header Files, Development Files (x64) & Release DLLs (x64)
+ - Extract all the archives in a `wxWidgets` folder
+
+Enable XSC_BUILD_DEBUGGER in CMake
+ - Point wxWidgets_ROOT_DIR to `C:\path\to\wxWidgets` folder created above
+
+Add `C:\path\to\wxWidgets\lib\vc14x_x64_dll` to your PATH variable
