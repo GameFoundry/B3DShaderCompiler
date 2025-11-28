@@ -128,6 +128,8 @@ struct BindingSlot
 
     //! Zero based binding point or location. If this is -1, the location has not been set.
     int         location;
+
+    int         set;
 };
 
 // BEGIN BANSHEE CHANGES

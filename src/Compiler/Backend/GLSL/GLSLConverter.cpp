@@ -1784,8 +1784,10 @@ void GLSLConverter::ConvertSlotRegisters(std::vector<RegisterPtr>& slotRegisters
 {
     if (autoBinding_)
     {
+        const int space = !slotRegisters.empty() ? slotRegisters.front()->space : 0;
+
         slotRegisters.clear();
-        slotRegisters.push_back(ASTFactory::MakeRegister(autoBindingSlot_++));
+        slotRegisters.push_back(ASTFactory::MakeRegister(autoBindingSlot_++, space));
     }
 }
 

@@ -57,6 +57,14 @@ int ReflectionAnalyzer::GetBindingPoint(const std::vector<RegisterPtr>& slotRegi
         return -1;
 }
 
+int ReflectionAnalyzer::GetBindingSet(const std::vector<RegisterPtr>& slotRegisters) const
+{
+    if (auto slotRegister = Register::GetForTarget(slotRegisters, shaderTarget_))
+        return slotRegister->space;
+    else
+        return -1;
+}
+
 int ReflectionAnalyzer::EvaluateConstExprInt(Expr& expr)
 {
     /* Evaluate expression and return as integer */
@@ -480,7 +488,7 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
     // END BANSHEE CHANGES
     {
         /* Reflect constant buffer binding */
-        data_->constantBuffers.push_back({ ast->ident, GetBindingPoint(ast->slotRegisters) });
+        data_->constantBuffers.push_back({ ast->ident, GetBindingPoint(ast->slotRegisters), GetBindingSet(ast->slotRegisters) });
 
         // BEGIN BANSHEE CHANGES
 
@@ -596,6 +604,7 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
                 {
                     bindingSlot.ident       = bufferDecl->ident;
                     bindingSlot.location    = GetBindingPoint(bufferDecl->slotRegisters);
+                    bindingSlot.set         = GetBindingSet(bufferDecl->slotRegisters);
                 };
 
                 if (!IsStorageBufferType(ast->typeDenoter->bufferType))

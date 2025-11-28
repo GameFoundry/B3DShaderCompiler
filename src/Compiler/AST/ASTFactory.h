@@ -82,7 +82,7 @@ Example (pseudocode): MakeArrayExprSplit('prefix[0][1][2]', 2) --> '(prefix[0][1
 */
 ArrayExprPtr                    MakeArrayExprSplit(const ArrayExprPtr& arrayExpr, std::size_t splitArrayIndex);
 
-RegisterPtr                     MakeRegister(int slot, const RegisterType registerType = RegisterType::Undefined);
+RegisterPtr                     MakeRegister(int slot, int space = 0, const RegisterType registerType = RegisterType::Undefined);
 
 // Makes a new bracket expression with the specified sub expression (source area is copied).
 BracketExprPtr                  MakeBracketExpr(const ExprPtr& expr);

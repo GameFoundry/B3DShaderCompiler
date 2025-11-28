@@ -431,7 +431,7 @@ struct SwitchCase : public AST
     std::vector<StmntPtr>   stmnts; // Statement list (switch-case does not require a braced code block).
 };
 
-// Register (e.g. ": register(t0)").
+// Register (e.g. ": register(t0, space0)").
 struct Register : public AST
 {
     AST_INTERFACE(Register);
@@ -444,6 +444,7 @@ struct Register : public AST
     ShaderTarget    shaderTarget    = ShaderTarget::Undefined;  // Shader target (or profile). Undefined means all targets are affected.
     RegisterType    registerType    = RegisterType::Undefined;  // Type of the register. Must not be undefined.
     int             slot            = 0;                        // Zero-based register slot index. By default 0.
+    int             space           = -1;
 };
 
 // Pack offset.

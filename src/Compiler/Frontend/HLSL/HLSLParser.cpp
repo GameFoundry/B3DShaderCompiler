@@ -472,40 +472,45 @@ RegisterPtr HLSLParser::ParseRegister(bool parseColon)
     Accept(Tokens::Register);
     Accept(Tokens::LBracket);
 
+    /* Try to parse a space identifier (e.g. "space2"), returns true if successful */
+    auto tryParseSpace = [&](const std::string& ident) -> bool
+    {
+        if (ident.substr(0, 5) == "space" && ident.size() > 5)
+        {
+            ast->space = ParseIntLiteral(ident.substr(5), GetScanner().PreviousToken().get());
+            return true;
+        }
+        return false;
+    };
+
     auto typeIdent = ParseIdent();
 
-    /* Parse optional shader profile */
-    if (Is(Tokens::Comma))
+    /* Check if this is a space identifier (must check before register type since 's' is a valid register) */
+   if (!tryParseSpace(typeIdent))
     {
-        ast->shaderTarget = HLSLShaderProfileToTarget(typeIdent);
+        /* Get register type and slot index from type identifier */
+        ast->registerType = CharToRegisterType(typeIdent.front());
 
-        //TODO: only report a warning (or rather an error), if all valid profiles are checked correctly
-        //if (ast->shaderTarget == ShaderTarget::Undefined)
-        //    Warning("unknown shader profile: '" + typeIdent + "'");
-
-        AcceptIt();
-        typeIdent = ParseIdent();
+        if (ast->registerType == RegisterType::Undefined)
+        {
+            /* Validate register type and slot index */
+            Warning(R_UnknownSlotRegister(typeIdent.substr(0, 1)));
+        }
+        else
+        {
+            if (typeIdent.size() > 1)
+                ast->slot = ParseIntLiteral(typeIdent.substr(1), GetScanner().PreviousToken().get());
+        }
     }
 
-    /* Set area offset to register type character */
-    ast->area.Offset(GetScanner().PreviousToken()->Pos());
-
-    /* Get register type and slot index from type identifier */
-    ast->registerType = CharToRegisterType(typeIdent.front());
-
-    if (typeIdent.size() > 1)
-        ast->slot = ParseIntLiteral(typeIdent.substr(1), GetScanner().PreviousToken().get());
-
-    /* Validate register type and slot index */
-    if (ast->registerType == RegisterType::Undefined)
-        Warning(R_UnknownSlotRegister(typeIdent.substr(0, 1)));
-
-    /* Parse optional sub component (is only added to slot index) */
-    if (Is(Tokens::LParen))
+    /* Parse optional space after comma (e.g. "t0, space2") */
+    if (Is(Tokens::Comma))
     {
         AcceptIt();
-        ast->slot += ParseIntLiteral();
-        Accept(Tokens::RParen);
+        auto spaceIdent = ParseIdent();
+
+        if (!tryParseSpace(spaceIdent))
+            Warning(R_UnknownSlotRegister(spaceIdent.substr(0, 1)));
     }
 
     Accept(Tokens::RBracket);

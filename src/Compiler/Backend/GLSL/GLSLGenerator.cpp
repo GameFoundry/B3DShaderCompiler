@@ -1562,7 +1562,10 @@ void GLSLGenerator::WriteLayoutBinding(const std::vector<RegisterPtr>& slotRegis
     if (explicitBinding_)
     {
         if (auto slotRegister = Register::GetForTarget(slotRegisters, GetShaderTarget()))
-            Write("binding = " + std::to_string(slotRegister->slot));
+        {
+            Write("set = " + std::to_string(slotRegister->space));
+            Write(", binding = " + std::to_string(slotRegister->slot));
+        }
     }
 }
 

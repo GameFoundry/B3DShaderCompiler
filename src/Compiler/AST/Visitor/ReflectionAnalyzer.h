@@ -45,6 +45,7 @@ class ReflectionAnalyzer : private Visitor
         void Warning(const std::string& msg, const AST* ast = nullptr);
 
         int GetBindingPoint(const std::vector<RegisterPtr>& slotRegisters) const;
+        int GetBindingSet(const std::vector<RegisterPtr>& slotRegisters) const;
 
         int EvaluateConstExprInt(Expr& expr);
         float EvaluateConstExprFloat(Expr& expr);

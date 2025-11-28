@@ -234,7 +234,7 @@ std::string Register::ToString() const
     else
         s += RegisterTypeToString(registerType);
 
-    s += "[" + std::to_string(slot) + "])";
+    s += "[" + std::to_string(slot) + ", space" + std::to_string(space) + "])";
 
     return s;
 }

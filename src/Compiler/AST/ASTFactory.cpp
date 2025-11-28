@@ -310,12 +310,13 @@ ArrayExprPtr MakeArrayExprSplit(const ArrayExprPtr& arrayExpr, std::size_t split
     return arrayExpr;
 }
 
-RegisterPtr MakeRegister(int slot, const RegisterType registerType)
+RegisterPtr MakeRegister(int slot, int space, const RegisterType registerType)
 {
     auto ast = MakeAST<Register>();
     {
         ast->registerType   = registerType;
         ast->slot           = slot;
+        ast->space          = space;
     }
     return ast;
 }
