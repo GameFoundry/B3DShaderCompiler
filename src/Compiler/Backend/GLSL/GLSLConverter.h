@@ -166,6 +166,7 @@ class GLSLConverter : public Converter
         Options                     options_;
         bool                        autoBinding_        = false;
         int                         autoBindingSlot_    = 0;
+        std::set<int>               usedBindingSlots_;
         bool                        separateSamplers_   = true;
 
         /*

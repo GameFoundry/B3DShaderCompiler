@@ -1784,10 +1784,21 @@ void GLSLConverter::ConvertSlotRegisters(std::vector<RegisterPtr>& slotRegisters
 {
     if (autoBinding_)
     {
-        const int space = !slotRegisters.empty() ? slotRegisters.front()->space : 0;
+        if (!slotRegisters.empty())
+        {
+            /* Explicit register specified - preserve it and mark slot as used */
+            usedBindingSlots_.insert(slotRegisters.front()->slot);
+        }
+        else
+        {
+            /* No explicit register - assign next available auto-binding slot */
+            while (usedBindingSlots_.count(autoBindingSlot_) > 0)
+                autoBindingSlot_++;
 
-        slotRegisters.clear();
-        slotRegisters.push_back(ASTFactory::MakeRegister(autoBindingSlot_++, space));
+            slotRegisters.push_back(ASTFactory::MakeRegister(autoBindingSlot_));
+            usedBindingSlots_.insert(autoBindingSlot_);
+            autoBindingSlot_++;
+        }
     }
 }
 
