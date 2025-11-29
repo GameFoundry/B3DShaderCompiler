@@ -277,14 +277,14 @@ install(
 
 IF(MSVC)
 	install(
-		FILES ${CMAKE_BINARY_DIR}/xsc_core.dir/RelWithDebInfo/xsc_core.pdb 
-		DESTINATION ${INSTALL_OUTPUT_PATH} 
+		FILES ${BUILD_OUTPUT_PATH}/RelWithDebInfo/xsc_core.pdb
+		DESTINATION ${INSTALL_OUTPUT_PATH}
 		CONFIGURATIONS RelWithDebInfo
 	)
 
 	install(
-		FILES ${CMAKE_BINARY_DIR}/xsc_core.dir/Debug/xsc_core.pdb 
-		DESTINATION ${INSTALL_OUTPUT_PATH} 
+		FILES ${BUILD_OUTPUT_PATH}/Debug/xsc_core.pdb
+		DESTINATION ${INSTALL_OUTPUT_PATH}
 		CONFIGURATIONS Debug
-	)	
+	)
 ENDIF(MSVC)
