@@ -443,7 +443,7 @@ struct Register : public AST
 
     ShaderTarget    shaderTarget    = ShaderTarget::Undefined;  // Shader target (or profile). Undefined means all targets are affected.
     RegisterType    registerType    = RegisterType::Undefined;  // Type of the register. Must not be undefined.
-    int             slot            = 0;                        // Zero-based register slot index. By default 0.
+    int             slot            = -1;                       // Zero-based register slot index. -1 means unassigned (auto-bind).
     int             space           = 0;
 };
 

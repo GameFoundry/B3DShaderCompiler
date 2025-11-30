@@ -104,8 +104,11 @@ void GLSLConverter::ConvertASTPrimary(Program& program, const ShaderInput& input
     versionOut_         = outputDesc.shaderVersion;
     options_            = outputDesc.options;
     autoBinding_        = outputDesc.options.autoBinding;
-    autoBindingSlot_    = outputDesc.options.autoBindingStartSlot;
     separateSamplers_   = outputDesc.options.separateSamplers;
+
+    /* Initialize per-space auto-binding slots */
+    for (int i = 0; i < maxBindingSpaces_; ++i)
+        autoBindingSlot_[i] = outputDesc.options.autoBindingStartSlot;
 
     /* Visit program AST */
     Visit(&program);
@@ -1786,18 +1789,40 @@ void GLSLConverter::ConvertSlotRegisters(std::vector<RegisterPtr>& slotRegisters
     {
         if (!slotRegisters.empty())
         {
-            /* Explicit register specified - preserve it and mark slot as used */
-            usedBindingSlots_.insert(slotRegisters.front()->slot);
+            auto& reg = slotRegisters.front();
+            int space = reg->space;
+
+            if (space < 0 || space >= maxBindingSpaces_)
+                space = 0;
+
+            if (reg->slot >= 0)
+                usedBindingSlots_[space].insert(reg->slot);
+            else
+            {
+                while (usedBindingSlots_[space].count(autoBindingSlot_[space]) > 0)
+                    autoBindingSlot_[space]++;
+
+                reg->slot = autoBindingSlot_[space];
+                usedBindingSlots_[space].insert(autoBindingSlot_[space]);
+                autoBindingSlot_[space]++;
+            }
         }
         else
         {
-            /* No explicit register - assign next available auto-binding slot */
-            while (usedBindingSlots_.count(autoBindingSlot_) > 0)
-                autoBindingSlot_++;
+            while (usedBindingSlots_[0].count(autoBindingSlot_[0]) > 0)
+                autoBindingSlot_[0]++;
 
-            slotRegisters.push_back(ASTFactory::MakeRegister(autoBindingSlot_));
-            usedBindingSlots_.insert(autoBindingSlot_);
-            autoBindingSlot_++;
+            slotRegisters.push_back(ASTFactory::MakeRegister(autoBindingSlot_[0]));
+            usedBindingSlots_[0].insert(autoBindingSlot_[0]);
+            autoBindingSlot_[0]++;
+        }
+    }
+    else
+    {
+        for (auto& reg : slotRegisters)
+        {
+            if (reg->slot < 0)
+                reg->slot = 0;
         }
     }
 }

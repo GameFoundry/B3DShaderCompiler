@@ -163,10 +163,11 @@ class GLSLConverter : public Converter
         ShaderTarget                shaderTarget_       = ShaderTarget::VertexShader;
         OutputShaderVersion         versionOut_         = OutputShaderVersion::GLSL;
 
+        static constexpr int        maxBindingSpaces_   = 8;
         Options                     options_;
         bool                        autoBinding_        = false;
-        int                         autoBindingSlot_    = 0;
-        std::set<int>               usedBindingSlots_;
+        int                         autoBindingSlot_[maxBindingSpaces_] = {};   // Per-space auto-binding slot counters
+        std::set<int>               usedBindingSlots_[maxBindingSpaces_];       // Per-space used binding slots
         bool                        separateSamplers_   = true;
 
         /*
