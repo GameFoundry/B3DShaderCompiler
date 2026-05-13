@@ -73,6 +73,12 @@ enum class OutputShaderVersion
 
     VKSL450 = (0x00020000 + 450),   //!< VKSL 4.50 (Vulkan 1.0).
     VKSL    = 0x0002ffff,           //!< Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
+
+    HLSL5   = (0x00030000 + 500),   //!< HLSL Shader Model 5.0 (DirectX 11). Used for HLSL-to-HLSL "round-trip" output.
+    HLSL    = 0x0003ffff,           //!< Auto-detect HLSL output version. Currently aliased to HLSL5.
+
+    PSSL2   = (0x00040000 + 200),   //!< PSSL 2.0 (PlayStation Shader Language 2, PS5).
+    PSSL    = 0x0004ffff,           //!< Auto-detect PSSL output version. Currently aliased to PSSL2.
 };
 
 //! Intermediate language enumeration.
@@ -110,6 +116,12 @@ XSC_EXPORT bool IsLanguageESSL(const OutputShaderVersion shaderVersion);
 
 //! Returns true if the shader output version specifies VKSL (for Vulkan).
 XSC_EXPORT bool IsLanguageVKSL(const OutputShaderVersion shaderVersion);
+
+//! Returns true if the shader output version specifies HLSL (DirectX).
+XSC_EXPORT bool IsLanguageHLSL(const OutputShaderVersion shaderVersion);
+
+//! Returns true if the shader output version specifies PSSL (PlayStation 5).
+XSC_EXPORT bool IsLanguagePSSL(const OutputShaderVersion shaderVersion);
 
 //! Returns the enumeration of all supported GLSL extensions as a map of extension name and version number.
 XSC_EXPORT const std::map<std::string, int>& GetGLSLExtensionEnumeration();

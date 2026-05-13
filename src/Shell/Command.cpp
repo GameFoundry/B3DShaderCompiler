@@ -208,7 +208,9 @@ HelpDescriptor VersionOutCommand::Help() const
         (
             "GLSL[110, 120, 130, 140, 150, 330, 400, 410, 420, 430, 440, 450],\n"   \
             "ESSL[100, 300, 310, 320],\n"                                           \
-            "VKSL[450]"
+            "VKSL[450],\n"                                                          \
+            "HLSL[5],\n"                                                            \
+            "PSSL[2]"
         ),
         HelpCategory::Main
     };
@@ -243,6 +245,12 @@ void VersionOutCommand::Run(CommandLine& cmdLine, ShellState& state)
 
             { "VKSL450", OutputShaderVersion::VKSL450 },
             { "VKSL",    OutputShaderVersion::VKSL    },
+
+            { "HLSL5",   OutputShaderVersion::HLSL5   },
+            { "HLSL",    OutputShaderVersion::HLSL    },
+
+            { "PSSL2",   OutputShaderVersion::PSSL2   },
+            { "PSSL",    OutputShaderVersion::PSSL    },
         },
         R_InvalidShaderVersionOut(version)
     );

@@ -72,6 +72,12 @@ XSC_EXPORT std::string ToString(const OutputShaderVersion shaderVersion)
         
         case OutputShaderVersion::VKSL450:  return "VKSL 4.50";
         case OutputShaderVersion::VKSL:     return "VKSL";
+
+        case OutputShaderVersion::HLSL5:    return "HLSL 5.0";
+        case OutputShaderVersion::HLSL:     return "HLSL";
+
+        case OutputShaderVersion::PSSL2:    return "PSSL 2.0";
+        case OutputShaderVersion::PSSL:     return "PSSL";
     }
     return "";
 }
@@ -108,6 +114,16 @@ XSC_EXPORT bool IsLanguageESSL(const OutputShaderVersion shaderVersion)
 XSC_EXPORT bool IsLanguageVKSL(const OutputShaderVersion shaderVersion)
 {
     return (shaderVersion == OutputShaderVersion::VKSL450 || shaderVersion == OutputShaderVersion::VKSL);
+}
+
+XSC_EXPORT bool IsLanguageHLSL(const OutputShaderVersion shaderVersion)
+{
+    return (shaderVersion == OutputShaderVersion::HLSL5 || shaderVersion == OutputShaderVersion::HLSL);
+}
+
+XSC_EXPORT bool IsLanguagePSSL(const OutputShaderVersion shaderVersion)
+{
+    return (shaderVersion == OutputShaderVersion::PSSL2 || shaderVersion == OutputShaderVersion::PSSL);
 }
 
 XSC_EXPORT const std::map<std::string, int>& GetGLSLExtensionEnumeration()

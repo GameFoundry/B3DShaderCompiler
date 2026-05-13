@@ -21,6 +21,14 @@
 #include "HLSLAnalyzer.h"
 #include "HLSLIntrinsics.h"
 
+#ifdef XSC_BUILD_HLSL
+#include "HLSLGenerator.h"
+#endif
+
+#ifdef XSC_BUILD_PSSL2
+#include "PSSL2Generator.h"
+#endif
+
 #include <sstream>
 #include <stdexcept>
 
@@ -242,6 +250,26 @@ bool Compiler::CompileShaderPrimary(
         /* Generate GLSL output code */
         GLSLGenerator generator(log_);
         generatorResult = generator.GenerateCode(*program, inputDesc, outputDesc, log_);
+    }
+    else if (IsLanguageHLSL(outputDesc.shaderVersion))
+    {
+#ifdef XSC_BUILD_HLSL
+        /* Generate HLSL output code (no AST rewriting - HLSL in, HLSL out) */
+        HLSLGenerator generator(log_);
+        generatorResult = generator.GenerateCode(*program, inputDesc, outputDesc, log_);
+#else
+        return ReturnWithError("HLSL backend not built: rebuild with -DXSC_BUILD_HLSL=ON");
+#endif
+    }
+    else if (IsLanguagePSSL(outputDesc.shaderVersion))
+    {
+#ifdef XSC_BUILD_PSSL2
+        /* Generate PSSL2 output (proprietary backend; lives in src/Compiler/Backend/PSSL2/) */
+        PSSL2Generator generator(log_);
+        generatorResult = generator.GenerateCode(*program, inputDesc, outputDesc, log_);
+#else
+        return ReturnWithError("PSSL2 backend not built: rebuild with -DXSC_BUILD_PSSL2=ON and the PSSL2 submodule initialized");
+#endif
     }
 
     // BEGIN BANSHEE CHANGES

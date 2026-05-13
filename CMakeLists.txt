@@ -19,7 +19,16 @@ set(INSTALL_OUTPUT_PATH "${CMAKE_CURRENT_BINARY_DIR}/install" CACHE PATH "Instal
 option(XSC_BUILD_SHELL "Build XShaderCompiler shell 'xsc'" OFF)
 option(XSC_BUILD_DEBUGGER "Build XShaderCompiler debugger 'xsc_debugger' (requires wxWidgets library)" OFF)
 option(XSC_BUILD_TESTS "Build all test applications" OFF)
+option(XSC_BUILD_HLSL "Build the HLSL output backend" OFF)
+option(XSC_BUILD_HLSL_ROUNDTRIP_TESTS "Register CTest cases that round-trip HLSL test shaders through xsc and validate the output with fxc.exe (Windows only)" OFF)
+option(XSC_BUILD_PSSL2 "Build the PSSL2 output backend (requires src/Compiler/Backend/PSSL2/ submodule)" OFF)
 option(XSC_SHARED_LIB "Build XShaderCompiler as a shared library instead of a static library" OFF)
+
+# PSSL2 backend derives from HLSLGenerator, so it requires the HLSL backend.
+if(XSC_BUILD_PSSL2 AND NOT XSC_BUILD_HLSL)
+	set(XSC_BUILD_HLSL ON CACHE BOOL "Build the HLSL output backend" FORCE)
+	message(STATUS "XSC_BUILD_PSSL2=ON implies XSC_BUILD_HLSL=ON (PSSL2 backend derives from HLSLGenerator)")
+endif()
 
 # Wrappers
 option(XSC_BUILD_WRAPPER_C "Build C wrapper (ISO C99)" OFF)
@@ -58,6 +67,10 @@ if(XSC_ENABLE_SPIRV)
 	add_definitions(-DXSC_ENABLE_SPIRV)
 endif()
 
+if(XSC_BUILD_HLSL)
+	add_definitions(-DXSC_BUILD_HLSL)
+endif()
+
 
 # === Global files ===
 
@@ -71,6 +84,21 @@ file(GLOB FilesSrcCompilerFrontendHLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Fronte
 file(GLOB FilesSrcCompilerFrontendGLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Frontend/GLSL/*.*)
 file(GLOB FilesSrcCompilerBackend ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/*.*)
 file(GLOB FilesSrcCompilerBackendGLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/*.*)
+
+if(XSC_BUILD_HLSL)
+	file(GLOB FilesSrcCompilerBackendHLSL
+		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/*.cpp
+		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/*.h)
+endif()
+
+if(XSC_BUILD_PSSL2 AND EXISTS "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/PSSL2Generator.h")
+	file(GLOB FilesSrcCompilerBackendPSSL2
+		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/*.cpp
+		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/*.h)
+	add_compile_definitions(XSC_BUILD_PSSL2)
+elseif(XSC_BUILD_PSSL2)
+	message(WARNING "XSC_BUILD_PSSL2=ON but src/Compiler/Backend/PSSL2/ is empty or missing — submodule not initialized. PSSL2 backend will NOT be built.")
+endif()
 file(GLOB FilesSrcCompilerReport ${PROJECT_SOURCE_DIR}/src/Compiler/Report/*.*)
 file(GLOB FilesSrcCompilerCFG ${PROJECT_SOURCE_DIR}/src/Compiler/CFG/*.*)
 file(GLOB FilesSrcShell ${PROJECT_SOURCE_DIR}/src/Shell/*.*)
@@ -101,6 +129,14 @@ set(
 	${FilesSrcCompilerReport}
 )
 
+if(XSC_BUILD_HLSL)
+	set(FilesCompilerAll ${FilesCompilerAll} ${FilesSrcCompilerBackendHLSL})
+endif()
+
+if(XSC_BUILD_PSSL2 AND FilesSrcCompilerBackendPSSL2)
+	set(FilesCompilerAll ${FilesCompilerAll} ${FilesSrcCompilerBackendPSSL2})
+endif()
+
 if(XSC_ENABLE_SPIRV)
 	set(FilesCompilerAll ${FilesCompilerAll} ${FilesSrcCompilerCFG})
 endif()
@@ -121,6 +157,14 @@ source_group("src\\Backend" FILES ${FilesSrcCompilerBackend})
 source_group("src\\Backend\\GLSL" FILES ${FilesSrcCompilerBackendGLSL})
 source_group("src\\Report" FILES ${FilesSrcCompilerReport})
 
+if(XSC_BUILD_HLSL)
+	source_group("src\\Backend\\HLSL" FILES ${FilesSrcCompilerBackendHLSL})
+endif()
+
+if(XSC_BUILD_PSSL2 AND FilesSrcCompilerBackendPSSL2)
+	source_group("src\\Backend\\PSSL2" FILES ${FilesSrcCompilerBackendPSSL2})
+endif()
+
 if(XSC_ENABLE_SPIRV)
 	source_group("src\\CFG" FILES ${FilesSrcCompilerCFG})
 endif()
@@ -139,6 +183,14 @@ include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Frontend/GLSL")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Report")
+
+if(XSC_BUILD_HLSL)
+	include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL")
+endif()
+
+if(XSC_BUILD_PSSL2 AND FilesSrcCompilerBackendPSSL2)
+	include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2")
+endif()
 
 if(XSC_ENABLE_SPIRV)
 	include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/CFG")
@@ -229,6 +281,18 @@ if(XSC_BUILD_TESTS)
 		set_target_properties(XscTest_CWrapper PROPERTIES LINKER_LANGUAGE C)
 		target_link_libraries(XscTest_CWrapper xsc_core_c)
 	endif()
+endif()
+
+# === Backend round-trip tests ===
+# Each backend self-registers its CTest cases (find_program, enable_testing,
+# add_test) inside its own tests/*Tests.cmake. The root just includes them
+# when the corresponding backend is built.
+if(XSC_BUILD_HLSL AND XSC_BUILD_HLSL_ROUNDTRIP_TESTS)
+	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/tests/HLSLTests.cmake")
+endif()
+
+if(XSC_BUILD_PSSL2 AND EXISTS "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
+	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
 endif()
 
 
