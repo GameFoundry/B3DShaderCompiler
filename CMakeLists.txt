@@ -22,12 +22,13 @@ option(XSC_BUILD_TESTS "Build all test applications" OFF)
 option(XSC_BUILD_HLSL "Build the HLSL output backend" OFF)
 option(XSC_BUILD_HLSL_ROUNDTRIP_TESTS "Register CTest cases that round-trip HLSL test shaders through xsc and validate the output with fxc.exe (Windows only)" OFF)
 option(XSC_BUILD_PSSL2 "Build the PSSL2 output backend (requires src/Compiler/Backend/PSSL2/ submodule)" OFF)
+option(XSC_BUILD_PSSL2_ROUNDTRIP_TESTS "Register CTest cases that round-trip HLSL test shaders through xsc -Vout PSSL2 and validate the output with prospero-wave-psslc" OFF)
 option(XSC_SHARED_LIB "Build XShaderCompiler as a shared library instead of a static library" OFF)
 
-# PSSL2 backend derives from HLSLGenerator, so it requires the HLSL backend.
-if(XSC_BUILD_PSSL2 AND NOT XSC_BUILD_HLSL)
-	set(XSC_BUILD_HLSL ON CACHE BOOL "Build the HLSL output backend" FORCE)
-	message(STATUS "XSC_BUILD_PSSL2=ON implies XSC_BUILD_HLSL=ON (PSSL2 backend derives from HLSLGenerator)")
+# The HLSL backend sources are needed whenever the HLSL backend OR any backend derived from it is built.
+set(XSC_NEEDS_HLSL_BACKEND OFF)
+if(XSC_BUILD_HLSL OR XSC_BUILD_PSSL2)
+	set(XSC_NEEDS_HLSL_BACKEND ON)
 endif()
 
 # Wrappers
@@ -85,7 +86,7 @@ file(GLOB FilesSrcCompilerFrontendGLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Fronte
 file(GLOB FilesSrcCompilerBackend ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/*.*)
 file(GLOB FilesSrcCompilerBackendGLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/*.*)
 
-if(XSC_BUILD_HLSL)
+if(XSC_NEEDS_HLSL_BACKEND)
 	file(GLOB FilesSrcCompilerBackendHLSL
 		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/*.cpp
 		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/*.h)
@@ -129,7 +130,7 @@ set(
 	${FilesSrcCompilerReport}
 )
 
-if(XSC_BUILD_HLSL)
+if(XSC_NEEDS_HLSL_BACKEND)
 	set(FilesCompilerAll ${FilesCompilerAll} ${FilesSrcCompilerBackendHLSL})
 endif()
 
@@ -157,7 +158,7 @@ source_group("src\\Backend" FILES ${FilesSrcCompilerBackend})
 source_group("src\\Backend\\GLSL" FILES ${FilesSrcCompilerBackendGLSL})
 source_group("src\\Report" FILES ${FilesSrcCompilerReport})
 
-if(XSC_BUILD_HLSL)
+if(XSC_NEEDS_HLSL_BACKEND)
 	source_group("src\\Backend\\HLSL" FILES ${FilesSrcCompilerBackendHLSL})
 endif()
 
@@ -184,7 +185,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Report")
 
-if(XSC_BUILD_HLSL)
+if(XSC_NEEDS_HLSL_BACKEND)
 	include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL")
 endif()
 
@@ -291,7 +292,7 @@ if(XSC_BUILD_HLSL AND XSC_BUILD_HLSL_ROUNDTRIP_TESTS)
 	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/tests/HLSLTests.cmake")
 endif()
 
-if(XSC_BUILD_PSSL2 AND EXISTS "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
+if(XSC_BUILD_PSSL2 AND XSC_BUILD_PSSL2_ROUNDTRIP_TESTS AND EXISTS "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
 	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
 endif()
 

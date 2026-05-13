@@ -6,6 +6,7 @@
  */
 
 #include "HLSLGenerator.h"
+#include "HLSLKeywords.h"
 #include "TypeDenoter.h"
 #include "Exception.h"
 #include "Helper.h"
@@ -102,176 +103,59 @@ const std::string& HLSLGenerator::SemanticKeyword(Semantic s) const
         }
     }
 
-// HLSL spelling for an AttributeType enum value.
+// HLSL spelling for an AttributeType enum value
 const std::string& HLSLGenerator::AttributeTypeKeyword(AttributeType t) const
 {
-        static const std::string undef               = "";
-        static const std::string a_branch            = "branch";
-        static const std::string a_call              = "call";
-        static const std::string a_flatten           = "flatten";
-        static const std::string a_ifAll             = "ifAll";
-        static const std::string a_ifAny             = "ifAny";
-        static const std::string a_isolate           = "isolate";
-        static const std::string a_loop              = "loop";
-        static const std::string a_maxexports        = "maxexports";
-        static const std::string a_maxInstr          = "maxInstructionCount";
-        static const std::string a_maxTempReg        = "maxtempreg";
-        static const std::string a_noExprOpt         = "noExpressionOptimizations";
-        static const std::string a_predicate         = "predicate";
-        static const std::string a_predBlock         = "predicateBlock";
-        static const std::string a_reduceTempReg     = "reduceTempRegUsage";
-        static const std::string a_removeUnusedInp   = "removeUnusedInputs";
-        static const std::string a_sampreg           = "sampreg";
-        static const std::string a_unroll            = "unroll";
-        static const std::string a_unused            = "unused";
-        static const std::string a_xps               = "xps";
-
-        static const std::string a_domain            = "domain";
-        static const std::string a_earlyDepth        = "earlydepthstencil";
-        static const std::string a_instance          = "instance";
-        static const std::string a_maxTessFactor     = "maxtessfactor";
-        static const std::string a_maxVertexCount    = "maxvertexcount";
-        static const std::string a_numthreads        = "numthreads";
-        static const std::string a_outputCP          = "outputcontrolpoints";
-        static const std::string a_outputTop         = "outputtopology";
-        static const std::string a_partitioning      = "partitioning";
-        static const std::string a_patchSize         = "patchsize";
-        static const std::string a_patchConstFunc    = "patchconstantfunc";
-
-        switch (t)
-        {
-            case AttributeType::Branch:                    return a_branch;
-            case AttributeType::Call:                      return a_call;
-            case AttributeType::Flatten:                   return a_flatten;
-            case AttributeType::IfAll:                     return a_ifAll;
-            case AttributeType::IfAny:                     return a_ifAny;
-            case AttributeType::Isolate:                   return a_isolate;
-            case AttributeType::Loop:                      return a_loop;
-            case AttributeType::MaxExports:                return a_maxexports;
-            case AttributeType::MaxInstructionCount:       return a_maxInstr;
-            case AttributeType::MaxTempReg:                return a_maxTempReg;
-            case AttributeType::NoExpressionOptimizations: return a_noExprOpt;
-            case AttributeType::Predicate:                 return a_predicate;
-            case AttributeType::PredicateBlock:            return a_predBlock;
-            case AttributeType::ReduceTempRegUsage:        return a_reduceTempReg;
-            case AttributeType::RemoveUnusedInputs:        return a_removeUnusedInp;
-            case AttributeType::SampReg:                   return a_sampreg;
-            case AttributeType::Unroll:                    return a_unroll;
-            case AttributeType::Unused:                    return a_unused;
-            case AttributeType::Xps:                       return a_xps;
-            case AttributeType::Domain:                    return a_domain;
-            case AttributeType::EarlyDepthStencil:         return a_earlyDepth;
-            case AttributeType::Instance:                  return a_instance;
-            case AttributeType::MaxTessFactor:             return a_maxTessFactor;
-            case AttributeType::MaxVertexCount:            return a_maxVertexCount;
-            case AttributeType::NumThreads:                return a_numthreads;
-            case AttributeType::OutputControlPoints:       return a_outputCP;
-            case AttributeType::OutputTopology:            return a_outputTop;
-            case AttributeType::Partitioning:              return a_partitioning;
-            case AttributeType::PatchSize:                 return a_patchSize;
-            case AttributeType::PatchConstantFunc:         return a_patchConstFunc;
-            default:                                       return undef;
-        }
-    }
+    static const std::string undef = "";
+    if (auto p = AttributeTypeToHLSLKeyword(t))
+        return *p;
+    return undef;
+}
 
 // HLSL spelling for a StorageClass.
 const std::string& HLSLGenerator::StorageClassKeyword(StorageClass s) const
 {
-        static const std::string undef        = "";
-        static const std::string s_extern     = "extern";
-        static const std::string s_precise    = "precise";
-        static const std::string s_shared     = "shared";
-        static const std::string s_grpshared  = "groupshared";
-        static const std::string s_static     = "static";
-        static const std::string s_volatile   = "volatile";
-
-        switch (s)
-        {
-            case StorageClass::Extern:      return s_extern;
-            case StorageClass::Precise:     return s_precise;
-            case StorageClass::Shared:      return s_shared;
-            case StorageClass::GroupShared: return s_grpshared;
-            case StorageClass::Static:      return s_static;
-            case StorageClass::Volatile:    return s_volatile;
-            default:                        return undef;
-        }
-    }
+    static const std::string undef = "";
+    if (auto p = StorageClassToHLSLKeyword(s))
+        return *p;
+    return undef;
+}
 
 // HLSL spelling for an InterpModifier.
 const std::string& HLSLGenerator::InterpModifierKeyword(InterpModifier m) const
 {
-        static const std::string undef       = "";
-        static const std::string m_nointerp  = "nointerpolation";
-        static const std::string m_linear    = "linear";
-        static const std::string m_centroid  = "centroid";
-        static const std::string m_noperspe  = "noperspective";
-        static const std::string m_sample    = "sample";
-
-        switch (m)
-        {
-            case InterpModifier::NoInterpolation: return m_nointerp;
-            case InterpModifier::Linear:          return m_linear;
-            case InterpModifier::Centroid:        return m_centroid;
-            case InterpModifier::NoPerspective:   return m_noperspe;
-            case InterpModifier::Sample:          return m_sample;
-            default:                              return undef;
-        }
-    }
+    static const std::string undef = "";
+    if (auto p = InterpModifierToHLSLKeyword(m))
+        return *p;
+    return undef;
+}
 
 // HLSL spelling for a TypeModifier.
 const std::string& HLSLGenerator::TypeModifierKeyword(TypeModifier m) const
 {
-        static const std::string undef       = "";
-        static const std::string m_const     = "const";
-        static const std::string m_rowmajor  = "row_major";
-        static const std::string m_colmajor  = "column_major";
-        static const std::string m_snorm     = "snorm";
-        static const std::string m_unorm     = "unorm";
-
-        switch (m)
-        {
-            case TypeModifier::Const:       return m_const;
-            case TypeModifier::RowMajor:    return m_rowmajor;
-            case TypeModifier::ColumnMajor: return m_colmajor;
-            case TypeModifier::SNorm:       return m_snorm;
-            case TypeModifier::UNorm:       return m_unorm;
-            default:                        return undef;
-        }
-    }
+    static const std::string undef = "";
+    if (auto p = TypeModifierToHLSLKeyword(m))
+        return *p;
+    return undef;
+}
 
 // HLSL spelling for a SamplerType.
 const std::string& HLSLGenerator::SamplerTypeKeyword(SamplerType t) const
 {
-        static const std::string undef                     = "";
-        static const std::string s_sampler1D               = "sampler1D";
-        static const std::string s_sampler2D               = "sampler2D";
-        static const std::string s_sampler3D               = "sampler3D";
-        static const std::string s_samplerCUBE             = "samplerCUBE";
-        static const std::string s_sampler1DShadow         = "sampler1DShadow";
-        static const std::string s_sampler2DShadow         = "sampler2DShadow";
-        static const std::string s_samplerState            = "SamplerState";
-        static const std::string s_samplerCmpState         = "SamplerComparisonState";
-
-        switch (t)
-        {
-            case SamplerType::Sampler1D:              return s_sampler1D;
-            case SamplerType::Sampler2D:              return s_sampler2D;
-            case SamplerType::Sampler3D:              return s_sampler3D;
-            case SamplerType::SamplerCube:            return s_samplerCUBE;
-            case SamplerType::Sampler1DShadow:        return s_sampler1DShadow;
-            case SamplerType::Sampler2DShadow:        return s_sampler2DShadow;
-            case SamplerType::SamplerState:           return s_samplerState;
-            case SamplerType::SamplerComparisonState: return s_samplerCmpState;
-            default:                                  return undef;
-        }
-    }
+    static const std::string undef = "";
+    if (auto p = SamplerTypeToHLSLKeyword(t))
+        return *p;
+    return undef;
+}
 
 // HLSL spelling for a BufferType (e.g. "StructuredBuffer", "RWTexture2D").
-// Delegates to BufferTypeToString in ASTEnums.cpp so the HLSL backend stays in
-// sync with the shared lookup. Returns by value (BufferTypeToString does the same).
+// Returns by value to match the existing virtual signature (some BufferType
+// dialects synthesize names rather than looking them up).
 std::string HLSLGenerator::BufferTypeKeyword(BufferType t) const
 {
-    return BufferTypeToString(t);
+    if (auto p = BufferTypeToHLSLKeyword(t))
+        return *p;
+    return "";
 }
 
 

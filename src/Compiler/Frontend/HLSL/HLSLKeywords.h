@@ -36,11 +36,20 @@ PrimitiveType HLSLKeywordToPrimitiveType(const std::string& keyword);
 // Returns the storage class for the specified HLSL keyword or throws an std::runtime_error on failure.
 StorageClass HLSLKeywordToStorageClass(const std::string& keyword);
 
+// Returns the HLSL keyword spelling for the specified storage class, or null if unknown.
+const std::string* StorageClassToHLSLKeyword(const StorageClass t);
+
 // Returns the interpolation modifier for the specified HLSL keyword or throws an std::runtime_error on failure.
 InterpModifier HLSLKeywordToInterpModifier(const std::string& keyword);
 
+// Returns the HLSL keyword spelling for the specified interpolation modifier, or null if unknown.
+const std::string* InterpModifierToHLSLKeyword(const InterpModifier t);
+
 // Returns the type modifier for the specified HLSL keyword or throws an std::runtime_error on failure.
 TypeModifier HLSLKeywordToTypeModifier(const std::string& keyword);
+
+// Returns the HLSL keyword spelling for the specified type modifier, or null if unknown.
+const std::string* TypeModifierToHLSLKeyword(const TypeModifier t);
 
 // Returns the uniform buffer type for the specified HLSL keyword or throws an std::runtime_error on failure.
 UniformBufferType HLSLKeywordToUniformBufferType(const std::string& keyword);
@@ -48,11 +57,20 @@ UniformBufferType HLSLKeywordToUniformBufferType(const std::string& keyword);
 // Returns the buffer type for the specified HLSL keyword or throws an std::runtime_error on failure.
 BufferType HLSLKeywordToBufferType(const std::string& keyword);
 
+// Returns the HLSL keyword spelling for the specified buffer type, or null if unknown.
+const std::string* BufferTypeToHLSLKeyword(const BufferType t);
+
 // Returns the sampler type for the specified HLSL keyword or throws an std::runtime_error on failure.
 SamplerType HLSLKeywordToSamplerType(const std::string& keyword);
 
+// Returns the HLSL keyword spelling for the specified sampler type, or null if unknown.
+const std::string* SamplerTypeToHLSLKeyword(const SamplerType t);
+
 // Returns the attribute type for the specified HLSL keyword or returns AttributeType::Undefined.
 AttributeType HLSLKeywordToAttributeType(const std::string& keyword);
+
+// Returns the HLSL keyword spelling for the specified attribute type, or null if unknown.
+const std::string* AttributeTypeToHLSLKeyword(const AttributeType t);
 
 // Returns the attribute value for the specified HLSL keyword or returns AttributeValue::Undefined.
 AttributeValue HLSLKeywordToAttributeValue(const std::string& keyword);

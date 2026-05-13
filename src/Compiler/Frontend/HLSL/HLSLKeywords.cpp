@@ -724,10 +724,16 @@ static Dictionary<StorageClass> GenerateStorageClassDict()
     };
 }
 
+static const auto g_storageClassDictHLSL = GenerateStorageClassDict();
+
 StorageClass HLSLKeywordToStorageClass(const std::string& keyword)
 {
-    static const auto typeDict = GenerateStorageClassDict();
-    return MapKeywordToType(typeDict, keyword, R_StorageClass);
+    return MapKeywordToType(g_storageClassDictHLSL, keyword, R_StorageClass);
+}
+
+const std::string* StorageClassToHLSLKeyword(const StorageClass t)
+{
+    return g_storageClassDictHLSL.EnumToString(t);
 }
 
 
@@ -747,10 +753,16 @@ static Dictionary<InterpModifier> GenerateInterpModifierDict()
     };
 }
 
+static const auto g_interpModifierDictHLSL = GenerateInterpModifierDict();
+
 InterpModifier HLSLKeywordToInterpModifier(const std::string& keyword)
 {
-    static const auto typeDict = GenerateInterpModifierDict();
-    return MapKeywordToType(typeDict, keyword, R_InterpModifier);
+    return MapKeywordToType(g_interpModifierDictHLSL, keyword, R_InterpModifier);
+}
+
+const std::string* InterpModifierToHLSLKeyword(const InterpModifier t)
+{
+    return g_interpModifierDictHLSL.EnumToString(t);
 }
 
 
@@ -771,10 +783,16 @@ static Dictionary<TypeModifier> GenerateTypeModifierDict()
     };
 }
 
+static const auto g_typeModifierDictHLSL = GenerateTypeModifierDict();
+
 TypeModifier HLSLKeywordToTypeModifier(const std::string& keyword)
 {
-    static const auto typeDict = GenerateTypeModifierDict();
-    return MapKeywordToType(typeDict, keyword, R_TypeModifier);
+    return MapKeywordToType(g_typeModifierDictHLSL, keyword, R_TypeModifier);
+}
+
+const std::string* TypeModifierToHLSLKeyword(const TypeModifier t)
+{
+    return g_typeModifierDictHLSL.EnumToString(t);
 }
 
 
@@ -843,10 +861,16 @@ static Dictionary<BufferType> GenerateBufferTypeDict()
     };
 }
 
+static const auto g_bufferTypeDictHLSL = GenerateBufferTypeDict();
+
 BufferType HLSLKeywordToBufferType(const std::string& keyword)
 {
-    static const auto typeDict = GenerateBufferTypeDict();
-    return MapKeywordToType(typeDict, keyword, R_BufferType);
+    return MapKeywordToType(g_bufferTypeDictHLSL, keyword, R_BufferType);
+}
+
+const std::string* BufferTypeToHLSLKeyword(const BufferType t)
+{
+    return g_bufferTypeDictHLSL.EnumToString(t);
 }
 
 
@@ -872,10 +896,16 @@ static Dictionary<SamplerType> GenerateSamplerTypeDict()
     };
 }
 
+static const auto g_samplerTypeDictHLSL = GenerateSamplerTypeDict();
+
 SamplerType HLSLKeywordToSamplerType(const std::string& keyword)
 {
-    static const auto typeDict = GenerateSamplerTypeDict();
-    return MapKeywordToType(typeDict, keyword, R_SamplerType);
+    return MapKeywordToType(g_samplerTypeDictHLSL, keyword, R_SamplerType);
+}
+
+const std::string* SamplerTypeToHLSLKeyword(const SamplerType t)
+{
+    return g_samplerTypeDictHLSL.EnumToString(t);
 }
 
 
@@ -937,10 +967,16 @@ static Dictionary<AttributeType> GenerateAttributeTypeDict()
     };
 }
 
+static const auto g_attributeTypeDictHLSL = GenerateAttributeTypeDict();
+
 AttributeType HLSLKeywordToAttributeType(const std::string& keyword)
 {
-    static const auto typeDict = GenerateAttributeTypeDict();
-    return typeDict.StringToEnumOrDefault(keyword, AttributeType::Undefined);
+    return g_attributeTypeDictHLSL.StringToEnumOrDefault(keyword, AttributeType::Undefined);
+}
+
+const std::string* AttributeTypeToHLSLKeyword(const AttributeType t)
+{
+    return g_attributeTypeDictHLSL.EnumToString(t);
 }
 
 
