@@ -107,10 +107,11 @@ struct Extensions
 {
     enum : unsigned int
     {
-        LayoutAttribute = (1 << 0), //!< Enables the 'layout' attribute extension (e.g. "[layout(rgba8)]").
-        SpaceAttribute  = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
+        LayoutAttribute   = (1 << 0), //!< Enables the 'layout' attribute extension (e.g. "[layout(rgba8)]").
+        SpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
+        PSSL2SrtSignature = (1 << 2),
 
-        All             = (~0u)     //!< All extensions.
+        All               = (~0u)     //!< All extensions.
     };
 };
 
