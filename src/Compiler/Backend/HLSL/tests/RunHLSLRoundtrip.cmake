@@ -15,6 +15,12 @@ foreach(_v XSC FXC SHADER ENTRY FXC_PROFILE XSC_STAGE OUT_DIR)
     endif()
 endforeach()
 
+# XSC_EXTRA_FLAGS is optional. Accept it as a CMake-list (";"-delimited) so
+# multiple flags can be forwarded; passed straight through to xsc.
+if(NOT DEFINED XSC_EXTRA_FLAGS)
+    set(XSC_EXTRA_FLAGS "")
+endif()
+
 file(MAKE_DIRECTORY "${OUT_DIR}")
 
 get_filename_component(SHADER_NAME "${SHADER}" NAME_WE)
@@ -36,7 +42,7 @@ endif()
 set(XSC_OUTPUT "${OUT_DIR}/${SHADER_NAME}.${ENTRY}.${XSC_EXT}")
 
 execute_process(
-    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vout HLSL5 -E "${ENTRY}" -T "${XSC_STAGE}" "${SHADER}"
+    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vout HLSL5 -E "${ENTRY}" -T "${XSC_STAGE}" ${XSC_EXTRA_FLAGS} "${SHADER}"
     RESULT_VARIABLE XSC_RESULT
     OUTPUT_VARIABLE XSC_OUT
     ERROR_VARIABLE  XSC_ERR

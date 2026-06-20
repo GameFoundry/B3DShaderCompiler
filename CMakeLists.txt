@@ -21,6 +21,7 @@ option(XSC_BUILD_DEBUGGER "Build XShaderCompiler debugger 'xsc_debugger' (requir
 option(XSC_BUILD_TESTS "Build all test applications" OFF)
 option(XSC_BUILD_HLSL "Build the HLSL output backend" OFF)
 option(XSC_BUILD_HLSL_ROUNDTRIP_TESTS "Register CTest cases that round-trip HLSL test shaders through xsc and validate the output with fxc.exe (Windows only)" OFF)
+option(XSC_BUILD_GLSL_ROUNDTRIP_TESTS "Register CTest cases that round-trip test shaders through xsc -Vout VKSL450 and validate the output to SPIR-V with glslangValidator" OFF)
 option(XSC_BUILD_PSSL2 "Build the PSSL2 output backend (requires src/Compiler/Backend/PSSL2/ submodule)" OFF)
 option(XSC_BUILD_PSSL2_ROUNDTRIP_TESTS "Register CTest cases that round-trip HLSL test shaders through xsc -Vout PSSL2 and validate the output with prospero-wave-psslc" OFF)
 option(XSC_SHARED_LIB "Build XShaderCompiler as a shared library instead of a static library" OFF)
@@ -294,6 +295,11 @@ endif()
 
 if(XSC_BUILD_PSSL2 AND XSC_BUILD_PSSL2_ROUNDTRIP_TESTS AND EXISTS "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
 	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
+endif()
+
+# GLSL is the core backend (always built), so this only gates on the test flag.
+if(XSC_BUILD_GLSL_ROUNDTRIP_TESTS)
+	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests/GLSLTests.cmake")
 endif()
 
 

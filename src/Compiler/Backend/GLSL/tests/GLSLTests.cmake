@@ -1,0 +1,98 @@
+# GLSLTests.cmake
+#
+# Self-contained CTest registration for the GLSL/SPIR-V round-trip suite.
+# Included from the root CMakeLists.txt when XSC_BUILD_GLSL_ROUNDTRIP_TESTS=ON.
+# Locates glslangValidator (Vulkan SDK) and registers per-case tests that run
+# `xsc -Vout VKSL450` on shaders from test/ and validate the result all the way
+# to SPIR-V with glslangValidator -V.
+#
+# Two kinds of cases:
+#   * round-trip (positive): xsc must succeed and the output must pass SPIR-V
+#     validation (RunGLSLRoundtrip.cmake).
+#   * expect-error (negative): xsc must REJECT the shader with a specific
+#     diagnostic (RunXscExpectError.cmake).
+
+find_program(GLSLANG_VALIDATOR_EXECUTABLE
+    NAMES glslangValidator
+    HINTS
+        "$ENV{VULKAN_SDK}/Bin"
+        "$ENV{VULKAN_SDK}/bin"
+        "$ENV{VULKAN_SDK}/Bin32"
+)
+
+if(NOT GLSLANG_VALIDATOR_EXECUTABLE)
+    message(STATUS "glslangValidator not found; GLSL round-trip tests will not be registered.")
+    return()
+endif()
+
+if(NOT TARGET xsc)
+    message(FATAL_ERROR "XSC_BUILD_GLSL_ROUNDTRIP_TESTS requires XSC_BUILD_SHELL=ON.")
+endif()
+
+message(STATUS "GLSL round-trip tests: using glslangValidator at ${GLSLANG_VALIDATOR_EXECUTABLE}")
+enable_testing()
+
+set(XSC_BIN "$<TARGET_FILE:xsc>")
+set(_GLSL_TESTS_DIR "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests")
+set(_GLSL_OUT_DIR   "${CMAKE_BINARY_DIR}/glsl_roundtrip")
+
+# --- Positive round-trip cases ---------------------------------------------
+# Pipe-delimited: shader|entry|stage. All opaque-struct cases compile with the
+# OpaqueStructTypes language extension enabled.
+set(XSC_GLSL_ROUNDTRIP_CASES
+    "OpaqueStructTest1|main|frag"   # struct passed to function (assignment form)
+    "OpaqueStructTest2|main|frag"   # aggregate-initializer form
+    "OpaqueStructTest3|main|frag"   # mixed POD + opaque members
+    "OpaqueStructTest4|main|frag"   # two opaque-bearing struct params
+    "OpaqueStructTest5|main|frag"   # chained calls passing the struct through
+    "OpaqueStructTest6|main|frag"   # straight-line reassignment (via helper)
+    "OpaqueStructTest7|main|frag"   # straight-line reassignment (inline access)
+)
+
+foreach(case IN LISTS XSC_GLSL_ROUNDTRIP_CASES)
+    string(REPLACE "|" ";" _parts "${case}")
+    list(GET _parts 0 _shader)
+    list(GET _parts 1 _entry)
+    list(GET _parts 2 _stage)
+
+    add_test(
+        NAME    glsl_roundtrip.${_shader}.${_entry}
+        COMMAND ${CMAKE_COMMAND}
+            -DXSC=${XSC_BIN}
+            -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
+            -DENTRY=${_entry}
+            -DXSC_STAGE=${_stage}
+            -DOUT_DIR=${_GLSL_OUT_DIR}
+            "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON"
+            -P ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    )
+    set_tests_properties(glsl_roundtrip.${_shader}.${_entry} PROPERTIES LABELS "glsl-roundtrip;opaque-struct")
+endforeach()
+
+# --- Negative (expect-error) cases -----------------------------------------
+# Each registers a shader that must be rejected, pinned to its diagnostic.
+# Helper: add_expect_error(<name> <shader> <entry> <stage> <regex> <extra flags...>)
+function(add_expect_error _name _shader _entry _stage _regex)
+    add_test(
+        NAME    glsl_reject.${_name}
+        COMMAND ${CMAKE_COMMAND}
+            -DXSC=${XSC_BIN}
+            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
+            -DENTRY=${_entry}
+            -DXSC_STAGE=${_stage}
+            -DOUT_DIR=${_GLSL_OUT_DIR}
+            "-DEXPECT_REGEX=${_regex}"
+            ${ARGN}
+            -P ${_GLSL_TESTS_DIR}/RunXscExpectError.cmake
+    )
+    set_tests_properties(glsl_reject.${_name} PROPERTIES LABELS "glsl-roundtrip;opaque-struct;negative")
+endfunction()
+
+# With the extension enabled, these specific unsupported patterns are rejected.
+add_expect_error(Global       OpaqueStructRejectGlobal       main frag "cannot be declared as globals"        "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(Entry        OpaqueStructRejectEntry        main frag "entry-point parameters or return types" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(CBuffer      OpaqueStructRejectCBuffer      main frag "constant-buffer members"               "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(CondReassign OpaqueStructRejectCondReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+# Without the extension, the struct is rejected outright (no extra flags).
+add_expect_error(ExtDisabled  OpaqueStructRejectExtDisabled  main frag "opaque-struct' language extension is enabled")
