@@ -33,6 +33,34 @@ static ShaderVersion GetShaderModel(const InputShaderVersion v)
     }
 }
 
+// Returns the opaque-bearing StructDecl referenced by the type denoter, or null.
+// Unwraps aliases and one level of array (so `MyStruct[N]` also resolves).
+static StructDecl* ResolveOpaqueBearingStructDecl(const TypeDenoterPtr& typeDen)
+{
+    if (!typeDen)
+        return nullptr;
+
+    const TypeDenoter* t = &typeDen->GetAliased();
+    if (auto arr = t->As<ArrayTypeDenoter>())
+        t = (arr->subTypeDenoter ? &arr->subTypeDenoter->GetAliased() : nullptr);
+
+    if (!t)
+        return nullptr;
+
+    if (auto structTypeDen = t->As<StructTypeDenoter>())
+    {
+        auto sd = structTypeDen->structDeclRef;
+        if (sd && sd->HasOpaqueMember())
+            return sd;
+    }
+
+    return nullptr;
+}
+
+static bool TypeDenoterIsArray(const TypeDenoterPtr& typeDen)
+{
+    return typeDen && typeDen->GetAliased().IsArray();
+}
 
 /*
  * HLSLAnalyzer class
@@ -275,6 +303,61 @@ IMPLEMENT_VISIT_PROC(StructDecl)
             Error(R_InvalidTypeModifierForMemberField, typeSpecifier);
     }
 
+    /* Validation for opaque-bearing structs: reject patterns the converter cannot handle. */
+    if (ast->HasOpaqueMember())
+    {
+        /* Reject the struct outright unless the OpaqueStructTypes extension is enabled. */
+        #ifdef XSC_ENABLE_LANGUAGE_EXT
+        if (!extensions_(Extensions::OpaqueStructTypes))
+        #endif
+        {
+            Error(R_OpaqueStructExtDisabled(ast->ToString()), ast);
+            return;
+        }
+
+        /* Member functions on opaque-bearing structs are disallowed. */
+        if (!ast->funcMembers.empty())
+            Error(R_OpaqueStructNoMemberFunc(ast->ToString()), ast);
+
+        /* Members must be a single opaque VarDecl (no arrays), or a non-opaque-bearing
+           struct (no nesting), or POD. */
+        for (const auto& member : ast->varMembers)
+        {
+            const auto& memberType = member->typeSpecifier->GetTypeDenoter()->GetAliased();
+
+            /* Reject member that is itself an opaque-bearing struct. */
+            if (auto structTypeDen = memberType.As<StructTypeDenoter>())
+            {
+                if (auto sd = structTypeDen->structDeclRef)
+                {
+                    if (sd->HasOpaqueMember())
+                        Error(R_OpaqueStructNoNested(sd->ToString()), member.get());
+                }
+            }
+
+            /* Reject array of opaque type. */
+            if (auto arrTypeDen = memberType.As<ArrayTypeDenoter>())
+            {
+                if (arrTypeDen->subTypeDenoter)
+                {
+                    const auto& subAliased = arrTypeDen->subTypeDenoter->GetAliased();
+                    if (subAliased.IsBuffer() || subAliased.IsSampler())
+                        Error(R_OpaqueStructNoArrayMember(member->ToString()), member.get());
+                }
+            }
+
+            /* Reject opaque member with explicit array dimensions on its VarDecl. */
+            if (memberType.IsBuffer() || memberType.IsSampler())
+            {
+                for (const auto& vd : member->varDecls)
+                {
+                    if (!vd->arrayDims.empty())
+                        Error(R_OpaqueStructNoArrayMember(vd->ident), vd.get());
+                }
+            }
+        }
+    }
+
     /* Report warning if structure is empty */
     if (WarnEnabled(Warnings::EmptyStatementBody) && ast->NumMemberVariables() == 0)
         Warning(R_TypeHasNoMemberVariables(ast->ToString()), ast);
@@ -314,9 +397,42 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
     AnalyzeExtAttributes(ast->declStmntRef->attribs, ast->returnType->typeDenoter->GetSub());
     #endif // XSC_ENABLE_LANGUAGE_EXT
 
+    /* Disallow returning an opaque-bearing struct by value: the alias map cannot
+       propagate opaque resources across the call boundary. */
+    if (auto returnStruct = ResolveOpaqueBearingStructDecl(ast->returnType->typeDenoter))
+        Error(R_OpaqueStructNoReturn(returnStruct->ToString()), ast->returnType.get());
+
     /* Analyze parameter type denoters (required before function can be registered in symbol table) */
     for (auto& param : ast->parameters)
         AnalyzeTypeDenoter(param->typeSpecifier->typeDenoter, param->typeSpecifier.get());
+
+    /* Disallow opaque-bearing structs in entry-point I/O (in any form). */
+    if (isEntryPoint || isSecondaryEntryPoint)
+    {
+        if (auto returnStruct = ResolveOpaqueBearingStructDecl(ast->returnType->typeDenoter))
+            Error(R_OpaqueStructNoEntryParam(returnStruct->ToString()), ast->returnType.get());
+        for (auto& param : ast->parameters)
+        {
+            if (auto paramStruct = ResolveOpaqueBearingStructDecl(param->typeSpecifier->typeDenoter))
+                Error(R_OpaqueStructNoEntryParam(paramStruct->ToString()), param.get());
+        }
+    }
+
+    /* Disallow arrays of opaque-bearing struct in function parameters, and 'out'/'inout'. */
+    for (auto& param : ast->parameters)
+    {
+        if (TypeDenoterIsArray(param->typeSpecifier->typeDenoter))
+        {
+            if (auto sd = ResolveOpaqueBearingStructDecl(param->typeSpecifier->typeDenoter))
+                Error(R_OpaqueStructNoArray(sd->ToString()), param.get());
+        }
+
+        if (auto sd = ResolveOpaqueBearingStructDecl(param->typeSpecifier->typeDenoter))
+        {
+            if (param->typeSpecifier->isOutput)
+                Error(R_OpaqueStructNoOutInout(sd->ToString()), param.get());
+        }
+    }
 
     /* Only use global symbol table for non-member functions */
     if (!ast->IsMemberFunction())
@@ -416,6 +532,26 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
     /* Analyze type specifier and variable declarations */
     Visit(ast->typeSpecifier);
     Visit(ast->varDecls);
+
+    /* Validation for opaque-bearing struct usage. Skips struct member declarations
+       (those are handled by the StructDecl visitor) and function parameters
+       (handled by the FunctionDecl visitor). */
+    if (auto opaqueStruct = ResolveOpaqueBearingStructDecl(ast->typeSpecifier->typeDenoter))
+    {
+        const bool isStructMember   = InsideStructDecl();
+        const bool isParameter      = ast->flags(VarDeclStmnt::isParameter);
+        if (!isStructMember && !isParameter)
+        {
+            if (InsideUniformBufferDecl())
+                Error(R_OpaqueStructNoCBuffer(opaqueStruct->ToString()), ast);
+            else if (InsideGlobalScope())
+                Error(R_OpaqueStructNoGlobal(opaqueStruct->ToString()), ast);
+
+            /* Reject arrays of opaque-bearing struct everywhere. */
+            if (TypeDenoterIsArray(ast->typeSpecifier->typeDenoter))
+                Error(R_OpaqueStructNoArray(opaqueStruct->ToString()), ast);
+        }
+    }
 
     #ifdef XSC_ENABLE_LANGUAGE_EXT
 

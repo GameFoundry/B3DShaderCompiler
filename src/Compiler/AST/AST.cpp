@@ -775,6 +775,29 @@ bool StructDecl::HasNonSystemValueMembers() const
     return false;
 }
 
+bool StructDecl::HasOpaqueMember() const
+{
+    if (baseStructRef && baseStructRef->HasOpaqueMember())
+        return true;
+
+    for (const auto& member : varMembers)
+    {
+        const auto& typeDen = member->typeSpecifier->GetTypeDenoter()->GetAliased();
+        if (typeDen.IsBuffer() || typeDen.IsSampler())
+            return true;
+
+        if (auto structTypeDen = typeDen.As<StructTypeDenoter>())
+        {
+            if (auto subStruct = structTypeDen->structDeclRef)
+            {
+                if (subStruct->HasOpaqueMember())
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+
 std::size_t StructDecl::NumMemberVariables(bool onlyNonStaticMembers) const
 {
     std::size_t n = 0;

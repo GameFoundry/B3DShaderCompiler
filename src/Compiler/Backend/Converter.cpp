@@ -212,6 +212,14 @@ bool Converter::IsSamplerStateTypeDenoter(const TypeDenoterPtr& typeDenoter) con
     return false;
 }
 
+bool Converter::IsOpaqueTypeDenoter(const TypeDenoterPtr& typeDenoter)
+{
+    if (!typeDenoter)
+        return false;
+    const auto& aliased = typeDenoter->GetAliased();
+    return aliased.IsBuffer() || aliased.IsSampler();
+}
+
 void Converter::RemoveDeadCode(std::vector<StmntPtr>& stmnts)
 {
     for (auto it = stmnts.begin(); it != stmnts.end();)

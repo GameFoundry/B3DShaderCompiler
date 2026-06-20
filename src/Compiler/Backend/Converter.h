@@ -30,13 +30,18 @@ class Converter : public VisitorTracker
 {
     
     public:
-        
+
         // Converts the specified AST for the target language.
         bool ConvertAST(
             Program& program,
             const ShaderInput& inputDesc,
             const ShaderOutput& outputDesc
         );
+
+        // Returns true if the specified type denoter is an opaque (resource) type:
+        // a texture/buffer (BufferTypeDenoter) or any sampler (SamplerTypeDenoter).
+        // Public so backend pre-passes (e.g. OpaqueStructResolver) can use it.
+        static bool IsOpaqueTypeDenoter(const TypeDenoterPtr& typeDenoter);
 
     protected:
 

@@ -110,6 +110,7 @@ struct Extensions
         LayoutAttribute   = (1 << 0), //!< Enables the 'layout' attribute extension (e.g. "[layout(rgba8)]").
         SpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
         PSSL2SrtSignature = (1 << 2),
+        OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions. Without this flag, opaque types in structs are rejected.
 
         All               = (~0u)     //!< All extensions.
     };

@@ -1396,10 +1396,11 @@ void LanguageExtensionCommand::Run(CommandLine& cmdLine, ShellState& state)
     const auto flags = MapStringToType<unsigned int>(
         type,
         {
-            { "all",          Extensions::All               },
-            { "attr-layout",  Extensions::LayoutAttribute   },
-            { "attr-space",   Extensions::SpaceAttribute    },
-            { "pssl2-srt",    Extensions::PSSL2SrtSignature },
+            { "all",           Extensions::All               },
+            { "attr-layout",   Extensions::LayoutAttribute   },
+            { "attr-space",    Extensions::SpaceAttribute    },
+            { "pssl2-srt",     Extensions::PSSL2SrtSignature },
+            { "opaque-struct", Extensions::OpaqueStructTypes },
         },
         R_InvalidExtensionType(type)
     );

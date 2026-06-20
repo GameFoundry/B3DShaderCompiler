@@ -8,6 +8,7 @@
 #include "GLSLGenerator.h"
 #include "GLSLExtensionAgent.h"
 #include "GLSLConverter.h"
+#include "OpaqueStructResolver.h"
 #include "GLSLKeywords.h"
 #include "GLSLIntrinsics.h"
 #include "ReferenceAnalyzer.h"
@@ -1063,6 +1064,7 @@ void GLSLGenerator::PreProcessAST(const ShaderInput& inputDesc, const ShaderOutp
 {
     PreProcessStructParameterAnalyzer(inputDesc);
     PreProcessTypeConverter();
+    PreProcessOpaqueStructResolver(outputDesc);
     PreProcessExprConverterPrimary();
     PreProcessGLSLConverter(inputDesc, outputDesc);
     PreProcessFuncNameConverter();
@@ -1110,6 +1112,24 @@ void GLSLGenerator::PreProcessGLSLConverter(const ShaderInput& inputDesc, const 
     /* Convert AST for GLSL code generation (Before reference analysis) */
     GLSLConverter converter;
     converter.ConvertAST(*GetProgram(), inputDesc, outputDesc);
+}
+
+void GLSLGenerator::PreProcessOpaqueStructResolver(const ShaderOutput& outputDesc)
+{
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    /* This pass only does work when the OpaqueStructTypes language extension is
+       enabled. Without it, the HLSL analyzer has already rejected opaque-bearing
+       structs, so the resolver would be a no-op anyway. */
+    if (!extensions_(Extensions::OpaqueStructTypes))
+        return;
+
+    /* GLSL/SPIR-V disallows opaque types as struct members. Rewrite functions to
+       flatten opaque struct parameters into individual opaque parameters, strip the
+       opaque members from struct declarations, and resolve `s.opaqueField` member
+       accesses to the corresponding global resource. */
+    OpaqueStructResolver resolver;
+    resolver.Resolve(*GetProgram(), outputDesc.nameMangling);
+    #endif
 }
 
 void GLSLGenerator::PreProcessFuncNameConverter()

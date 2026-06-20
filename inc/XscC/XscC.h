@@ -50,6 +50,7 @@ enum XscExtensions
     XscExtLayoutAttribute   = (1 << 0), //!< Enables the 'layout' attribute (e.g. "[layout(rgba8)]").
     XscExtSpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
     XscExtPSSL2SrtSignature = (1 << 2),
+    XscExtOpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
 
     XscExtAll               = (~0u)     //!< All extensions.
 };

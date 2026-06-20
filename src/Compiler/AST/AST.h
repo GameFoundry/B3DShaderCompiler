@@ -702,6 +702,10 @@ struct StructDecl : public Decl
     // Returns true if this structure has at least one member that is not a system value.
     bool HasNonSystemValueMembers() const;
 
+    // Returns true if this structure (transitively, including base structures and nested struct
+    // members) contains at least one opaque-typed member (Texture/Buffer/Sampler)
+    bool HasOpaqueMember() const;
+
     // Returns the total number of member variables (including all base structures).
     std::size_t NumMemberVariables(bool onlyNonStaticMembers = false) const;
 

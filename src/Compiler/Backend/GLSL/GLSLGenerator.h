@@ -148,6 +148,7 @@ class GLSLGenerator : public Generator
         void PreProcessAST(const ShaderInput& inputDesc, const ShaderOutput& outputDesc);
         void PreProcessStructParameterAnalyzer(const ShaderInput& inputDesc);
         void PreProcessTypeConverter();
+        void PreProcessOpaqueStructResolver(const ShaderOutput& outputDesc);
         void PreProcessExprConverterPrimary();
         void PreProcessGLSLConverter(const ShaderInput& inputDesc, const ShaderOutput& outputDesc);
         void PreProcessFuncNameConverter();
