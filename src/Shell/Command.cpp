@@ -209,8 +209,8 @@ HelpDescriptor VersionOutCommand::Help() const
             "GLSL[110, 120, 130, 140, 150, 330, 400, 410, 420, 430, 440, 450],\n"   \
             "ESSL[100, 300, 310, 320],\n"                                           \
             "VKSL[450],\n"                                                          \
-            "HLSL[5],\n"                                                            \
-            "PSSL[2]"
+            "HLSL[5]\n"                                                             \
+            "(plus any additional targets provided by registered backends)"
         ),
         HelpCategory::Main
     };
@@ -220,40 +220,12 @@ void VersionOutCommand::Run(CommandLine& cmdLine, ShellState& state)
 {
     const auto version = cmdLine.Accept();
 
-    state.outputDesc.shaderVersion = MapStringToType<OutputShaderVersion>(
-        version,
-        {
-            { "GLSL110", OutputShaderVersion::GLSL110 },
-            { "GLSL120", OutputShaderVersion::GLSL120 },
-            { "GLSL130", OutputShaderVersion::GLSL130 },
-            { "GLSL140", OutputShaderVersion::GLSL140 },
-            { "GLSL150", OutputShaderVersion::GLSL150 },
-            { "GLSL330", OutputShaderVersion::GLSL330 },
-            { "GLSL400", OutputShaderVersion::GLSL400 },
-            { "GLSL410", OutputShaderVersion::GLSL410 },
-            { "GLSL420", OutputShaderVersion::GLSL420 },
-            { "GLSL430", OutputShaderVersion::GLSL430 },
-            { "GLSL440", OutputShaderVersion::GLSL440 },
-            { "GLSL450", OutputShaderVersion::GLSL450 },
-            { "GLSL",    OutputShaderVersion::GLSL    },
+    /* The output target language is an opaque string validated against the set of
+       backends registered in this build (built-ins plus any optional backend). */
+    if (!IsTargetLanguageSupported(version))
+        throw std::invalid_argument(R_InvalidShaderVersionOut(version));
 
-            { "ESSL100", OutputShaderVersion::ESSL100 },
-            { "ESSL300", OutputShaderVersion::ESSL300 },
-            { "ESSL310", OutputShaderVersion::ESSL310 },
-            { "ESSL320", OutputShaderVersion::ESSL320 },
-            { "ESSL",    OutputShaderVersion::ESSL    },
-
-            { "VKSL450", OutputShaderVersion::VKSL450 },
-            { "VKSL",    OutputShaderVersion::VKSL    },
-
-            { "HLSL5",   OutputShaderVersion::HLSL5   },
-            { "HLSL",    OutputShaderVersion::HLSL    },
-
-            { "PSSL2",   OutputShaderVersion::PSSL2   },
-            { "PSSL",    OutputShaderVersion::PSSL    },
-        },
-        R_InvalidShaderVersionOut(version)
-    );
+    state.outputDesc.targetLanguage = version;
 }
 
 
@@ -605,7 +577,7 @@ void PresettingCommand::Run(CommandLine& cmdLine, ShellState& state)
                 /* Build command to run glslangValidator for the previous output file */
                 std::string cmd = "glslangValidator ";
                 
-                if (IsLanguageVKSL(shell->GetState().outputDesc.shaderVersion))
+                if (shell->GetState().outputDesc.targetLanguage.compare(0, 4, "VKSL") == 0)
                     cmd += "-V ";
 
                 cmd += '\"';
@@ -1399,7 +1371,7 @@ void LanguageExtensionCommand::Run(CommandLine& cmdLine, ShellState& state)
             { "all",           Extensions::All               },
             { "attr-layout",   Extensions::LayoutAttribute   },
             { "attr-space",    Extensions::SpaceAttribute    },
-            { "pssl2-srt",     Extensions::PSSL2SrtSignature },
+            { "srt",           Extensions::SrtSignature      },
             { "opaque-struct", Extensions::OpaqueStructTypes },
         },
         R_InvalidExtensionType(type)

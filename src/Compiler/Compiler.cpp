@@ -15,19 +15,13 @@
 #include "ASTPrinter.h"
 
 #include "GLSLPreProcessor.h"
-#include "GLSLGenerator.h"
 
 #include "HLSLParser.h"
 #include "HLSLAnalyzer.h"
 #include "HLSLIntrinsics.h"
 
-#ifdef XSC_BUILD_HLSL
-#include "HLSLGenerator.h"
-#endif
-
-#ifdef XSC_BUILD_PSSL2
-#include "PSSL2Generator.h"
-#endif
+#include "BackendRegistry.h"
+#include "Generator.h"
 
 #include <sstream>
 #include <stdexcept>
@@ -245,32 +239,13 @@ bool Compiler::CompileShaderPrimary(
 
     bool generatorResult = false;
 
-    if (IsLanguageGLSL(outputDesc.shaderVersion) || IsLanguageESSL(outputDesc.shaderVersion) || IsLanguageVKSL(outputDesc.shaderVersion))
+    if (const auto* backend = BackendRegistry::Instance().Find(outputDesc.targetLanguage))
     {
-        /* Generate GLSL output code */
-        GLSLGenerator generator(log_);
-        generatorResult = generator.GenerateCode(*program, inputDesc, outputDesc, log_);
+        auto generator = backend->factory(log_);
+        generatorResult = generator->GenerateCode(*program, inputDesc, outputDesc, log_);
     }
-    else if (IsLanguageHLSL(outputDesc.shaderVersion))
-    {
-#ifdef XSC_BUILD_HLSL
-        /* Generate HLSL output code (no AST rewriting - HLSL in, HLSL out) */
-        HLSLGenerator generator(log_);
-        generatorResult = generator.GenerateCode(*program, inputDesc, outputDesc, log_);
-#else
-        return ReturnWithError("HLSL backend not built: rebuild with -DXSC_BUILD_HLSL=ON");
-#endif
-    }
-    else if (IsLanguagePSSL(outputDesc.shaderVersion))
-    {
-#ifdef XSC_BUILD_PSSL2
-        /* Generate PSSL2 output (proprietary backend; lives in src/Compiler/Backend/PSSL2/) */
-        PSSL2Generator generator(log_);
-        generatorResult = generator.GenerateCode(*program, inputDesc, outputDesc, log_);
-#else
-        return ReturnWithError("PSSL2 backend not built: rebuild with -DXSC_BUILD_PSSL2=ON and the PSSL2 submodule initialized");
-#endif
-    }
+    else
+        return ReturnWithError("unsupported output target language '" + outputDesc.targetLanguage + "'");
 
     // BEGIN BANSHEE CHANGES
     //if (!generatorResult)

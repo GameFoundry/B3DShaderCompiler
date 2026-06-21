@@ -10,6 +10,7 @@
 
 
 #include <Xsc/Targets.h>
+#include "OutputShaderVersion.h"
 #include "Visitor.h"
 #include "ASTEnums.h"
 #include "ReportHandler.h"

@@ -10,6 +10,7 @@
 
 
 #include "Converter.h"
+#include "OutputShaderVersion.h"
 #include <functional>
 #include <set>
 

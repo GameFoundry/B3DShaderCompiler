@@ -6,11 +6,46 @@
  */
 
 #include <Xsc/Targets.h>
+#include "OutputShaderVersion.h"
 #include "GLSLExtensions.h"
 
 
 namespace Xsc
 {
+
+
+/* ===== Built-in output target-language identifiers ===== */
+
+namespace TargetLanguage
+{
+
+const char* const GLSL110 = "GLSL110";
+const char* const GLSL120 = "GLSL120";
+const char* const GLSL130 = "GLSL130";
+const char* const GLSL140 = "GLSL140";
+const char* const GLSL150 = "GLSL150";
+const char* const GLSL330 = "GLSL330";
+const char* const GLSL400 = "GLSL400";
+const char* const GLSL410 = "GLSL410";
+const char* const GLSL420 = "GLSL420";
+const char* const GLSL430 = "GLSL430";
+const char* const GLSL440 = "GLSL440";
+const char* const GLSL450 = "GLSL450";
+const char* const GLSL    = "GLSL";
+
+const char* const ESSL100 = "ESSL100";
+const char* const ESSL300 = "ESSL300";
+const char* const ESSL310 = "ESSL310";
+const char* const ESSL320 = "ESSL320";
+const char* const ESSL    = "ESSL";
+
+const char* const VKSL450 = "VKSL450";
+const char* const VKSL    = "VKSL";
+
+const char* const HLSL5   = "HLSL5";
+const char* const HLSL    = "HLSL";
+
+} // /namespace TargetLanguage
 
 
 XSC_EXPORT std::string ToString(const ShaderTarget target)
@@ -46,7 +81,7 @@ XSC_EXPORT std::string ToString(const InputShaderVersion shaderVersion)
     return "";
 }
 
-XSC_EXPORT std::string ToString(const OutputShaderVersion shaderVersion)
+std::string ToString(const OutputShaderVersion shaderVersion)
 {
     switch (shaderVersion)
     {
@@ -75,9 +110,6 @@ XSC_EXPORT std::string ToString(const OutputShaderVersion shaderVersion)
 
         case OutputShaderVersion::HLSL5:    return "HLSL 5.0";
         case OutputShaderVersion::HLSL:     return "HLSL";
-
-        case OutputShaderVersion::PSSL2:    return "PSSL 2.0";
-        case OutputShaderVersion::PSSL:     return "PSSL";
     }
     return "";
 }
@@ -101,29 +133,24 @@ XSC_EXPORT bool IsLanguageGLSL(const InputShaderVersion shaderVersion)
     return (shaderVersion >= InputShaderVersion::GLSL && shaderVersion <= InputShaderVersion::VKSL);
 }
 
-XSC_EXPORT bool IsLanguageGLSL(const OutputShaderVersion shaderVersion)
+bool IsLanguageGLSL(const OutputShaderVersion shaderVersion)
 {
     return ((shaderVersion >= OutputShaderVersion::GLSL110 && shaderVersion <= OutputShaderVersion::GLSL450) || shaderVersion == OutputShaderVersion::GLSL);
 }
 
-XSC_EXPORT bool IsLanguageESSL(const OutputShaderVersion shaderVersion)
+bool IsLanguageESSL(const OutputShaderVersion shaderVersion)
 {
     return ((shaderVersion >= OutputShaderVersion::ESSL100 && shaderVersion <= OutputShaderVersion::ESSL320) || shaderVersion == OutputShaderVersion::ESSL);
 }
 
-XSC_EXPORT bool IsLanguageVKSL(const OutputShaderVersion shaderVersion)
+bool IsLanguageVKSL(const OutputShaderVersion shaderVersion)
 {
     return (shaderVersion == OutputShaderVersion::VKSL450 || shaderVersion == OutputShaderVersion::VKSL);
 }
 
-XSC_EXPORT bool IsLanguageHLSL(const OutputShaderVersion shaderVersion)
+bool IsLanguageHLSL(const OutputShaderVersion shaderVersion)
 {
     return (shaderVersion == OutputShaderVersion::HLSL5 || shaderVersion == OutputShaderVersion::HLSL);
-}
-
-XSC_EXPORT bool IsLanguagePSSL(const OutputShaderVersion shaderVersion)
-{
-    return (shaderVersion == OutputShaderVersion::PSSL2 || shaderVersion == OutputShaderVersion::PSSL);
 }
 
 XSC_EXPORT const std::map<std::string, int>& GetGLSLExtensionEnumeration()

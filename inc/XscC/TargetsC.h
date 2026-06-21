@@ -47,32 +47,38 @@ enum XscInputShaderVersion
     XscEInputVKSL   = 0x0002ffff,   //!< GLSL (Vulkan).
 };
 
-//! Output shader version enumeration.
-enum XscOutputShaderVersion
-{
-    XscEOutputGLSL110   = 110,                 //!< GLSL 1.10 (OpenGL 2.0).
-    XscEOutputGLSL120   = 120,                 //!< GLSL 1.20 (OpenGL 2.1).
-    XscEOutputGLSL130   = 130,                 //!< GLSL 1.30 (OpenGL 3.0).
-    XscEOutputGLSL140   = 140,                 //!< GLSL 1.40 (OpenGL 3.1).
-    XscEOutputGLSL150   = 150,                 //!< GLSL 1.50 (OpenGL 3.2).
-    XscEOutputGLSL330   = 330,                 //!< GLSL 3.30 (OpenGL 3.3).
-    XscEOutputGLSL400   = 400,                 //!< GLSL 4.00 (OpenGL 4.0).
-    XscEOutputGLSL410   = 410,                 //!< GLSL 4.10 (OpenGL 4.1).
-    XscEOutputGLSL420   = 420,                 //!< GLSL 4.20 (OpenGL 4.2).
-    XscEOutputGLSL430   = 430,                 //!< GLSL 4.30 (OpenGL 4.3).
-    XscEOutputGLSL440   = 440,                 //!< GLSL 4.40 (OpenGL 4.4).
-    XscEOutputGLSL450   = 450,                 //!< GLSL 4.50 (OpenGL 4.5).
-    XscEOutputGLSL      = 0x0000ffff,          //!< Auto-detect minimal required GLSL version (for OpenGL 2+).
+/*
+Built-in output target-language identifiers. The output language is selected with
+a string (the XscShaderOutput.targetLanguage field) instead of an enumeration, so
+optional/proprietary backends can be added without the core naming them. Use
+XscIsTargetLanguageSupported() to discover whether a given optional backend is
+available in this build.
+*/
+#define XscTargetGLSL110    "GLSL110"
+#define XscTargetGLSL120    "GLSL120"
+#define XscTargetGLSL130    "GLSL130"
+#define XscTargetGLSL140    "GLSL140"
+#define XscTargetGLSL150    "GLSL150"
+#define XscTargetGLSL330    "GLSL330"
+#define XscTargetGLSL400    "GLSL400"
+#define XscTargetGLSL410    "GLSL410"
+#define XscTargetGLSL420    "GLSL420"
+#define XscTargetGLSL430    "GLSL430"
+#define XscTargetGLSL440    "GLSL440"
+#define XscTargetGLSL450    "GLSL450"
+#define XscTargetGLSL       "GLSL"
 
-    XscEOutputESSL100   = (0x00010000 + 100),  //!< ESSL 1.00 (OpenGL ES 2.0). \note Currently not supported!
-    XscEOutputESSL300   = (0x00010000 + 300),  //!< ESSL 3.00 (OpenGL ES 3.0). \note Currently not supported!
-    XscEOutputESSL310   = (0x00010000 + 310),  //!< ESSL 3.10 (OpenGL ES 3.1). \note Currently not supported!
-    XscEOutputESSL320   = (0x00010000 + 320),  //!< ESSL 3.20 (OpenGL ES 3.2). \note Currently not supported!
-    XscEOutputESSL      = 0x0001ffff,          //!< Auto-detect minimum required ESSL version (for OpenGL ES 2+). \note Currently not supported!
+#define XscTargetESSL100    "ESSL100"
+#define XscTargetESSL300    "ESSL300"
+#define XscTargetESSL310    "ESSL310"
+#define XscTargetESSL320    "ESSL320"
+#define XscTargetESSL       "ESSL"
 
-    XscEOutputVKSL450   = (0x00020000 + 450),  //!< VKSL 4.50 (Vulkan 1.0).
-    XscEOutputVKSL      = 0x0002ffff,           //!< Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
-};
+#define XscTargetVKSL450    "VKSL450"
+#define XscTargetVKSL       "VKSL"
+
+#define XscTargetHLSL5      "HLSL5"
+#define XscTargetHLSL       "HLSL"
 
 
 //! Returns the specified shader target as string.
@@ -81,23 +87,20 @@ XSC_EXPORT void XscShaderTargetToString(const enum XscShaderTarget target, char*
 //! Returns the specified shader input version as string.
 XSC_EXPORT void XscInputShaderVersionToString(const enum XscInputShaderVersion shaderVersion, char* str, size_t maxSize);
 
-//! Returns the specified shader output version as string.
-XSC_EXPORT void XscOutputShaderVersionToString(const enum XscOutputShaderVersion shaderVersion, char* str, size_t maxSize);
-
 //! Returns true if the shader input version specifies HLSL (for DirectX).
 XSC_EXPORT bool XscIsInputLanguageHLSL(const enum XscInputShaderVersion shaderVersion);
 
 //! Returns true if the shader input version specifies GLSL (for OpenGL, OpenGL ES, and Vulkan).
 XSC_EXPORT bool XscIsInputLanguageGLSL(const enum XscInputShaderVersion shaderVersion);
 
-//! Returns true if the shader output version specifies GLSL (for OpenGL 2+).
-XSC_EXPORT bool XscIsOutputLanguageGLSL(const enum XscOutputShaderVersion shaderVersion);
+//! Returns true if the specified output target language is supported by this build (i.e. a backend is registered for it).
+XSC_EXPORT bool XscIsTargetLanguageSupported(const char* targetLanguage);
 
-//! Returns true if the shader output version specifies ESSL (for OpenGL ES 2+).
-XSC_EXPORT bool XscIsOutputLanguageESSL(const enum XscOutputShaderVersion shaderVersion);
+//! Returns the number of output target languages supported by this build.
+XSC_EXPORT size_t XscGetSupportedTargetLanguageCount(void);
 
-//! Returns true if the shader output version specifies VKSL (for Vulkan).
-XSC_EXPORT bool XscIsOutputLanguageVKSL(const enum XscOutputShaderVersion shaderVersion);
+//! Writes the output target language identifier at the specified index (0 .. count-1) to the given buffer.
+XSC_EXPORT void XscGetSupportedTargetLanguage(size_t index, char* targetLanguage, size_t maxSize);
 
 /**
 \brief Returns the enumeration of all supported GLSL extensions as a map of extension name and version number.

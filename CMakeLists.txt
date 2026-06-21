@@ -1,7 +1,7 @@
 
 # === CMake lists for the XShaderCompiler - (09/10/2014) ===
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.13)
 project(XShaderCompiler)
 
 
@@ -22,15 +22,7 @@ option(XSC_BUILD_TESTS "Build all test applications" OFF)
 option(XSC_BUILD_HLSL "Build the HLSL output backend" OFF)
 option(XSC_BUILD_HLSL_ROUNDTRIP_TESTS "Register CTest cases that round-trip HLSL test shaders through xsc and validate the output with fxc.exe (Windows only)" OFF)
 option(XSC_BUILD_GLSL_ROUNDTRIP_TESTS "Register CTest cases that round-trip test shaders through xsc -Vout VKSL450 and validate the output to SPIR-V with glslangValidator" OFF)
-option(XSC_BUILD_PSSL2 "Build the PSSL2 output backend (requires src/Compiler/Backend/PSSL2/ submodule)" OFF)
-option(XSC_BUILD_PSSL2_ROUNDTRIP_TESTS "Register CTest cases that round-trip HLSL test shaders through xsc -Vout PSSL2 and validate the output with prospero-wave-psslc" OFF)
 option(XSC_SHARED_LIB "Build XShaderCompiler as a shared library instead of a static library" OFF)
-
-# The HLSL backend sources are needed whenever the HLSL backend OR any backend derived from it is built.
-set(XSC_NEEDS_HLSL_BACKEND OFF)
-if(XSC_BUILD_HLSL OR XSC_BUILD_PSSL2)
-	set(XSC_NEEDS_HLSL_BACKEND ON)
-endif()
 
 # Wrappers
 option(XSC_BUILD_WRAPPER_C "Build C wrapper (ISO C99)" OFF)
@@ -69,10 +61,6 @@ if(XSC_ENABLE_SPIRV)
 	add_definitions(-DXSC_ENABLE_SPIRV)
 endif()
 
-if(XSC_BUILD_HLSL)
-	add_definitions(-DXSC_BUILD_HLSL)
-endif()
-
 
 # === Global files ===
 
@@ -85,22 +73,6 @@ file(GLOB FilesSrcCompilerFrontend ${PROJECT_SOURCE_DIR}/src/Compiler/Frontend/*
 file(GLOB FilesSrcCompilerFrontendHLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Frontend/HLSL/*.*)
 file(GLOB FilesSrcCompilerFrontendGLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Frontend/GLSL/*.*)
 file(GLOB FilesSrcCompilerBackend ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/*.*)
-file(GLOB FilesSrcCompilerBackendGLSL ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/*.*)
-
-if(XSC_NEEDS_HLSL_BACKEND)
-	file(GLOB FilesSrcCompilerBackendHLSL
-		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/*.cpp
-		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/*.h)
-endif()
-
-if(XSC_BUILD_PSSL2 AND EXISTS "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/PSSL2Generator.h")
-	file(GLOB FilesSrcCompilerBackendPSSL2
-		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/*.cpp
-		${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/*.h)
-	add_compile_definitions(XSC_BUILD_PSSL2)
-elseif(XSC_BUILD_PSSL2)
-	message(WARNING "XSC_BUILD_PSSL2=ON but src/Compiler/Backend/PSSL2/ is empty or missing — submodule not initialized. PSSL2 backend will NOT be built.")
-endif()
 file(GLOB FilesSrcCompilerReport ${PROJECT_SOURCE_DIR}/src/Compiler/Report/*.*)
 file(GLOB FilesSrcCompilerCFG ${PROJECT_SOURCE_DIR}/src/Compiler/CFG/*.*)
 file(GLOB FilesSrcShell ${PROJECT_SOURCE_DIR}/src/Shell/*.*)
@@ -127,17 +99,8 @@ set(
 	${FilesSrcCompilerFrontendHLSL}
 	${FilesSrcCompilerFrontendGLSL}
 	${FilesSrcCompilerBackend}
-	${FilesSrcCompilerBackendGLSL}
 	${FilesSrcCompilerReport}
 )
-
-if(XSC_NEEDS_HLSL_BACKEND)
-	set(FilesCompilerAll ${FilesCompilerAll} ${FilesSrcCompilerBackendHLSL})
-endif()
-
-if(XSC_BUILD_PSSL2 AND FilesSrcCompilerBackendPSSL2)
-	set(FilesCompilerAll ${FilesCompilerAll} ${FilesSrcCompilerBackendPSSL2})
-endif()
 
 if(XSC_ENABLE_SPIRV)
 	set(FilesCompilerAll ${FilesCompilerAll} ${FilesSrcCompilerCFG})
@@ -156,16 +119,7 @@ source_group("src\\Frontend" FILES ${FilesSrcCompilerFrontend})
 source_group("src\\Frontend\\HLSL" FILES ${FilesSrcCompilerFrontendHLSL})
 source_group("src\\Frontend\\GLSL" FILES ${FilesSrcCompilerFrontendGLSL})
 source_group("src\\Backend" FILES ${FilesSrcCompilerBackend})
-source_group("src\\Backend\\GLSL" FILES ${FilesSrcCompilerBackendGLSL})
 source_group("src\\Report" FILES ${FilesSrcCompilerReport})
-
-if(XSC_NEEDS_HLSL_BACKEND)
-	source_group("src\\Backend\\HLSL" FILES ${FilesSrcCompilerBackendHLSL})
-endif()
-
-if(XSC_BUILD_PSSL2 AND FilesSrcCompilerBackendPSSL2)
-	source_group("src\\Backend\\PSSL2" FILES ${FilesSrcCompilerBackendPSSL2})
-endif()
 
 if(XSC_ENABLE_SPIRV)
 	source_group("src\\CFG" FILES ${FilesSrcCompilerCFG})
@@ -183,16 +137,10 @@ include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Frontend")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Frontend/HLSL")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Frontend/GLSL")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend")
-include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL")
 include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Report")
 
-if(XSC_NEEDS_HLSL_BACKEND)
-	include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL")
-endif()
-
-if(XSC_BUILD_PSSL2 AND FilesSrcCompilerBackendPSSL2)
-	include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2")
-endif()
+# Per-backend include directories (Backend/GLSL, Backend/HLSL, ...) are added to
+# xsc_core by each backend's own CMakeLists.txt.
 
 if(XSC_ENABLE_SPIRV)
 	include_directories("${PROJECT_SOURCE_DIR}/src/Compiler/CFG")
@@ -285,22 +233,48 @@ if(XSC_BUILD_TESTS)
 	endif()
 endif()
 
-# === Backend round-trip tests ===
-# Each backend self-registers its CTest cases (find_program, enable_testing,
-# add_test) inside its own tests/*Tests.cmake. The root just includes them
-# when the corresponding backend is built.
-if(XSC_BUILD_HLSL AND XSC_BUILD_HLSL_ROUNDTRIP_TESTS)
-	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/tests/HLSLTests.cmake")
-endif()
+# === Output backends ===
+# Each output backend lives in its own folder under src/Compiler/Backend/ and owns
+# its build logic in a local CMakeLists.txt (sources, include dir, defines, and its
+# round-trip tests). The core never names a backend — it just adds every backend
+# folder that provides a CMakeLists.txt. This is how optional backends
+# plug in without touching the core build. Added here, after the shell and
+# wrappers, so each backend can wire its round-trip tests against the 'xsc' target.
+file(GLOB XSC_BACKEND_DIRS LIST_DIRECTORIES true "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/*")
+list(SORT XSC_BACKEND_DIRS)
+foreach(_backendDir ${XSC_BACKEND_DIRS})
+	if(EXISTS "${_backendDir}/CMakeLists.txt")
+		add_subdirectory(${_backendDir})
+	endif()
+endforeach()
 
-if(XSC_BUILD_PSSL2 AND XSC_BUILD_PSSL2_ROUNDTRIP_TESTS AND EXISTS "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
-	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/PSSL2/tests/PSSL2Tests.cmake")
-endif()
 
-# GLSL is the core backend (always built), so this only gates on the test flag.
-if(XSC_BUILD_GLSL_ROUNDTRIP_TESTS)
-	include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests/GLSLTests.cmake")
-endif()
+# === Generated backend registration ===
+#
+# Each backend folder enrolled its registrar in the XSC_BACKEND_REGISTRARS global
+# property. Generate the body of RegisterBackends() -- the single, generically named
+# entry point the core calls once on first use -- so it invokes exactly the backends
+# compiled into this build. The core only ever references RegisterBackends(); this
+# generated file is the only place the concrete backends are named, produced fresh
+# from whatever folders are present (an open checkout without an optional backend
+# names nothing of it). The function body is empty when no backend enrolled.
+get_property(_xscRegistrars GLOBAL PROPERTY XSC_BACKEND_REGISTRARS)
+
+set(_xscRegDecls "")
+set(_xscRegCalls "")
+foreach(_reg IN LISTS _xscRegistrars)
+	string(APPEND _xscRegDecls "void ${_reg}();\n")
+	string(APPEND _xscRegCalls "    ${_reg}();\n")
+endforeach()
+
+set(_xscGeneratedFile "${CMAKE_CURRENT_BINARY_DIR}/generated/BackendRegistrations.generated.cpp")
+file(GENERATE
+	OUTPUT  "${_xscGeneratedFile}"
+	CONTENT "// Generated by CMake -- do not edit.\n//\n// Defines Xsc::RegisterBackends(), which registers every output backend compiled\n// into this build. Assembled from the backend folders present at configure time.\n\nnamespace Xsc\n{\n\n${_xscRegDecls}\nvoid RegisterBackends()\n{\n${_xscRegCalls}}\n\n} // /namespace Xsc\n"
+)
+
+target_sources(xsc_core PRIVATE "${_xscGeneratedFile}")
+source_group("src\\Backend\\Generated" FILES "${_xscGeneratedFile}")
 
 
 # === Show summary ===

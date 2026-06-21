@@ -191,7 +191,7 @@ public ref class XscCompiler
 
             LayoutAttribute   = (1 << 0), //!< Enables the 'layout' attribute extension (e.g. "[layout(rgba8)]").
             SpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
-            PSSL2SrtSignature = (1 << 2),
+            SrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
             OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
 
             All               = (~0u)     //!< All extensions.
@@ -1029,7 +1029,31 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
 
     out.filename        = ToStdString(outputDesc->Filename);
     out.sourceCode      = (&outputStream);
-    out.shaderVersion   = static_cast<Xsc::OutputShaderVersion>(outputDesc->ShaderVersion);
+
+    /* Map the managed output shader version enum to its target-language string. */
+    switch (outputDesc->ShaderVersion)
+    {
+        case OutputShaderVersion::GLSL110: out.targetLanguage = Xsc::TargetLanguage::GLSL110; break;
+        case OutputShaderVersion::GLSL120: out.targetLanguage = Xsc::TargetLanguage::GLSL120; break;
+        case OutputShaderVersion::GLSL130: out.targetLanguage = Xsc::TargetLanguage::GLSL130; break;
+        case OutputShaderVersion::GLSL140: out.targetLanguage = Xsc::TargetLanguage::GLSL140; break;
+        case OutputShaderVersion::GLSL150: out.targetLanguage = Xsc::TargetLanguage::GLSL150; break;
+        case OutputShaderVersion::GLSL330: out.targetLanguage = Xsc::TargetLanguage::GLSL330; break;
+        case OutputShaderVersion::GLSL400: out.targetLanguage = Xsc::TargetLanguage::GLSL400; break;
+        case OutputShaderVersion::GLSL410: out.targetLanguage = Xsc::TargetLanguage::GLSL410; break;
+        case OutputShaderVersion::GLSL420: out.targetLanguage = Xsc::TargetLanguage::GLSL420; break;
+        case OutputShaderVersion::GLSL430: out.targetLanguage = Xsc::TargetLanguage::GLSL430; break;
+        case OutputShaderVersion::GLSL440: out.targetLanguage = Xsc::TargetLanguage::GLSL440; break;
+        case OutputShaderVersion::GLSL450: out.targetLanguage = Xsc::TargetLanguage::GLSL450; break;
+        case OutputShaderVersion::ESSL100: out.targetLanguage = Xsc::TargetLanguage::ESSL100; break;
+        case OutputShaderVersion::ESSL300: out.targetLanguage = Xsc::TargetLanguage::ESSL300; break;
+        case OutputShaderVersion::ESSL310: out.targetLanguage = Xsc::TargetLanguage::ESSL310; break;
+        case OutputShaderVersion::ESSL320: out.targetLanguage = Xsc::TargetLanguage::ESSL320; break;
+        case OutputShaderVersion::ESSL:    out.targetLanguage = Xsc::TargetLanguage::ESSL;    break;
+        case OutputShaderVersion::VKSL450: out.targetLanguage = Xsc::TargetLanguage::VKSL450; break;
+        case OutputShaderVersion::VKSL:    out.targetLanguage = Xsc::TargetLanguage::VKSL;    break;
+        default:                           out.targetLanguage = Xsc::TargetLanguage::GLSL;    break;
+    }
 
     if (outputDesc->VertexSemantics != nullptr)
     {

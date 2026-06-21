@@ -373,37 +373,35 @@ void DebuggerView::OnPropertyGridChange(wxPropertyGridEvent& event)
         return (idx >= 0 && idx <= 7 ? versions[idx] : T::HLSL5);
     };
 
-    auto GetOutputVersion = [](int idx) -> OutputShaderVersion
+    auto GetOutputVersion = [](int idx) -> const char*
     {
-        using T = OutputShaderVersion;
-
-        static const T versions[] =
+        static const char* const versions[] =
         {
-            T::GLSL,
-            T::GLSL110,
-            T::GLSL120,
-            T::GLSL130,
-            T::GLSL140,
-            T::GLSL150,
-            T::GLSL330,
-            T::GLSL400,
-            T::GLSL410,
-            T::GLSL420,
-            T::GLSL430,
-            T::GLSL440,
-            T::GLSL450,
+            TargetLanguage::GLSL,
+            TargetLanguage::GLSL110,
+            TargetLanguage::GLSL120,
+            TargetLanguage::GLSL130,
+            TargetLanguage::GLSL140,
+            TargetLanguage::GLSL150,
+            TargetLanguage::GLSL330,
+            TargetLanguage::GLSL400,
+            TargetLanguage::GLSL410,
+            TargetLanguage::GLSL420,
+            TargetLanguage::GLSL430,
+            TargetLanguage::GLSL440,
+            TargetLanguage::GLSL450,
 
-            T::ESSL,
-            T::ESSL100,
-            T::ESSL300,
-            T::ESSL310,
-            T::ESSL320,
+            TargetLanguage::ESSL,
+            TargetLanguage::ESSL100,
+            TargetLanguage::ESSL300,
+            TargetLanguage::ESSL310,
+            TargetLanguage::ESSL320,
 
-            T::VKSL,
-            T::VKSL450,
+            TargetLanguage::VKSL,
+            TargetLanguage::VKSL450,
         };
 
-        return (idx >= 0 && idx < 20 ? versions[idx] : T::GLSL);
+        return (idx >= 0 && idx < 20 ? versions[idx] : TargetLanguage::GLSL);
     };
 
     /* --- Main options --- */
@@ -418,7 +416,7 @@ void DebuggerView::OnPropertyGridChange(wxPropertyGridEvent& event)
     else if (name == "target")
         shaderInput_.shaderTarget = static_cast<ShaderTarget>(static_cast<long>(ShaderTarget::VertexShader) + ValueInt());
     else if (name == "outputVersion")
-        shaderOutput_.shaderVersion = GetOutputVersion(ValueInt());
+        shaderOutput_.targetLanguage = GetOutputVersion(ValueInt());
     else if (name == "langExtensions")
         shaderInput_.extensions = (ValueBool() ? Extensions::All : 0);
 

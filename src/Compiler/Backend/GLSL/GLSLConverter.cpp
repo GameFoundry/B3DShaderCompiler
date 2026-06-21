@@ -7,6 +7,7 @@
 
 #include "GLSLConverter.h"
 #include "GLSLKeywords.h"
+#include "BackendRegistry.h"
 #include "ExprConverter.h"
 #include "AST.h"
 #include "ASTFactory.h"
@@ -101,7 +102,7 @@ void GLSLConverter::ConvertASTPrimary(Program& program, const ShaderInput& input
 {
     /* Store settings */
     shaderTarget_       = inputDesc.shaderTarget;
-    versionOut_         = outputDesc.shaderVersion;
+    versionOut_         = ResolveOutputShaderVersion(outputDesc);
     options_            = outputDesc.options;
     autoBinding_        = outputDesc.options.autoBinding;
     separateSamplers_   = outputDesc.options.separateSamplers;

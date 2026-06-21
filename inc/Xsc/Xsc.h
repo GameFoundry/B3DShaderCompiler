@@ -51,8 +51,8 @@ int main()
     // Initialize shader output descriptor structure
     Xsc::ShaderOutput outputDesc;
     {
-        outputDesc.sourceCode    = &outputStream;
-        outputDesc.shaderVersion = Xsc::OutputShaderVersion::GLSL330;
+        outputDesc.sourceCode     = &outputStream;
+        outputDesc.targetLanguage = Xsc::TargetLanguage::GLSL330;
     }
 
     // Compile HLSL code into GLSL
@@ -109,7 +109,7 @@ struct Extensions
     {
         LayoutAttribute   = (1 << 0), //!< Enables the 'layout' attribute extension (e.g. "[layout(rgba8)]").
         SpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
-        PSSL2SrtSignature = (1 << 2),
+        SrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
         OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions. Without this flag, opaque types in structs are rejected.
 
         All               = (~0u)     //!< All extensions.
@@ -314,8 +314,8 @@ struct ShaderOutput
     //! Specifies the output source code stream. This will contain the output code. This must not be null when passed to the "CompileShader" function!
     std::ostream*               sourceCode          = nullptr;
 
-    //! Specifies the output shader version. By default OutputShaderVersion::GLSL (to auto-detect minimum required version).
-    OutputShaderVersion         shaderVersion       = OutputShaderVersion::GLSL;
+    //! Specifies the output target language (e.g. Xsc::TargetLanguage::GLSL450, "HLSL5", or the identifier of any optional backend registered into this build). By default "GLSL" (to auto-detect minimum required version). Use IsTargetLanguageSupported() to query availability.
+    std::string                 targetLanguage      = TargetLanguage::GLSL;
 
     //! Optional list of vertex semantic layouts, to bind a vertex attribute (semantic name) to a location index (only used when 'explicitBinding' is true).
     std::vector<VertexSemantic> vertexSemantics;

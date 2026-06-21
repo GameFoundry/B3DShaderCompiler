@@ -8,6 +8,7 @@
 #include "GLSLGenerator.h"
 #include "GLSLExtensionAgent.h"
 #include "GLSLConverter.h"
+#include "BackendRegistry.h"
 #include "OpaqueStructResolver.h"
 #include "GLSLKeywords.h"
 #include "GLSLIntrinsics.h"
@@ -59,7 +60,7 @@ void GLSLGenerator::GenerateCodePrimary(
     Program& program, const ShaderInput& inputDesc, const ShaderOutput& outputDesc)
 {
     /* Store parameters */
-    versionOut_         = outputDesc.shaderVersion;
+    versionOut_         = ResolveOutputShaderVersion(outputDesc);
     nameMangling_       = outputDesc.nameMangling;
     allowExtensions_    = outputDesc.options.allowExtensions;
     explicitBinding_    = outputDesc.options.explicitBinding;

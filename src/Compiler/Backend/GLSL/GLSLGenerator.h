@@ -12,6 +12,7 @@
 #include <Xsc/Xsc.h>
 #include "AST.h"
 #include "Generator.h"
+#include "OutputShaderVersion.h"
 #include "Visitor.h"
 #include "Token.h"
 #include "ASTEnums.h"

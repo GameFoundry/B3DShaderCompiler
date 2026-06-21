@@ -49,7 +49,7 @@ enum XscExtensions
 {
     XscExtLayoutAttribute   = (1 << 0), //!< Enables the 'layout' attribute (e.g. "[layout(rgba8)]").
     XscExtSpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
-    XscExtPSSL2SrtSignature = (1 << 2),
+    XscExtSrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
     XscExtOpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
 
     XscExtAll               = (~0u)     //!< All extensions.
@@ -244,8 +244,8 @@ struct XscShaderOutput
     //! Specifies the output source code. This will contain the output code. This must not be null when passed to the "XscCompileShader" function!
     const char**                    sourceCode;
 
-    //! Specifies the output shader version. By default XscEOutputGLSL (to auto-detect minimum required version).
-    enum XscOutputShaderVersion     shaderVersion;
+    //! Specifies the output target language (e.g. XscTargetGLSL450, "HLSL5", or the identifier of any optional backend registered into this build). By default "GLSL" (to auto-detect minimum required version). Use XscIsTargetLanguageSupported() to query availability.
+    const char*                     targetLanguage;
 
     //! Optional list of vertex semantic layouts, to bind a vertex attribute (semantic name) to a location index (only used when 'explicitBinding' is true). By default NULL.
     const struct XscVertexSemantic* vertexSemantics;

@@ -12,6 +12,7 @@
 #include "Export.h"
 #include <string>
 #include <map>
+#include <vector>
 
 
 namespace Xsc
@@ -48,44 +49,51 @@ enum class InputShaderVersion
     VKSL    = 0x0002ffff,   //!< GLSL (Vulkan).
 };
 
-//! Output shader version enumeration.
-enum class OutputShaderVersion
-{
-    GLSL110 = 110,                  //!< GLSL 1.10 (OpenGL 2.0).
-    GLSL120 = 120,                  //!< GLSL 1.20 (OpenGL 2.1).
-    GLSL130 = 130,                  //!< GLSL 1.30 (OpenGL 3.0).
-    GLSL140 = 140,                  //!< GLSL 1.40 (OpenGL 3.1).
-    GLSL150 = 150,                  //!< GLSL 1.50 (OpenGL 3.2).
-    GLSL330 = 330,                  //!< GLSL 3.30 (OpenGL 3.3).
-    GLSL400 = 400,                  //!< GLSL 4.00 (OpenGL 4.0).
-    GLSL410 = 410,                  //!< GLSL 4.10 (OpenGL 4.1).
-    GLSL420 = 420,                  //!< GLSL 4.20 (OpenGL 4.2).
-    GLSL430 = 430,                  //!< GLSL 4.30 (OpenGL 4.3).
-    GLSL440 = 440,                  //!< GLSL 4.40 (OpenGL 4.4).
-    GLSL450 = 450,                  //!< GLSL 4.50 (OpenGL 4.5).
-    GLSL    = 0x0000ffff,           //!< Auto-detect minimal required GLSL version (for OpenGL 2+).
-
-    ESSL100 = (0x00010000 + 100),   //!< ESSL 1.00 (OpenGL ES 2.0). \note Currently not supported!
-    ESSL300 = (0x00010000 + 300),   //!< ESSL 3.00 (OpenGL ES 3.0). \note Currently not supported!
-    ESSL310 = (0x00010000 + 310),   //!< ESSL 3.10 (OpenGL ES 3.1). \note Currently not supported!
-    ESSL320 = (0x00010000 + 320),   //!< ESSL 3.20 (OpenGL ES 3.2). \note Currently not supported!
-    ESSL    = 0x0001ffff,           //!< Auto-detect minimum required ESSL version (for OpenGL ES 2+). \note Currently not supported!
-
-    VKSL450 = (0x00020000 + 450),   //!< VKSL 4.50 (Vulkan 1.0).
-    VKSL    = 0x0002ffff,           //!< Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
-
-    HLSL5   = (0x00030000 + 500),   //!< HLSL Shader Model 5.0 (DirectX 11). Used for HLSL-to-HLSL "round-trip" output.
-    HLSL    = 0x0003ffff,           //!< Auto-detect HLSL output version. Currently aliased to HLSL5.
-
-    PSSL2   = (0x00040000 + 200),   //!< PSSL 2.0 (PlayStation Shader Language 2, PS5).
-    PSSL    = 0x0004ffff,           //!< Auto-detect PSSL output version. Currently aliased to PSSL2.
-};
-
 //! Intermediate language enumeration.
 enum class IntermediateLanguage
 {
     SPIRV, //!< SPIR-V.
 };
+
+
+/* ===== Output target languages ===== */
+
+/*
+The output shader language is selected with a string identifier instead of an
+enumeration, so that optional backends can be added. The built-in identifiers are 
+provided as named constants below; additional targets (registered by their own 
+backend) are discovered at runtime through GetSupportedTargetLanguages() / IsTargetLanguageSupported().
+*/
+namespace TargetLanguage
+{
+
+XSC_EXPORT extern const char* const GLSL110;    //!< "GLSL110" — GLSL 1.10 (OpenGL 2.0).
+XSC_EXPORT extern const char* const GLSL120;    //!< "GLSL120" — GLSL 1.20 (OpenGL 2.1).
+XSC_EXPORT extern const char* const GLSL130;    //!< "GLSL130" — GLSL 1.30 (OpenGL 3.0).
+XSC_EXPORT extern const char* const GLSL140;    //!< "GLSL140" — GLSL 1.40 (OpenGL 3.1).
+XSC_EXPORT extern const char* const GLSL150;    //!< "GLSL150" — GLSL 1.50 (OpenGL 3.2).
+XSC_EXPORT extern const char* const GLSL330;    //!< "GLSL330" — GLSL 3.30 (OpenGL 3.3).
+XSC_EXPORT extern const char* const GLSL400;    //!< "GLSL400" — GLSL 4.00 (OpenGL 4.0).
+XSC_EXPORT extern const char* const GLSL410;    //!< "GLSL410" — GLSL 4.10 (OpenGL 4.1).
+XSC_EXPORT extern const char* const GLSL420;    //!< "GLSL420" — GLSL 4.20 (OpenGL 4.2).
+XSC_EXPORT extern const char* const GLSL430;    //!< "GLSL430" — GLSL 4.30 (OpenGL 4.3).
+XSC_EXPORT extern const char* const GLSL440;    //!< "GLSL440" — GLSL 4.40 (OpenGL 4.4).
+XSC_EXPORT extern const char* const GLSL450;    //!< "GLSL450" — GLSL 4.50 (OpenGL 4.5).
+XSC_EXPORT extern const char* const GLSL;       //!< "GLSL"    — Auto-detect minimal required GLSL version (for OpenGL 2+).
+
+XSC_EXPORT extern const char* const ESSL100;    //!< "ESSL100" — ESSL 1.00 (OpenGL ES 2.0).
+XSC_EXPORT extern const char* const ESSL300;    //!< "ESSL300" — ESSL 3.00 (OpenGL ES 3.0).
+XSC_EXPORT extern const char* const ESSL310;    //!< "ESSL310" — ESSL 3.10 (OpenGL ES 3.1).
+XSC_EXPORT extern const char* const ESSL320;    //!< "ESSL320" — ESSL 3.20 (OpenGL ES 3.2).
+XSC_EXPORT extern const char* const ESSL;       //!< "ESSL"    — Auto-detect minimum required ESSL version (for OpenGL ES 2+).
+
+XSC_EXPORT extern const char* const VKSL450;    //!< "VKSL450" — VKSL 4.50 (Vulkan 1.0).
+XSC_EXPORT extern const char* const VKSL;       //!< "VKSL"    — Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
+
+XSC_EXPORT extern const char* const HLSL5;      //!< "HLSL5"   — HLSL Shader Model 5.0 (DirectX 11). Requires the HLSL backend.
+XSC_EXPORT extern const char* const HLSL;       //!< "HLSL"    — Auto-detect HLSL output version. Requires the HLSL backend.
+
+} // /namespace TargetLanguage
 
 
 /* ===== Public functions ===== */
@@ -96,9 +104,6 @@ XSC_EXPORT std::string ToString(const ShaderTarget target);
 //! Returns the specified shader input version as string.
 XSC_EXPORT std::string ToString(const InputShaderVersion shaderVersion);
 
-//! Returns the specified shader output version as string.
-XSC_EXPORT std::string ToString(const OutputShaderVersion shaderVersion);
-
 //! Returns the specified intermediate language as string.
 XSC_EXPORT std::string ToString(const IntermediateLanguage language);
 
@@ -108,20 +113,11 @@ XSC_EXPORT bool IsLanguageHLSL(const InputShaderVersion shaderVersion);
 //! Returns true if the shader input version specifies GLSL (for OpenGL, OpenGL ES, and Vulkan).
 XSC_EXPORT bool IsLanguageGLSL(const InputShaderVersion shaderVersion);
 
-//! Returns true if the shader output version specifies GLSL (for OpenGL 2+).
-XSC_EXPORT bool IsLanguageGLSL(const OutputShaderVersion shaderVersion);
+//! Returns the list of output target languages supported by this build (e.g. "GLSL450", "HLSL5", plus any optional backend registered into this build).
+XSC_EXPORT std::vector<std::string> GetSupportedTargetLanguages();
 
-//! Returns true if the shader output version specifies ESSL (for OpenGL ES 2+).
-XSC_EXPORT bool IsLanguageESSL(const OutputShaderVersion shaderVersion);
-
-//! Returns true if the shader output version specifies VKSL (for Vulkan).
-XSC_EXPORT bool IsLanguageVKSL(const OutputShaderVersion shaderVersion);
-
-//! Returns true if the shader output version specifies HLSL (DirectX).
-XSC_EXPORT bool IsLanguageHLSL(const OutputShaderVersion shaderVersion);
-
-//! Returns true if the shader output version specifies PSSL (PlayStation 5).
-XSC_EXPORT bool IsLanguagePSSL(const OutputShaderVersion shaderVersion);
+//! Returns true if the specified output target language is supported by this build (i.e. a backend is registered for it).
+XSC_EXPORT bool IsTargetLanguageSupported(const std::string& targetLanguage);
 
 //! Returns the enumeration of all supported GLSL extensions as a map of extension name and version number.
 XSC_EXPORT const std::map<std::string, int>& GetGLSLExtensionEnumeration();

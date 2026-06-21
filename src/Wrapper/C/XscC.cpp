@@ -130,7 +130,7 @@ static void InitializeShaderOutput(struct XscShaderOutput* s)
 {
     s->filename             = NULL;
     s->sourceCode           = NULL;
-    s->shaderVersion        = XscEOutputGLSL;
+    s->targetLanguage       = XscTargetGLSL;
     s->vertexSemantics      = NULL;
     s->vertexSemanticsCount = 0;
 
@@ -361,7 +361,7 @@ XSC_EXPORT bool XscCompileShader(
 
     out.filename        = ReadStringC(outputDesc->filename);
     out.sourceCode      = (&outputStream);
-    out.shaderVersion   = static_cast<Xsc::OutputShaderVersion>(outputDesc->shaderVersion);
+    out.targetLanguage  = (outputDesc->targetLanguage != NULL ? outputDesc->targetLanguage : XscTargetGLSL);
 
     out.vertexSemantics.resize(outputDesc->vertexSemanticsCount);
     for (size_t i = 0; i < outputDesc->vertexSemanticsCount; ++i)
@@ -475,11 +475,6 @@ XSC_EXPORT void XscInputShaderVersionToString(const enum XscInputShaderVersion s
     WriteStringC(Xsc::ToString(static_cast<Xsc::InputShaderVersion>(shaderVersion)), str, maxSize);
 }
 
-XSC_EXPORT void XscOutputShaderVersionToString(const enum XscOutputShaderVersion shaderVersion, char* str, size_t maxSize)
-{
-    WriteStringC(Xsc::ToString(static_cast<Xsc::OutputShaderVersion>(shaderVersion)), str, maxSize);
-}
-
 XSC_EXPORT bool XscIsInputLanguageHLSL(const enum XscInputShaderVersion shaderVersion)
 {
     return Xsc::IsLanguageHLSL(static_cast<Xsc::InputShaderVersion>(shaderVersion));
@@ -490,19 +485,23 @@ XSC_EXPORT bool XscIsInputLanguageGLSL(const enum XscInputShaderVersion shaderVe
     return Xsc::IsLanguageGLSL(static_cast<Xsc::InputShaderVersion>(shaderVersion));
 }
 
-XSC_EXPORT bool XscIsOutputLanguageGLSL(const enum XscOutputShaderVersion shaderVersion)
+XSC_EXPORT bool XscIsTargetLanguageSupported(const char* targetLanguage)
 {
-    return Xsc::IsLanguageGLSL(static_cast<Xsc::OutputShaderVersion>(shaderVersion));
+    return Xsc::IsTargetLanguageSupported(ReadStringC(targetLanguage));
 }
 
-XSC_EXPORT bool XscIsOutputLanguageESSL(const enum XscOutputShaderVersion shaderVersion)
+XSC_EXPORT size_t XscGetSupportedTargetLanguageCount(void)
 {
-    return Xsc::IsLanguageESSL(static_cast<Xsc::OutputShaderVersion>(shaderVersion));
+    return Xsc::GetSupportedTargetLanguages().size();
 }
 
-XSC_EXPORT bool XscIsOutputLanguageVKSL(const enum XscOutputShaderVersion shaderVersion)
+XSC_EXPORT void XscGetSupportedTargetLanguage(size_t index, char* targetLanguage, size_t maxSize)
 {
-    return Xsc::IsLanguageVKSL(static_cast<Xsc::OutputShaderVersion>(shaderVersion));
+    const auto languages = Xsc::GetSupportedTargetLanguages();
+    if (index < languages.size())
+        WriteStringC(languages[index], targetLanguage, maxSize);
+    else
+        WriteStringC(std::string(), targetLanguage, maxSize);
 }
 
 using GLSLExtensionEnumIterator = std::map<std::string, int>::const_iterator;
