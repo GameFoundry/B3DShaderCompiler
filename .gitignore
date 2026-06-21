@@ -1,2 +1,5 @@
 .DS_Store
 Build
+
+# Generated install tree (cmake --install output)
+install/

@@ -345,18 +345,8 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
         const auto bufferType = bufferDecl->GetBufferType();
         Write(BufferTypeKeyword(bufferType));
 
-        /* Optional generic type angle-brackets (e.g. "<float4>") */
-        if (ast->typeDenoter && ast->typeDenoter->genericTypeDenoter)
-        {
-            Write("<");
-            WriteTypeDenoter(*ast->typeDenoter->genericTypeDenoter, ast);
-            if (ast->typeDenoter->genericSize > 1)
-            {
-                Write(", ");
-                Write(std::to_string(ast->typeDenoter->genericSize));
-            }
-            Write(">");
-        }
+        /* Optional generic-args suffix (e.g. "<float4>" / "<float4, 1>"). */
+        WriteBufferDeclGenericArgs(bufferType, ast);
 
         Write(" ");
         Write(bufferDecl->ident);
@@ -370,6 +360,24 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
 
     if (InsideGlobalScope())
         Blank();
+}
+
+void HLSLGenerator::WriteBufferDeclGenericArgs(BufferType /*bufferType*/, BufferDeclStmnt* ast)
+{
+    /* Default: emit the user-supplied generic if present, nothing otherwise.
+       Derived backends override this to inject defaults (e.g. fill <float4>
+       on untyped textures for backends where the bare form has reduced API). */
+    if (ast->typeDenoter && ast->typeDenoter->genericTypeDenoter)
+    {
+        Write("<");
+        WriteTypeDenoter(*ast->typeDenoter->genericTypeDenoter, ast);
+        if (ast->typeDenoter->genericSize > 1)
+        {
+            Write(", ");
+            Write(std::to_string(ast->typeDenoter->genericSize));
+        }
+        Write(">");
+    }
 }
 
 IMPLEMENT_VISIT_PROC(SamplerDeclStmnt)

@@ -111,6 +111,7 @@ struct Extensions
         SpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
         SrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
         OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions. Without this flag, opaque types in structs are rejected.
+        StrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive constructs without a portable cross-target equivalent: mul(matrix, vector) with vector dim smaller than the matrix inner dim (no implicit zero-padding), and the 'precise' type modifier. Diagnostic fires at analyzer time independent of output target.
 
         All               = (~0u)     //!< All extensions.
     };

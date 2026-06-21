@@ -88,6 +88,12 @@ class HLSLGenerator : public Generator
         // Writes the original HLSL identifier for a system-value semantic or the user-defined name.
         virtual std::string SemanticToHLSL(const IndexedSemantic& semantic) const;
 
+        // Writes the optional `<T>` / `<T, N>` template suffix on a buffer
+        // declaration. Default behavior: emit the user-supplied generic if any,
+        // emit nothing otherwise. Overridable so backends with stricter typing
+        // can default-fill an element type on untyped textures.
+        virtual void WriteBufferDeclGenericArgs(BufferType bufferType, BufferDeclStmnt* ast);
+
         // Writes the register annotation list (e.g. " : register(t0, space1)").
         virtual void WriteRegisters(const std::vector<RegisterPtr>& registers);
 

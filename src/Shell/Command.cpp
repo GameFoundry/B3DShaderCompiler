@@ -1373,6 +1373,7 @@ void LanguageExtensionCommand::Run(CommandLine& cmdLine, ShellState& state)
             { "attr-space",    Extensions::SpaceAttribute    },
             { "srt",           Extensions::SrtSignature      },
             { "opaque-struct", Extensions::OpaqueStructTypes },
+            { "strict-hlsl",   Extensions::StrictHLSL        },
         },
         R_InvalidExtensionType(type)
     );

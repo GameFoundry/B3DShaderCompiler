@@ -51,6 +51,7 @@ enum XscExtensions
     XscExtSpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
     XscExtSrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
     XscExtOpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
+    XscExtStrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
 
     XscExtAll               = (~0u)     //!< All extensions.
 };

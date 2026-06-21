@@ -205,6 +205,18 @@ IMPLEMENT_VISIT_PROC(ArrayDimension)
 IMPLEMENT_VISIT_PROC(TypeSpecifier)
 {
     AnalyzeTypeSpecifier(ast);
+
+    /* Strict-HLSL: reject the 'precise' type modifier. No portable cross-target
+       equivalent exists (cross-target backends either lack precise entirely or
+       implement it with different FP semantics). Rather than silently drop the
+       qualifier and quietly change behavior, require the user to remove it. */
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    if (extensions_(Extensions::StrictHLSL) &&
+        ast->storageClasses.find(StorageClass::Precise) != ast->storageClasses.end())
+    {
+        Error(R_StrictHlslPreciseForbidden, ast);
+    }
+    #endif
 }
 
 /* --- Declarations --- */
@@ -1230,6 +1242,54 @@ void HLSLAnalyzer::AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrin
 
     /* Decoarte function call with intrinsic ID */
     AnalyzeCallExprIntrinsicPrimary(callExpr, intr);
+
+    /* Strict-HLSL: reject mul(matrix, vector) and mul(vector, matrix) where the
+       vector dimension is smaller than the matching matrix inner dimension.
+       fxc silently zero-pads the short vector; stricter cross-target backends
+       reject the implicit promotion. Requiring an explicit float4(v, 0) at the
+       call site keeps the shader portable. */
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    if (intrinsic == Intrinsic::Mul && extensions_(Extensions::StrictHLSL) && callExpr->arguments.size() == 2)
+    {
+        auto t0 = callExpr->arguments[0]->GetTypeDenoter()->GetSub();
+        auto t1 = callExpr->arguments[1]->GetTypeDenoter()->GetSub();
+
+        if (t0->IsMatrix() && t1->IsVector())
+        {
+            if (auto bt0 = t0->As<BaseTypeDenoter>())
+            {
+                if (auto bt1 = t1->As<BaseTypeDenoter>())
+                {
+                    const auto matDim = MatrixTypeDim(bt0->dataType);  /* (rows, cols) */
+                    const int  vecDim = VectorTypeDim(bt1->dataType);
+                    const int  inner  = matDim.second;
+                    if (vecDim != inner)
+                    {
+                        Error(R_StrictHlslMulMatVecDimMismatch(inner, vecDim), callExpr);
+                        return;
+                    }
+                }
+            }
+        }
+        else if (t0->IsVector() && t1->IsMatrix())
+        {
+            if (auto bt0 = t0->As<BaseTypeDenoter>())
+            {
+                if (auto bt1 = t1->As<BaseTypeDenoter>())
+                {
+                    const auto matDim = MatrixTypeDim(bt1->dataType);
+                    const int  vecDim = VectorTypeDim(bt0->dataType);
+                    const int  inner  = matDim.first;  /* rows */
+                    if (vecDim != inner)
+                    {
+                        Error(R_StrictHlslMulVecMatDimMismatch(inner, vecDim), callExpr);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    #endif
 
     /* No intrinsics can be called static */
     if (isStatic)

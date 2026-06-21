@@ -47,6 +47,13 @@ struct BackendDescriptor
 
     // Generator factory. Must not be null for a usable backend.
     Factory             factory;
+
+    // Macros the host predefines on the preprocessor before parsing, when this
+    // backend is selected as the output target. Lets each backend declare its
+    // own user-facing sentinel (e.g. an XSC_<target> guard for `#ifdef` regions
+    // that don't translate to this backend) without the core needing to know
+    // the backend's identifier. Empty for backends that need no sentinel.
+    std::map<std::string, int> predefinedMacros;
 };
 
 

@@ -193,6 +193,7 @@ public ref class XscCompiler
             SpaceAttribute    = (1 << 1), //!< Enables the 'space' attribute extension for a stronger type system (e.g. "[space(OBJECT, MODEL)]").
             SrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
             OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
+            StrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
 
             All               = (~0u)     //!< All extensions.
         };

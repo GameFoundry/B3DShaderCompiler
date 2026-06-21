@@ -482,6 +482,9 @@ DECL_REPORT( OpaqueStructNoReturn,              "functions cannot return a struc
 DECL_REPORT( OpaqueStructNoRegister,            "register() bindings cannot be placed on members of an opaque-bearing struct[: '{0}']"                           );
 DECL_REPORT( OpaqueStructAmbiguousAlias,        "opaque resource '{0}' cannot be resolved to a single global; opaque-struct fields must be assigned a known global in straight-line code");
 DECL_REPORT( OpaqueStructUninitialized,         "opaque field '{0}' of struct variable is read before being assigned a known global"                             );
+DECL_REPORT( StrictHlslPreciseForbidden,        "strict-hlsl forbids the 'precise' type modifier; remove it"                                                    );
+DECL_REPORT( StrictHlslMulMatVecDimMismatch,    "strict-hlsl forbids implicit promotion in mul(matrix, vector): matrix has {0} column(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
+DECL_REPORT( StrictHlslMulVecMatDimMismatch,    "strict-hlsl forbids implicit promotion in mul(vector, matrix): matrix has {0} row(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
 DECL_REPORT( OpaqueStructNoNested,              "nested opaque-bearing struct members are not supported[: '{0}']"                                                 );
 DECL_REPORT( OpaqueStructNoArrayMember,         "array members of opaque type inside a struct are not supported[: '{0}']"                                         );
 DECL_REPORT( OpaqueStructNoOutInout,            "opaque-bearing struct parameters must be passed by value (no 'out'/'inout')[: '{0}']"                            );

@@ -52,6 +52,16 @@ class PreProcessor : public Parser
         // Returns a list of all defined macro identifiers after pre-processing.
         std::vector<std::string> ListDefinedMacroIdents() const;
 
+        // Defines a standard macro (i.e. host-injected, not from source) with an
+        // integer literal value. Used to inject backend-declared sentinels (see
+        // BackendDescriptor::predefinedMacros) before preprocessing begins. Must
+        // be called before Process(); calling after has no effect on the current
+        // run.
+        void PreDefineStandardMacro(const std::string& ident, int intValue = 1)
+        {
+            DefineStandardMacro(ident, intValue);
+        }
+
     protected:
 
         // Macro object structure.

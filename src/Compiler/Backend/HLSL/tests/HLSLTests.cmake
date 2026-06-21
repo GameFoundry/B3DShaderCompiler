@@ -110,3 +110,61 @@ foreach(case IN LISTS XSC_HLSL_OPAQUE_CASES)
     )
     set_tests_properties(hlsl_roundtrip.${_shader}.${_entry} PROPERTIES LABELS "hlsl-roundtrip;opaque-struct")
 endforeach()
+
+# --- Strict-HLSL negative-compile fixtures ---
+# Each fixture has two CTest entries:
+#   *.no_flag    — xsc must succeed through the HLSL round-trip (analyzer
+#                  accepts the fxc-permissive construct without the extension).
+#   *.with_flag  — xsc must reject with a specific diagnostic. We reuse the
+#                  GLSL negative-test driver (RunXscExpectError) which asserts
+#                  on the diagnostic text rather than xsc's exit code (xsc
+#                  returns 0 even on a reported error — see the driver comment).
+# Pipe-delimited: shader|entry|fxc_profile|xsc_stage|expected_diagnostic_regex
+set(XSC_STRICT_HLSL_CASES
+    "StrictHlslMulRejectTest|VS|vs_5_0|vert|strict-hlsl forbids implicit promotion in mul"
+    "StrictHlslPreciseRejectTest|VS|vs_5_0|vert|strict-hlsl forbids the 'precise' type modifier"
+)
+
+foreach(case IN LISTS XSC_STRICT_HLSL_CASES)
+    string(REPLACE "|" ";" _parts "${case}")
+    list(GET _parts 0 _shader)
+    list(GET _parts 1 _entry)
+    list(GET _parts 2 _profile)
+    list(GET _parts 3 _stage)
+    list(GET _parts 4 _expect)
+
+    # Positive (no flag) — must still compile through the HLSL round-trip.
+    add_test(
+        NAME    hlsl_roundtrip.${_shader}.${_entry}.no_flag
+        COMMAND ${CMAKE_COMMAND}
+            -DXSC=${XSC_BIN}
+            -DFXC=${FXC_EXECUTABLE}
+            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
+            -DENTRY=${_entry}
+            -DFXC_PROFILE=${_profile}
+            -DXSC_STAGE=${_stage}
+            -DOUT_DIR=${CMAKE_BINARY_DIR}/hlsl_roundtrip
+            -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/tests/RunHLSLRoundtrip.cmake
+    )
+    set_tests_properties(hlsl_roundtrip.${_shader}.${_entry}.no_flag
+        PROPERTIES LABELS "hlsl-roundtrip;strict-hlsl")
+
+    # Negative (with flag) — xsc analyzer must emit the expected diagnostic.
+    # Reuse the GLSL backend's negative-test driver: it asserts on output text
+    # regardless of exit code, which is the right signal here since xsc returns
+    # 0 even on analyzer errors.
+    add_test(
+        NAME    hlsl_roundtrip.${_shader}.${_entry}.with_flag
+        COMMAND ${CMAKE_COMMAND}
+            -DXSC=${XSC_BIN}
+            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
+            -DENTRY=${_entry}
+            -DXSC_STAGE=${_stage}
+            -DOUT_DIR=${CMAKE_BINARY_DIR}/hlsl_roundtrip
+            -DEXPECT_REGEX=${_expect}
+            "-DXSC_EXTRA_FLAGS=-Xstrict-hlsl"
+            -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests/RunXscExpectError.cmake
+    )
+    set_tests_properties(hlsl_roundtrip.${_shader}.${_entry}.with_flag
+        PROPERTIES LABELS "strict-hlsl;negative")
+endforeach()

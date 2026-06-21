@@ -156,6 +156,19 @@ bool Compiler::CompileShaderPrimary(
     else if (IsLanguageGLSL(inputDesc.shaderVersion))
         preProcessor = MakeUnique<GLSLPreProcessor>(*includeHandler, log_);
 
+    /* Predefine any backend-declared sentinel macros (e.g. XSC_<TARGET>=1 so
+       user shaders can `#ifdef` regions that don't translate to a given target).
+       The set is owned by the backend's BackendDescriptor — the core never
+       names a specific backend here. */
+    if (preProcessor)
+    {
+        if (const auto* backend = BackendRegistry::Instance().Find(outputDesc.targetLanguage))
+        {
+            for (const auto& kv : backend->predefinedMacros)
+                preProcessor->PreDefineStandardMacro(kv.first, kv.second);
+        }
+    }
+
     auto processedInput = preProcessor->Process(
         std::make_shared<SourceCode>(inputDesc.sourceCode),
         inputDesc.filename,
