@@ -33,7 +33,12 @@ endif()
 message(STATUS "HLSL round-trip tests: using fxc at ${FXC_EXECUTABLE}")
 enable_testing()
 
+# Shared round-trip registration helper (xsc_add_roundtrip_tests).
+include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/XscRoundtripTests.cmake")
+
 set(XSC_BIN "$<TARGET_FILE:xsc>")
+set(_HLSL_DRIVER  "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/tests/RunHLSLRoundtrip.cmake")
+set(_HLSL_OUT_DIR "${CMAKE_BINARY_DIR}/hlsl_roundtrip")
 
 # Pipe-delimited (CMake lists use ';' internally): shader|entry|fxc_profile|xsc_stage
 # MVP coverage: VS/PS, arithmetic & control flow, intrinsics, function calls,
@@ -52,27 +57,16 @@ set(XSC_HLSL_ROUNDTRIP_CASES
     "SemanticTest3|VS|vs_5_0|vert"
 )
 
-foreach(case IN LISTS XSC_HLSL_ROUNDTRIP_CASES)
-    string(REPLACE "|" ";" _parts "${case}")
-    list(GET _parts 0 _shader)
-    list(GET _parts 1 _entry)
-    list(GET _parts 2 _profile)
-    list(GET _parts 3 _stage)
-
-    add_test(
-        NAME    hlsl_roundtrip.${_shader}.${_entry}
-        COMMAND ${CMAKE_COMMAND}
-            -DXSC=${XSC_BIN}
-            -DFXC=${FXC_EXECUTABLE}
-            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
-            -DENTRY=${_entry}
-            -DFXC_PROFILE=${_profile}
-            -DXSC_STAGE=${_stage}
-            -DOUT_DIR=${CMAKE_BINARY_DIR}/hlsl_roundtrip
-            -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/tests/RunHLSLRoundtrip.cmake
-    )
-    set_tests_properties(hlsl_roundtrip.${_shader}.${_entry} PROPERTIES LABELS "hlsl-roundtrip")
-endforeach()
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    CASES          ${XSC_HLSL_ROUNDTRIP_CASES}
+)
 
 # --- Opaque-struct pass-through cases ---
 # HLSL natively supports opaque types inside structs (the FXAA bundle pattern),
@@ -88,28 +82,17 @@ set(XSC_HLSL_OPAQUE_CASES
     "OpaqueStructTest7|main|ps_5_0|frag"
 )
 
-foreach(case IN LISTS XSC_HLSL_OPAQUE_CASES)
-    string(REPLACE "|" ";" _parts "${case}")
-    list(GET _parts 0 _shader)
-    list(GET _parts 1 _entry)
-    list(GET _parts 2 _profile)
-    list(GET _parts 3 _stage)
-
-    add_test(
-        NAME    hlsl_roundtrip.${_shader}.${_entry}
-        COMMAND ${CMAKE_COMMAND}
-            -DXSC=${XSC_BIN}
-            -DFXC=${FXC_EXECUTABLE}
-            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
-            -DENTRY=${_entry}
-            -DFXC_PROFILE=${_profile}
-            -DXSC_STAGE=${_stage}
-            -DOUT_DIR=${CMAKE_BINARY_DIR}/hlsl_roundtrip
-            "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON"
-            -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/HLSL/tests/RunHLSLRoundtrip.cmake
-    )
-    set_tests_properties(hlsl_roundtrip.${_shader}.${_entry} PROPERTIES LABELS "hlsl-roundtrip;opaque-struct")
-endforeach()
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;opaque-struct"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -Xopaque-struct@ON
+    CASES          ${XSC_HLSL_OPAQUE_CASES}
+)
 
 # --- Strict-HLSL negative-compile fixtures ---
 # Each fixture has two CTest entries:

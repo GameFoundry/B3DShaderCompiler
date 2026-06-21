@@ -32,6 +32,9 @@ endif()
 message(STATUS "GLSL round-trip tests: using glslangValidator at ${GLSLANG_VALIDATOR_EXECUTABLE}")
 enable_testing()
 
+# Shared round-trip registration helper (xsc_add_roundtrip_tests).
+include("${PROJECT_SOURCE_DIR}/src/Compiler/Backend/XscRoundtripTests.cmake")
+
 set(XSC_BIN "$<TARGET_FILE:xsc>")
 set(_GLSL_TESTS_DIR "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests")
 set(_GLSL_OUT_DIR   "${CMAKE_BINARY_DIR}/glsl_roundtrip")
@@ -49,26 +52,18 @@ set(XSC_GLSL_ROUNDTRIP_CASES
     "OpaqueStructTest7|main|frag"   # straight-line reassignment (inline access)
 )
 
-foreach(case IN LISTS XSC_GLSL_ROUNDTRIP_CASES)
-    string(REPLACE "|" ";" _parts "${case}")
-    list(GET _parts 0 _shader)
-    list(GET _parts 1 _entry)
-    list(GET _parts 2 _stage)
-
-    add_test(
-        NAME    glsl_roundtrip.${_shader}.${_entry}
-        COMMAND ${CMAKE_COMMAND}
-            -DXSC=${XSC_BIN}
-            -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
-            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
-            -DENTRY=${_entry}
-            -DXSC_STAGE=${_stage}
-            -DOUT_DIR=${_GLSL_OUT_DIR}
-            "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON"
-            -P ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
-    )
-    set_tests_properties(glsl_roundtrip.${_shader}.${_entry} PROPERTIES LABELS "glsl-roundtrip;opaque-struct")
-endforeach()
+# No PROFILE_DEFINE: glslangValidator infers the stage from the file extension,
+# so these rows carry no profile field (shader|entry|stage).
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;opaque-struct"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    EXTRA_FLAGS -Xopaque-struct@ON
+    CASES       ${XSC_GLSL_ROUNDTRIP_CASES}
+)
 
 # --- Negative (expect-error) cases -----------------------------------------
 # Each registers a shader that must be rejected, pinned to its diagnostic.
