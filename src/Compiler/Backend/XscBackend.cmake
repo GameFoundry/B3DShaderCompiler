@@ -55,15 +55,25 @@ function(xsc_add_backend)
             RUNTIME_OUTPUT_DIRECTORY "${BUILD_OUTPUT_PATH}"
             LIBRARY_OUTPUT_DIRECTORY "${BUILD_OUTPUT_PATH}")
 
+        # A backend installs ONLY through its own dedicated install component. A host can then pull 
+        # exactly one backend with
+        #     cmake --install <build> --component backend_<folder> --prefix <dest>
+        # dropping just this DLL (+PDB) into <dest>
+        get_filename_component(_backendFolder ${CMAKE_CURRENT_SOURCE_DIR} NAME)
+
         install(TARGETS xsc_backend_${_B_NAME}
-            RUNTIME DESTINATION ${INSTALL_OUTPUT_PATH}
-            LIBRARY DESTINATION ${INSTALL_OUTPUT_PATH})
+            RUNTIME DESTINATION .
+            LIBRARY DESTINATION .
+            COMPONENT backend_${_backendFolder}
+            EXCLUDE_FROM_ALL)
 
         # Ship the backend's debug symbols alongside it (configs that emit a PDB).
         if(MSVC)
             install(FILES $<TARGET_PDB_FILE:xsc_backend_${_B_NAME}>
-                DESTINATION ${INSTALL_OUTPUT_PATH}
+                DESTINATION .
                 CONFIGURATIONS RelWithDebInfo Debug
+                COMPONENT backend_${_backendFolder}
+                EXCLUDE_FROM_ALL
                 OPTIONAL)
         endif()
     else()
