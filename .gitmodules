@@ -1,6 +1,6 @@
 [submodule "external/SPIR-V"]
 	path = external/SPIR-V
 	url = https://github.com/LukasBanana/SPIRV-Headers.git
-[submodule "src/Compiler/Backend/PSSL2"]
-	path = src/Compiler/Backend/PSSL2
-	url = https://github.com/BearishSun/B3DShaderCompiler-PSSL2.git
+[submodule "src/Compiler/Backend/PS5"]
+	path = src/Compiler/Backend/PS5
+	url = https://github.com/BearishSun/B3DShaderCompiler-PS5.git
