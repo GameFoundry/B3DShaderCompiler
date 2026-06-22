@@ -10,6 +10,7 @@
 
 
 #include <Xsc/Reflection.h>
+#include <Xsc/Export.h>
 #include <string>
 #include <vector>
 #include <set>
@@ -444,10 +445,10 @@ bool IsStorageBufferType(const BufferType t);
 bool IsRWBufferType(const BufferType t);
 
 // Returns true if the specified buffer type is a texture buffer.
-bool IsTextureBufferType(const BufferType t);
+XSC_EXPORT bool IsTextureBufferType(const BufferType t);
 
 // Returns true if the specified buffer type is a multi-sampled texture buffer (i.e. Texture2DMS or Texture2DMSArray).
-bool IsTextureMSBufferType(const BufferType t);
+XSC_EXPORT bool IsTextureMSBufferType(const BufferType t);
 
 // Returns true if the specified buffer type is an image buffer (i.e. gets converted to an 'imageBuffer' in GLSL).
 bool IsImageBufferType(const BufferType t);

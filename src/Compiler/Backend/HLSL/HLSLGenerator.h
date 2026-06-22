@@ -10,6 +10,7 @@
 
 
 #include <Xsc/Xsc.h>
+#include <Xsc/Export.h>
 #include "AST.h"
 #include "Generator.h"
 #include "Visitor.h"
@@ -30,7 +31,7 @@ struct BaseTypeDenoter;
 // Designed to be derivable: helper methods and per-token keyword lookups are
 // protected virtuals so that backends emitting an HLSL-flavored dialect 
 // can override only the divergent pieces.
-class HLSLGenerator : public Generator
+class XSC_EXPORT HLSLGenerator : public Generator
 {
 
     public:

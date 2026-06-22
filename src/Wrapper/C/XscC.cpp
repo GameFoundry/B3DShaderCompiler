@@ -139,7 +139,7 @@ static void InitializeShaderOutput(struct XscShaderOutput* s)
     InitializeNameMangling(&(s->nameMangling));
 }
 
-XSC_EXPORT void XscInitialize(struct XscShaderInput* inputDesc, struct XscShaderOutput* outputDesc)
+XSCC_EXPORT void XscInitialize(struct XscShaderInput* inputDesc, struct XscShaderOutput* outputDesc)
 {
     if (inputDesc != NULL)
         InitializeShaderInput(inputDesc);
@@ -327,7 +327,7 @@ void LogC::SubmitReport(const Xsc::Report& report)
  * Public functions
  */
 
-XSC_EXPORT bool XscCompileShader(
+XSCC_EXPORT bool XscCompileShader(
     const struct XscShaderInput* inputDesc,
     const struct XscShaderOutput* outputDesc,
     const struct XscLog* log,
@@ -450,52 +450,52 @@ XSC_EXPORT bool XscCompileShader(
     return result;
 }
 
-XSC_EXPORT void XscFilterToString(const enum XscFilter t, char* str, size_t maxSize)
+XSCC_EXPORT void XscFilterToString(const enum XscFilter t, char* str, size_t maxSize)
 {
     WriteStringC(Xsc::ToString(static_cast<Xsc::Reflection::Filter>(t)), str, maxSize);
 }
 
-XSC_EXPORT void XscTextureAddressModeToString(const enum XscTextureAddressMode t, char* str, size_t maxSize)
+XSCC_EXPORT void XscTextureAddressModeToString(const enum XscTextureAddressMode t, char* str, size_t maxSize)
 {
     WriteStringC(Xsc::ToString(static_cast<Xsc::Reflection::TextureAddressMode>(t)), str, maxSize);
 }
 
-XSC_EXPORT void XscComparisonFuncToString(const enum XscComparisonFunc t, char* str, size_t maxSize)
+XSCC_EXPORT void XscComparisonFuncToString(const enum XscComparisonFunc t, char* str, size_t maxSize)
 {
     WriteStringC(Xsc::ToString(static_cast<Xsc::Reflection::ComparisonFunc>(t)), str, maxSize);
 }
 
-XSC_EXPORT void XscShaderTargetToString(const enum XscShaderTarget target, char* str, size_t maxSize)
+XSCC_EXPORT void XscShaderTargetToString(const enum XscShaderTarget target, char* str, size_t maxSize)
 {
     WriteStringC(Xsc::ToString(static_cast<Xsc::ShaderTarget>(target)), str, maxSize);
 }
 
-XSC_EXPORT void XscInputShaderVersionToString(const enum XscInputShaderVersion shaderVersion, char* str, size_t maxSize)
+XSCC_EXPORT void XscInputShaderVersionToString(const enum XscInputShaderVersion shaderVersion, char* str, size_t maxSize)
 {
     WriteStringC(Xsc::ToString(static_cast<Xsc::InputShaderVersion>(shaderVersion)), str, maxSize);
 }
 
-XSC_EXPORT bool XscIsInputLanguageHLSL(const enum XscInputShaderVersion shaderVersion)
+XSCC_EXPORT bool XscIsInputLanguageHLSL(const enum XscInputShaderVersion shaderVersion)
 {
     return Xsc::IsLanguageHLSL(static_cast<Xsc::InputShaderVersion>(shaderVersion));
 }
 
-XSC_EXPORT bool XscIsInputLanguageGLSL(const enum XscInputShaderVersion shaderVersion)
+XSCC_EXPORT bool XscIsInputLanguageGLSL(const enum XscInputShaderVersion shaderVersion)
 {
     return Xsc::IsLanguageGLSL(static_cast<Xsc::InputShaderVersion>(shaderVersion));
 }
 
-XSC_EXPORT bool XscIsTargetLanguageSupported(const char* targetLanguage)
+XSCC_EXPORT bool XscIsTargetLanguageSupported(const char* targetLanguage)
 {
     return Xsc::IsTargetLanguageSupported(ReadStringC(targetLanguage));
 }
 
-XSC_EXPORT size_t XscGetSupportedTargetLanguageCount(void)
+XSCC_EXPORT size_t XscGetSupportedTargetLanguageCount(void)
 {
     return Xsc::GetSupportedTargetLanguages().size();
 }
 
-XSC_EXPORT void XscGetSupportedTargetLanguage(size_t index, char* targetLanguage, size_t maxSize)
+XSCC_EXPORT void XscGetSupportedTargetLanguage(size_t index, char* targetLanguage, size_t maxSize)
 {
     const auto languages = Xsc::GetSupportedTargetLanguages();
     if (index < languages.size())
@@ -506,7 +506,7 @@ XSC_EXPORT void XscGetSupportedTargetLanguage(size_t index, char* targetLanguage
 
 using GLSLExtensionEnumIterator = std::map<std::string, int>::const_iterator;
 
-XSC_EXPORT void* XscGetGLSLExtensionEnumeration(void* iterator, char* extension, size_t maxSize, int* version)
+XSCC_EXPORT void* XscGetGLSLExtensionEnumeration(void* iterator, char* extension, size_t maxSize, int* version)
 {
     const auto& extMap = Xsc::GetGLSLExtensionEnumeration();
 

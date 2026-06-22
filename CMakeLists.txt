@@ -1,8 +1,14 @@
 
 # === CMake lists for the XShaderCompiler - (09/10/2014) ===
 
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.15)
 project(XShaderCompiler)
+
+# Pin the MSVC runtime to the dynamic CRT (/MD, /MDd for Debug) for ALL targets. xsc_core
+# and any separately-loaded backend DLL (xsc_backend_*) must share one CRT so that
+# std::string/vector/function/unique_ptr can cross the DLL boundary on a single heap. Requires
+# CMP0091 (NEW since CMake 3.15, implied by the minimum above).
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 
 # === Build path ===
@@ -152,21 +158,29 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 endif()
 
-if(MSVC)
-	set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MDd")
-endif()
-
 # === Executable ===
 
 # Library core
 if(XSC_SHARED_LIB)
 	add_library(xsc_core SHARED ${FilesCompilerAll})
+	# Marks this TU set as "building the core DLL" so the XSC_EXPORT/XSC_DATA macros dllexport rather than dllimport (see inc/Xsc/Export.h).
+	target_compile_definitions(xsc_core PRIVATE XSC_BUILDING_CORE)
+	if(MSVC)
+		# The exported emitter classes hold non-exported members (std::vector/map, CodeWriter,
+		# ReportHandler, ...) and, internally, sit atop non-exported helper bases; C4251/C4275
+		# ("needs dll-interface") are benign here because every consumer is first-party and
+		# shares these headers + the one dynamic CRT. Silence the noise.
+		target_compile_options(xsc_core PRIVATE /wd4251 /wd4275)
+	endif()
 else()
 	add_library(xsc_core STATIC ${FilesCompilerAll})
 endif()
 
 set_target_properties(xsc_core PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_features(xsc_core PRIVATE cxx_range_for)
+
+# Dynamic loader, for Xsc::LoadBackend (BackendLoader.cpp). Empty on Windows, '-ldl' on Unix.
+target_link_libraries(xsc_core ${CMAKE_DL_LIBS})
 
 set(XSC_INSTALL_TARGETS "xsc_core")
 
@@ -215,6 +229,12 @@ if(XSC_BUILD_WRAPPER_C)
 	set_target_properties(xsc_core_c PROPERTIES LINKER_LANGUAGE CXX)
 	target_link_libraries(xsc_core_c xsc_core)
 	target_compile_features(xsc_core_c PRIVATE cxx_range_for)
+
+	# The C wrapper exports ITS OWN C API (XSCC_EXPORT). Target-private so consumers of the
+	# wrapper headers import rather than export (see inc/XscC/ExportC.h).
+	if(XSC_SHARED_LIB)
+		target_compile_definitions(xsc_core_c PRIVATE XSCC_BUILDING_WRAPPER)
+	endif()
 	
 	set(XSC_INSTALL_TARGETS ${XSC_INSTALL_TARGETS} "xsc_core_c")
 endif()
@@ -231,6 +251,13 @@ if(XSC_BUILD_TESTS)
 		set_target_properties(XscTest_CWrapper PROPERTIES LINKER_LANGUAGE C)
 		target_link_libraries(XscTest_CWrapper xsc_core_c)
 	endif()
+
+	# Enable CTest at the root, before the backend folders below register their round-trip
+	# tests. enable_testing() propagates to all subdirectories, so a single top-level `ctest`
+	# (or the IDE's RUN_TESTS target) discovers every backend's tests. Without a root-level
+	# call, testing is only enabled inside each leaf backend dir and `ctest` at the build root
+	# finds nothing -- reporting success while silently running zero tests.
+	enable_testing()
 endif()
 
 # === Output backends ===

@@ -10,6 +10,7 @@
 
 
 #include <Xsc/Xsc.h>
+#include <Xsc/Export.h>
 #include "CodeWriter.h"
 #include "VisitorTracker.h"
 #include "ReportHandler.h"
@@ -21,12 +22,13 @@ namespace Xsc
 
 
 // Output code generator base class.
-class Generator : protected VisitorTracker
+class XSC_EXPORT Generator : protected VisitorTracker
 {
     
     public:
         
         Generator(Log* log);
+        virtual ~Generator();
 
         bool GenerateCode(
             Program& program,

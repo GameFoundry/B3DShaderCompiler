@@ -75,6 +75,7 @@ DECL_SHELL_COMMAND( VersionInCommand             );
 DECL_SHELL_COMMAND( VersionOutCommand            );
 DECL_SHELL_COMMAND( OutputCommand                );
 DECL_SHELL_COMMAND( IncludePathCommand           );
+DECL_SHELL_COMMAND( LoadBackendCommand           );
 DECL_SHELL_COMMAND( WarnCommand                  );
 DECL_SHELL_COMMAND( ShowASTCommand               );
 DECL_SHELL_COMMAND( ShowTimesCommand             );

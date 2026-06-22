@@ -67,31 +67,31 @@ backend) are discovered at runtime through GetSupportedTargetLanguages() / IsTar
 namespace TargetLanguage
 {
 
-XSC_EXPORT extern const char* const GLSL110;    //!< "GLSL110" — GLSL 1.10 (OpenGL 2.0).
-XSC_EXPORT extern const char* const GLSL120;    //!< "GLSL120" — GLSL 1.20 (OpenGL 2.1).
-XSC_EXPORT extern const char* const GLSL130;    //!< "GLSL130" — GLSL 1.30 (OpenGL 3.0).
-XSC_EXPORT extern const char* const GLSL140;    //!< "GLSL140" — GLSL 1.40 (OpenGL 3.1).
-XSC_EXPORT extern const char* const GLSL150;    //!< "GLSL150" — GLSL 1.50 (OpenGL 3.2).
-XSC_EXPORT extern const char* const GLSL330;    //!< "GLSL330" — GLSL 3.30 (OpenGL 3.3).
-XSC_EXPORT extern const char* const GLSL400;    //!< "GLSL400" — GLSL 4.00 (OpenGL 4.0).
-XSC_EXPORT extern const char* const GLSL410;    //!< "GLSL410" — GLSL 4.10 (OpenGL 4.1).
-XSC_EXPORT extern const char* const GLSL420;    //!< "GLSL420" — GLSL 4.20 (OpenGL 4.2).
-XSC_EXPORT extern const char* const GLSL430;    //!< "GLSL430" — GLSL 4.30 (OpenGL 4.3).
-XSC_EXPORT extern const char* const GLSL440;    //!< "GLSL440" — GLSL 4.40 (OpenGL 4.4).
-XSC_EXPORT extern const char* const GLSL450;    //!< "GLSL450" — GLSL 4.50 (OpenGL 4.5).
-XSC_EXPORT extern const char* const GLSL;       //!< "GLSL"    — Auto-detect minimal required GLSL version (for OpenGL 2+).
+XSC_DATA extern const char* const GLSL110;    //!< "GLSL110" — GLSL 1.10 (OpenGL 2.0).
+XSC_DATA extern const char* const GLSL120;    //!< "GLSL120" — GLSL 1.20 (OpenGL 2.1).
+XSC_DATA extern const char* const GLSL130;    //!< "GLSL130" — GLSL 1.30 (OpenGL 3.0).
+XSC_DATA extern const char* const GLSL140;    //!< "GLSL140" — GLSL 1.40 (OpenGL 3.1).
+XSC_DATA extern const char* const GLSL150;    //!< "GLSL150" — GLSL 1.50 (OpenGL 3.2).
+XSC_DATA extern const char* const GLSL330;    //!< "GLSL330" — GLSL 3.30 (OpenGL 3.3).
+XSC_DATA extern const char* const GLSL400;    //!< "GLSL400" — GLSL 4.00 (OpenGL 4.0).
+XSC_DATA extern const char* const GLSL410;    //!< "GLSL410" — GLSL 4.10 (OpenGL 4.1).
+XSC_DATA extern const char* const GLSL420;    //!< "GLSL420" — GLSL 4.20 (OpenGL 4.2).
+XSC_DATA extern const char* const GLSL430;    //!< "GLSL430" — GLSL 4.30 (OpenGL 4.3).
+XSC_DATA extern const char* const GLSL440;    //!< "GLSL440" — GLSL 4.40 (OpenGL 4.4).
+XSC_DATA extern const char* const GLSL450;    //!< "GLSL450" — GLSL 4.50 (OpenGL 4.5).
+XSC_DATA extern const char* const GLSL;       //!< "GLSL"    — Auto-detect minimal required GLSL version (for OpenGL 2+).
 
-XSC_EXPORT extern const char* const ESSL100;    //!< "ESSL100" — ESSL 1.00 (OpenGL ES 2.0).
-XSC_EXPORT extern const char* const ESSL300;    //!< "ESSL300" — ESSL 3.00 (OpenGL ES 3.0).
-XSC_EXPORT extern const char* const ESSL310;    //!< "ESSL310" — ESSL 3.10 (OpenGL ES 3.1).
-XSC_EXPORT extern const char* const ESSL320;    //!< "ESSL320" — ESSL 3.20 (OpenGL ES 3.2).
-XSC_EXPORT extern const char* const ESSL;       //!< "ESSL"    — Auto-detect minimum required ESSL version (for OpenGL ES 2+).
+XSC_DATA extern const char* const ESSL100;    //!< "ESSL100" — ESSL 1.00 (OpenGL ES 2.0).
+XSC_DATA extern const char* const ESSL300;    //!< "ESSL300" — ESSL 3.00 (OpenGL ES 3.0).
+XSC_DATA extern const char* const ESSL310;    //!< "ESSL310" — ESSL 3.10 (OpenGL ES 3.1).
+XSC_DATA extern const char* const ESSL320;    //!< "ESSL320" — ESSL 3.20 (OpenGL ES 3.2).
+XSC_DATA extern const char* const ESSL;       //!< "ESSL"    — Auto-detect minimum required ESSL version (for OpenGL ES 2+).
 
-XSC_EXPORT extern const char* const VKSL450;    //!< "VKSL450" — VKSL 4.50 (Vulkan 1.0).
-XSC_EXPORT extern const char* const VKSL;       //!< "VKSL"    — Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
+XSC_DATA extern const char* const VKSL450;    //!< "VKSL450" — VKSL 4.50 (Vulkan 1.0).
+XSC_DATA extern const char* const VKSL;       //!< "VKSL"    — Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
 
-XSC_EXPORT extern const char* const HLSL5;      //!< "HLSL5"   — HLSL Shader Model 5.0 (DirectX 11). Requires the HLSL backend.
-XSC_EXPORT extern const char* const HLSL;       //!< "HLSL"    — Auto-detect HLSL output version. Requires the HLSL backend.
+XSC_DATA extern const char* const HLSL5;      //!< "HLSL5"   — HLSL Shader Model 5.0 (DirectX 11). Requires the HLSL backend.
+XSC_DATA extern const char* const HLSL;       //!< "HLSL"    — Auto-detect HLSL output version. Requires the HLSL backend.
 
 } // /namespace TargetLanguage
 

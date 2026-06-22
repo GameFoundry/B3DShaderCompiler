@@ -9,7 +9,7 @@
 #define XSC_TARGETS_C_H
 
 
-#include <Xsc/Export.h>
+#include "ExportC.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -82,25 +82,25 @@ available in this build.
 
 
 //! Returns the specified shader target as string.
-XSC_EXPORT void XscShaderTargetToString(const enum XscShaderTarget target, char* str, size_t maxSize);
+XSCC_EXPORT void XscShaderTargetToString(const enum XscShaderTarget target, char* str, size_t maxSize);
 
 //! Returns the specified shader input version as string.
-XSC_EXPORT void XscInputShaderVersionToString(const enum XscInputShaderVersion shaderVersion, char* str, size_t maxSize);
+XSCC_EXPORT void XscInputShaderVersionToString(const enum XscInputShaderVersion shaderVersion, char* str, size_t maxSize);
 
 //! Returns true if the shader input version specifies HLSL (for DirectX).
-XSC_EXPORT bool XscIsInputLanguageHLSL(const enum XscInputShaderVersion shaderVersion);
+XSCC_EXPORT bool XscIsInputLanguageHLSL(const enum XscInputShaderVersion shaderVersion);
 
 //! Returns true if the shader input version specifies GLSL (for OpenGL, OpenGL ES, and Vulkan).
-XSC_EXPORT bool XscIsInputLanguageGLSL(const enum XscInputShaderVersion shaderVersion);
+XSCC_EXPORT bool XscIsInputLanguageGLSL(const enum XscInputShaderVersion shaderVersion);
 
 //! Returns true if the specified output target language is supported by this build (i.e. a backend is registered for it).
-XSC_EXPORT bool XscIsTargetLanguageSupported(const char* targetLanguage);
+XSCC_EXPORT bool XscIsTargetLanguageSupported(const char* targetLanguage);
 
 //! Returns the number of output target languages supported by this build.
-XSC_EXPORT size_t XscGetSupportedTargetLanguageCount(void);
+XSCC_EXPORT size_t XscGetSupportedTargetLanguageCount(void);
 
 //! Writes the output target language identifier at the specified index (0 .. count-1) to the given buffer.
-XSC_EXPORT void XscGetSupportedTargetLanguage(size_t index, char* targetLanguage, size_t maxSize);
+XSCC_EXPORT void XscGetSupportedTargetLanguage(size_t index, char* targetLanguage, size_t maxSize);
 
 /**
 \brief Returns the enumeration of all supported GLSL extensions as a map of extension name and version number.
@@ -127,7 +127,7 @@ while (iterator != NULL)
 \endcode
 \note This can NOT be used in a multi-threaded environment!
 */
-XSC_EXPORT void* XscGetGLSLExtensionEnumeration(void* iterator, char* extension, size_t maxSize, int* version);
+XSCC_EXPORT void* XscGetGLSLExtensionEnumeration(void* iterator, char* extension, size_t maxSize, int* version);
 
 
 #ifdef __cplusplus

@@ -13,6 +13,7 @@
 #include "Log.h"
 #include "IncludeHandler.h"
 #include "Targets.h"
+#include "Backend.h"
 #include "Version.h"
 #include "Reflection.h"
 

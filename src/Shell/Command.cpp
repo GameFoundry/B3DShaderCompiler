@@ -11,6 +11,7 @@
 #include "Helper.h"
 #include "ReportIdents.h"
 #include <Xsc/Targets.h>
+#include <Xsc/Backend.h>
 #include <Xsc/ConsoleManip.h>
 #include <map>
 #include <fstream>
@@ -276,6 +277,37 @@ HelpDescriptor IncludePathCommand::Help() const
 void IncludePathCommand::Run(CommandLine& cmdLine, ShellState& state)
 {
     state.searchPaths.push_back(cmdLine.Accept());
+}
+
+
+/*
+ * LoadBackendCommand class
+ */
+
+std::vector<Command::Identifier> LoadBackendCommand::Idents() const
+{
+    return { { "-Bload" } };
+}
+
+HelpDescriptor LoadBackendCommand::Help() const
+{
+    return
+    {
+        "-Bload FILE",
+        R_CmdHelpLoadBackend,
+        HelpCategory::Main
+    };
+}
+
+void LoadBackendCommand::Run(CommandLine& cmdLine, ShellState& /*state*/)
+{
+    /* Load (and self-register) the backend immediately. Commands run left-to-right before the
+       input file triggers compilation, so a -Bload placed before the input is registered in
+       time for a later -Vout to select it. */
+    const auto filename = cmdLine.Accept();
+    std::string error;
+    if (!LoadBackend(filename, &error))
+        throw std::runtime_error(error);
 }
 
 

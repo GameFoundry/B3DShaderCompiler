@@ -9,7 +9,7 @@
 #define XSC_REFLECTION_C_H
 
 
-#include <Xsc/Export.h>
+#include "ExportC.h"
 #include <stdio.h>
 
 
@@ -172,13 +172,13 @@ struct XscReflectionData
 
 
 //! Returns the string representation of the specified 'SamplerState::Filter' type.
-XSC_EXPORT void XscFilterToString(const enum XscFilter t, char* str, size_t maxSize);
+XSCC_EXPORT void XscFilterToString(const enum XscFilter t, char* str, size_t maxSize);
 
 //! Returns the string representation of the specified 'SamplerState::TextureAddressMode' type.
-XSC_EXPORT void XscTextureAddressModeToString(const enum XscTextureAddressMode t, char* str, size_t maxSize);
+XSCC_EXPORT void XscTextureAddressModeToString(const enum XscTextureAddressMode t, char* str, size_t maxSize);
 
 //! Returns the string representation of the specified 'SamplerState::ComparisonFunc' type.
-XSC_EXPORT void XscComparisonFuncToString(const enum XscComparisonFunc t, char* str, size_t maxSize);
+XSCC_EXPORT void XscComparisonFuncToString(const enum XscComparisonFunc t, char* str, size_t maxSize);
 
 
 #ifdef __cplusplus

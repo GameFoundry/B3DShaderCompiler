@@ -9,7 +9,7 @@
 #define XSC_XSC_C_H
 
 
-#include <Xsc/Export.h>
+#include "ExportC.h"
 #include <Xsc/Version.h>
 #include "TargetsC.h"
 #include "LogC.h"
@@ -269,7 +269,7 @@ struct XscShaderOutput
 \param[out] inputDesc Input shader code descriptor. If NULL, this structure is not initialized.
 \param[out] outputDesc Output shader code descriptor. If NULL, this structure is not initialized.
 */
-XSC_EXPORT void XscInitialize(struct XscShaderInput* inputDesc, struct XscShaderOutput* outputDesc);
+XSCC_EXPORT void XscInitialize(struct XscShaderInput* inputDesc, struct XscShaderOutput* outputDesc);
 
 /**
 \brief Cross compiles the shader code from the specified input stream into the specified output shader code.
@@ -283,7 +283,7 @@ XSC_EXPORT void XscInitialize(struct XscShaderInput* inputDesc, struct XscShader
 \see Log
 \see ReflectionData
 */
-XSC_EXPORT bool XscCompileShader(
+XSCC_EXPORT bool XscCompileShader(
     const struct XscShaderInput*    inputDesc,
     const struct XscShaderOutput*   outputDesc,
     const struct XscLog*            log,

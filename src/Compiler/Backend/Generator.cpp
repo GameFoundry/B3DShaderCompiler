@@ -23,6 +23,9 @@ Generator::Generator(Log* log) :
 {
 }
 
+// Out-of-line so the vtable is anchored to this translation unit (i.e. xsc_core).
+Generator::~Generator() = default;
+
 bool Generator::GenerateCode(
     Program& program, const ShaderInput& inputDesc, const ShaderOutput& outputDesc, Log* log)
 {

@@ -62,6 +62,7 @@ CommandFactory::CommandFactory()
         #endif
 
         OutputCommand,
+        LoadBackendCommand,
         WarnCommand,
         ShowASTCommand,
         ShowTimesCommand,

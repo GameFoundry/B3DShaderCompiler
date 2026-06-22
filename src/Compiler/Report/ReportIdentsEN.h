@@ -548,6 +548,7 @@ DECL_REPORT( CmdHelpVersionIn,                  "Input shader version; default=H
 DECL_REPORT( CmdHelpVersionOut,                 "Shader output version; default=GLSL; valid versions:"                                                          );
 DECL_REPORT( CmdHelpOutput,                     "Shader output file (use '*' for default); default='<FILE>.<ENTRY>.<TARGET>'"                                   );
 DECL_REPORT( CmdHelpIncludePath,                "Adds PATH to the search include paths"                                                                         );
+DECL_REPORT( CmdHelpLoadBackend,                "Loads an optional output backend from the dynamic library FILE before compiling"                              );
 DECL_REPORT( CmdHelpWarn,                       "Enables/disables the specified warning type; default={0}; valid types:"                                        );
 DECL_REPORT( CmdHelpDetailsWarn,                "all           => all kinds of warnings\n"               \
                                                 "basic         => warn for basic issues\n"               \

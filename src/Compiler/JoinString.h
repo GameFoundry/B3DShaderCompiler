@@ -9,6 +9,7 @@
 #define XSC_JOIN_STRING_H
 
 
+#include <Xsc/Export.h>
 #include <string>
 #include <vector>
 
@@ -58,10 +59,10 @@ void ToStringListPrimary(std::vector<std::string>& list, const T& value)
 }
 
 template <>
-void ToStringListPrimary<std::size_t>(std::vector<std::string>& list, const std::size_t& value);
+XSC_EXPORT void ToStringListPrimary<std::size_t>(std::vector<std::string>& list, const std::size_t& value);
 
 template <>
-void ToStringListPrimary<int>(std::vector<std::string>& list, const int& value);
+XSC_EXPORT void ToStringListPrimary<int>(std::vector<std::string>& list, const int& value);
 
 // Forward declaration (required for GCC and clang)
 template <typename... Args>
@@ -81,7 +82,7 @@ void ToStringList(std::vector<std::string>& list, Args&&... args)
 }
 
 template <>
-void ToStringList(std::vector<std::string>& list);
+XSC_EXPORT void ToStringList(std::vector<std::string>& list);
 
 template <typename Arg0>
 void ToStringListSecondary(std::vector<std::string>& list, Arg0&& arg0)
@@ -92,11 +93,11 @@ void ToStringListSecondary(std::vector<std::string>& list, Arg0&& arg0)
 
 /* ----- Classes ----- */
 
-class JoinableString
+class XSC_EXPORT JoinableString
 {
 
     public:
-        
+
         JoinableString() = default;
         JoinableString(const JoinableString&) = default;
         JoinableString& operator = (const JoinableString&) = default;

@@ -10,6 +10,7 @@
 
 
 #include "Visitor.h"
+#include <Xsc/Export.h>
 #include <vector>
 #include <stack>
 
@@ -19,7 +20,7 @@ namespace Xsc
 
 
 // Extended visitor class with AST tracking functions.
-class VisitorTracker : public Visitor
+class XSC_EXPORT VisitorTracker : public Visitor
 {
     
     protected:

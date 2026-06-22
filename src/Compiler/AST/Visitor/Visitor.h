@@ -9,6 +9,7 @@
 #define XSC_VISITOR_H
 
 
+#include <Xsc/Export.h>
 #include <memory>
 #include <vector>
 
@@ -94,11 +95,11 @@ DECL_PTR( InitializerExpr   );
 #define VISIT_DEFAULT(CLASS_NAME) \
     Visitor::Visit##CLASS_NAME(ast, args)
 
-class Visitor
+class XSC_EXPORT Visitor
 {
-    
+
     public:
-        
+
         virtual ~Visitor();
 
         VISITOR_VISIT_PROC( Program           );
