@@ -80,6 +80,10 @@ set(XSC_HLSL_OPAQUE_CASES
     "OpaqueStructTest5|main|ps_5_0|frag"
     "OpaqueStructTest6|main|ps_5_0|frag"
     "OpaqueStructTest7|main|ps_5_0|frag"
+    "OpaqueStructNested1|main|ps_5_0|frag"   # nested bundle, field-assignment init
+    "OpaqueStructNested2|main|ps_5_0|frag"   # nested bundle w/ inner POD, field-assignment (inner POD survives stripping)
+    "OpaqueStructNested3|main|ps_5_0|frag"   # pass nested sub-struct to a function
+    "OpaqueStructNested4|main|ps_5_0|frag"   # nested fully-opaque bundle, copy-init propagates dotted alias map
 )
 
 xsc_add_roundtrip_tests(

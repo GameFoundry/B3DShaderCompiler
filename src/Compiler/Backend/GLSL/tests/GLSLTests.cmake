@@ -50,6 +50,10 @@ set(XSC_GLSL_ROUNDTRIP_CASES
     "OpaqueStructTest5|main|frag"   # chained calls passing the struct through
     "OpaqueStructTest6|main|frag"   # straight-line reassignment (via helper)
     "OpaqueStructTest7|main|frag"   # straight-line reassignment (inline access)
+    "OpaqueStructNested1|main|frag" # nested bundle, field-assignment init
+    "OpaqueStructNested2|main|frag" # nested bundle w/ inner POD, field-assignment (inner POD survives stripping)
+    "OpaqueStructNested3|main|frag" # pass nested sub-struct to a function
+    "OpaqueStructNested4|main|frag" # nested fully-opaque bundle, copy-init propagates dotted alias map
 )
 
 # No PROFILE_DEFINE: glslangValidator infers the stage from the file extension,

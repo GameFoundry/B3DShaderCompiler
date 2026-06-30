@@ -485,7 +485,6 @@ DECL_REPORT( OpaqueStructUninitialized,         "opaque field '{0}' of struct va
 DECL_REPORT( StrictHlslPreciseForbidden,        "strict-hlsl forbids the 'precise' type modifier; remove it"                                                    );
 DECL_REPORT( StrictHlslMulMatVecDimMismatch,    "strict-hlsl forbids implicit promotion in mul(matrix, vector): matrix has {0} column(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
 DECL_REPORT( StrictHlslMulVecMatDimMismatch,    "strict-hlsl forbids implicit promotion in mul(vector, matrix): matrix has {0} row(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
-DECL_REPORT( OpaqueStructNoNested,              "nested opaque-bearing struct members are not supported[: '{0}']"                                                 );
 DECL_REPORT( OpaqueStructNoArrayMember,         "array members of opaque type inside a struct are not supported[: '{0}']"                                         );
 DECL_REPORT( OpaqueStructNoOutInout,            "opaque-bearing struct parameters must be passed by value (no 'out'/'inout')[: '{0}']"                            );
 DECL_REPORT( DeclTypeDiffersFromDefType,        "declaration type '{0}' differs from definition type '{1}'"                                                     );

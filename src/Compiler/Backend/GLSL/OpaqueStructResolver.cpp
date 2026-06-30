@@ -46,14 +46,14 @@ StructDecl* OpaqueStructResolver::ResolveOpaqueStruct(const TypeDenoterPtr& type
     return nullptr;
 }
 
-void OpaqueStructResolver::CollectOpaqueFields(StructDecl* structDecl, std::vector<std::pair<std::string, TypeDenoterPtr>>& outFields)
+void OpaqueStructResolver::CollectOpaqueFields(StructDecl* structDecl, std::vector<std::pair<std::string, TypeDenoterPtr>>& outFields, const std::string& prefix)
 {
     if (!structDecl)
         return;
 
     /* Include base struct fields first (matches member layout order). */
     if (structDecl->baseStructRef)
-        CollectOpaqueFields(structDecl->baseStructRef, outFields);
+        CollectOpaqueFields(structDecl->baseStructRef, outFields, prefix);
 
     for (const auto& member : structDecl->varMembers)
     {
@@ -61,9 +61,41 @@ void OpaqueStructResolver::CollectOpaqueFields(StructDecl* structDecl, std::vect
         if (Converter::IsOpaqueTypeDenoter(typeDen))
         {
             for (const auto& varDecl : member->varDecls)
-                outFields.emplace_back(varDecl->ident, typeDen);
+                outFields.emplace_back(prefix + varDecl->ident, typeDen);
+        }
+        else if (auto nestedStruct = ResolveOpaqueStruct(typeDen))
+        {
+            /* Recurse into a nested opaque-bearing struct member, extending the dotted
+               access path (e.g. "mat.albedo"). Pure-POD struct members resolve to null
+               here and are left untouched. */
+            for (const auto& varDecl : member->varDecls)
+                CollectOpaqueFields(nestedStruct, outFields, prefix + varDecl->ident + ".");
         }
     }
+}
+
+bool OpaqueStructResolver::StructIsFullyOpaque(StructDecl* structDecl)
+{
+    if (!structDecl)
+        return true;
+
+    if (structDecl->baseStructRef && !StructIsFullyOpaque(structDecl->baseStructRef))
+        return false;
+
+    for (const auto& member : structDecl->varMembers)
+    {
+        auto typeDen = member->typeSpecifier->GetTypeDenoter();
+        if (Converter::IsOpaqueTypeDenoter(typeDen))
+            continue;                                   // opaque leaf: removed by stripping
+        if (auto nested = ResolveOpaqueStruct(typeDen))
+        {
+            if (!StructIsFullyOpaque(nested))
+                return false;
+            continue;
+        }
+        return false;                                   // a POD (kept) member exists
+    }
+    return true;
 }
 
 
@@ -91,7 +123,6 @@ void OpaqueStructResolver::SplitOpaqueParameter(FunctionDecl& funcDecl, std::siz
     /* Pick a base identifier from the original parameter's first VarDecl (parameters
        always have exactly one VarDecl in HLSL grammar). */
     const std::string baseIdent = (!param->varDecls.empty() ? param->varDecls.front()->ident : std::string("p"));
-    VarDecl* originalParamVarDecl = (!param->varDecls.empty() ? param->varDecls.front().get() : nullptr);
 
     /* The synthesized parameters will be inserted right after the original parameter. */
     std::vector<VarDeclStmntPtr> newParamStmnts;
@@ -101,7 +132,15 @@ void OpaqueStructResolver::SplitOpaqueParameter(FunctionDecl& funcDecl, std::siz
     {
         /* Build a fresh type denoter for the new parameter from the opaque field's type. */
         auto typeSpec = ASTFactory::MakeTypeSpecifier(field.second->Copy());
-        auto stmnt = ASTFactory::MakeVarDeclStmnt(typeSpec, baseIdent + "_" + field.first);
+
+        /* The field path may be dotted for nested fields ("mat.albedo"); turn it into a
+           valid identifier suffix ("mat_albedo"). A sibling field literally named
+           "mat_albedo" would map to the same identifier, but GLSLConverter runs afterward
+           and uniquifies any clashing declaration idents, so this suffix need not be
+           globally unique here. */
+        std::string identSuffix = field.first;
+        std::replace(identSuffix.begin(), identSuffix.end(), '.', '_');
+        auto stmnt = ASTFactory::MakeVarDeclStmnt(typeSpec, baseIdent + "_" + identSuffix);
         stmnt->flags << VarDeclStmnt::isParameter;
         if (!stmnt->varDecls.empty())
         {
@@ -129,7 +168,6 @@ void OpaqueStructResolver::SplitOpaqueParameter(FunctionDecl& funcDecl, std::siz
 
     /* (Alias maps for these parameters are seeded later in VisitFunctionDecl when we
        enter the function body, so that they are live only inside that body.) */
-    (void)originalParamVarDecl;
 }
 
 /* Walks the program and finds all FunctionDecls (both global and member functions). */
@@ -212,6 +250,72 @@ const OpaqueStructResolver::AliasMap* OpaqueStructResolver::FindAliasMap(VarDecl
     return (it == activeAliasMaps_.end() ? nullptr : &it->second);
 }
 
+bool OpaqueStructResolver::ResolveFieldChain(ObjectExpr* obj, VarDecl*& outVar, std::string& outPath)
+{
+    if (!obj || !obj->prefixExpr)
+        return false;
+
+    auto prefixObj = obj->prefixExpr->As<ObjectExpr>();
+    if (!prefixObj)
+        return false;
+
+    /* Base case: the prefix is a direct reference to a tracked local/parameter. */
+    if (auto v = prefixObj->FetchVarDecl())
+    {
+        if (FindAliasMap(v))
+        {
+            outVar  = v;
+            outPath = obj->ident;
+            return true;
+        }
+    }
+
+    /* Recursive case: the prefix is itself a field chain (e.g. `s.inner.tex`). The
+       intermediate member VarDecls are not tracked locals, so the base case above
+       falls through for them and we descend until we reach the rooted local. */
+    VarDecl* baseVar = nullptr;
+    std::string basePath;
+    if (ResolveFieldChain(prefixObj, baseVar, basePath))
+    {
+        outVar  = baseVar;
+        outPath = basePath + "." + obj->ident;
+        return true;
+    }
+
+    return false;
+}
+
+bool OpaqueStructResolver::ResolveArgToVarPath(Expr* expr, VarDecl*& outVar, std::string& outPath)
+{
+    if (!expr)
+        return false;
+
+    if (auto bracket = expr->As<BracketExpr>())
+        return ResolveArgToVarPath(bracket->expr.get(), outVar, outPath);
+
+    auto obj = expr->As<ObjectExpr>();
+    if (!obj)
+        return false;
+
+    if (!obj->prefixExpr)
+    {
+        /* Whole-variable reference (e.g. `s`). */
+        if (auto v = obj->FetchVarDecl())
+        {
+            if (FindAliasMap(v))
+            {
+                outVar = v;
+                outPath.clear();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /* Sub-struct field chain (e.g. passing `s.mat`). */
+    return ResolveFieldChain(obj, outVar, outPath);
+}
+
 Decl* OpaqueStructResolver::ResolveOpaqueFieldAccess(VarDecl* localVar, const std::string& fieldName, const AST* errorContext)
 {
     auto* m = FindAliasMap(localVar);
@@ -283,56 +387,87 @@ void OpaqueStructResolver::InitAliasFromInitializer(VarDecl* localVar, StructDec
         return;
     }
 
-    /* Case A: copy-init from another opaque-bearing struct variable. The initializer
-       references another local VarDecl whose type is the same opaque-bearing struct. */
-    if (auto rhsDecl = ResolveOpaqueExprToDecl(initializer))
+    /* Case A: copy-init from another opaque-bearing struct variable or one of its
+       sub-structs. `Combined c2 = c;` (whole) or `Material m = s.mat;` (sub-struct). */
     {
-        if (auto rhsVar = rhsDecl->As<VarDecl>())
+        VarDecl* srcVar = nullptr;
+        std::string srcPath;
+        if (ResolveArgToVarPath(initializer, srcVar, srcPath))
         {
-            if (auto* rhsMap = FindAliasMap(rhsVar))
+            if (auto* srcMap = FindAliasMap(srcVar))
             {
-                m = *rhsMap;
+                if (srcPath.empty())
+                {
+                    m = *srcMap;
+                }
+                else
+                {
+                    /* Import the entries under srcPath, stripping the prefix so the keys
+                       become relative to the destination struct. */
+                    const std::string keyPrefix = srcPath + ".";
+                    for (const auto& f : opaqueFields)
+                    {
+                        auto it = srcMap->find(keyPrefix + f.first);
+                        if (it != srcMap->end())
+                            m[f.first] = it->second;
+                    }
+                }
                 activeAliasMaps_[localVar] = std::move(m);
                 return;
             }
         }
     }
 
-    /* Case B: aggregate-initializer { expr0, expr1, ... } matching struct layout. */
+    /* Case B: flat aggregate-initializer { expr0, expr1, ... } matching struct layout.
+       Nested opaque-bearing struct members contribute their leaves flattened into the
+       same list (HLSL's flat aggregate form; nested-brace form is not supported by the
+       generator for struct members and is left to assignment-based tracking).
+
+       NOTE: this walk must stay structurally in lockstep with the initializer-stripping
+       walk in VisitVarDeclStmnt -- same member/leaf order and index discipline. They
+       differ only in the per-leaf action (seed an alias here vs. keep/drop the expr there). */
     if (auto initExpr = initializer->As<InitializerExpr>())
     {
-        /* Walk struct members in declaration order; for opaque members, peel one
-           initializer expression and resolve to a global VarDecl. */
-        std::size_t initIdx = 0;
         const auto& exprs = initExpr->exprs;
-
-        std::function<void(StructDecl*)> walk = [&](StructDecl* sd)
+        std::size_t idx = 0;
+        std::function<void(StructDecl*, const std::string&)> walk =
+            [&](StructDecl* sd, const std::string& prefix)
         {
             if (!sd) return;
             if (sd->baseStructRef)
-                walk(sd->baseStructRef);
+                walk(sd->baseStructRef, prefix);
             for (const auto& member : sd->varMembers)
             {
                 auto memberType = member->typeSpecifier->GetTypeDenoter();
                 const bool isOpaque = Converter::IsOpaqueTypeDenoter(memberType);
+                StructDecl* nested = (isOpaque ? nullptr : ResolveOpaqueStruct(memberType));
                 for (const auto& vd : member->varDecls)
                 {
-                    if (initIdx >= exprs.size())
+                    if (idx >= exprs.size())
                         return;
                     if (isOpaque)
                     {
-                        if (auto target = ResolveOpaqueExprToDecl(exprs[initIdx].get()))
+                        if (auto target = ResolveOpaqueExprToDecl(exprs[idx].get()))
                         {
-                            AliasEntry e;
-                            e.target = target;
-                            m[vd->ident] = e;
+                            AliasEntry entry;
+                            entry.target = target;
+                            m[prefix + vd->ident] = entry;
                         }
+                        ++idx;
                     }
-                    ++initIdx;
+                    else if (nested)
+                    {
+                        /* Flatten the nested struct's leaves into the same list. */
+                        walk(nested, prefix + vd->ident + ".");
+                    }
+                    else
+                    {
+                        ++idx;  // POD slot
+                    }
                 }
             }
         };
-        walk(structDecl);
+        walk(structDecl, "");
     }
 
     activeAliasMaps_[localVar] = std::move(m);
@@ -366,6 +501,18 @@ OpaqueStructResolver::AliasMap OpaqueStructResolver::JoinAliasMaps(const AliasMa
 #define IMPLEMENT_VISIT_PROC(AST_NAME) \
     void OpaqueStructResolver::Visit##AST_NAME(AST_NAME* ast, void* args)
 
+
+IMPLEMENT_VISIT_PROC(StructDecl)
+{
+    /* Track struct-decl context so VisitVarDeclStmnt does not mistake opaque-bearing
+       struct *members* (e.g. a nested `TexBundle albedo;`) for local variables and seed
+       bogus alias maps for them. Member functions in localStmnts are still visited. */
+    PushStructDecl(ast);
+    {
+        VISIT_DEFAULT(StructDecl);
+    }
+    PopStructDecl();
+}
 
 IMPLEMENT_VISIT_PROC(FunctionDecl)
 {
@@ -444,9 +591,19 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
                 {
                     if (auto initExpr = vd->initializer->As<InitializerExpr>())
                     {
-                        std::vector<ExprPtr> kept;
-                        std::size_t initIdx = 0;
+                        /* Rebuild the flat aggregate initializer keeping only non-opaque
+                           (POD) entries. Opaque leaves are dropped; the leaves of a
+                           nested opaque-bearing struct are flattened into the same list,
+                           so we descend into it. A nested struct that is fully opaque
+                           becomes empty and the generator gives it a single dummy int
+                           (see GLSLConverter empty-struct handling), so we emit one `0`
+                           of matching type to fill that slot and keep positions aligned.
+
+                           NOTE: keep this walk structurally in lockstep with the alias
+                           seeding walk in InitAliasFromInitializer (Case B). */
                         const auto& exprs = initExpr->exprs;
+                        std::vector<ExprPtr> kept;
+                        std::size_t idx = 0;
                         std::function<void(StructDecl*)> walk = [&](StructDecl* sd)
                         {
                             if (!sd) return;
@@ -456,13 +613,36 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
                             {
                                 auto memberType = member->typeSpecifier->GetTypeDenoter();
                                 const bool isOpaque = Converter::IsOpaqueTypeDenoter(memberType);
+                                StructDecl* nested = (isOpaque ? nullptr : ResolveOpaqueStruct(memberType));
                                 for (std::size_t k = 0; k < member->varDecls.size(); ++k)
                                 {
-                                    if (initIdx >= exprs.size())
+                                    if (idx >= exprs.size())
                                         return;
-                                    if (!isOpaque)
-                                        kept.push_back(exprs[initIdx]);
-                                    ++initIdx;
+                                    if (isOpaque)
+                                    {
+                                        ++idx;  // drop opaque leaf
+                                    }
+                                    else if (nested)
+                                    {
+                                        if (StructIsFullyOpaque(nested))
+                                        {
+                                            /* Skip the nested struct's opaque leaves and
+                                               emit one `0` for its synthesized dummy int. */
+                                            std::vector<std::pair<std::string, TypeDenoterPtr>> nf;
+                                            CollectOpaqueFields(nested, nf);
+                                            idx += nf.size();
+                                            kept.push_back(ASTFactory::MakeLiteralExpr(DataType::Int, "0"));
+                                        }
+                                        else
+                                        {
+                                            walk(nested);  // keep its POD leaves, drop opaque
+                                        }
+                                    }
+                                    else
+                                    {
+                                        kept.push_back(exprs[idx]);  // keep POD slot
+                                        ++idx;
+                                    }
                                 }
                             }
                         };
@@ -501,45 +681,41 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
 
 IMPLEMENT_VISIT_PROC(ExprStmnt)
 {
-    /* Detect a straight-line opaque-field assignment: `localVar.opaqueField = rhs;`.
+    /* Detect a straight-line opaque-field assignment: `localVar.[a.b...].opaqueField = rhs;`.
        Update the alias map and mark the entire statement as dead so the GLSL emit
        pass skips it. */
     if (auto ax = ast->expr ? ast->expr->As<AssignExpr>() : nullptr)
     {
         if (auto lhsObj = ax->lvalueExpr ? ax->lvalueExpr->As<ObjectExpr>() : nullptr)
         {
-            if (lhsObj->prefixExpr)
+            VarDecl* localVar = nullptr;
+            std::string path;
+            if (ResolveFieldChain(lhsObj, localVar, path))
             {
-                if (auto prefixObj = lhsObj->prefixExpr->As<ObjectExpr>())
+                if (auto* m = FindAliasMap(localVar))
                 {
-                    if (auto localVar = prefixObj->FetchVarDecl())
+                    if (m->find(path) != m->end())
                     {
-                        if (auto* m = FindAliasMap(localVar))
+                        if (auto target = ResolveOpaqueExprToDecl(ax->rvalueExpr.get()))
                         {
-                            if (m->find(lhsObj->ident) != m->end())
-                            {
-                                if (auto target = ResolveOpaqueExprToDecl(ax->rvalueExpr.get()))
-                                {
-                                    AliasEntry e;
-                                    e.target = target;
-                                    (*m)[lhsObj->ident] = e;
-                                }
-                                else
-                                {
-                                    AliasEntry e;
-                                    e.ambiguous = true;
-                                    (*m)[lhsObj->ident] = e;
-                                }
-                                /* Replace the assignment's operands with NullExpr so
-                                   downstream passes (ExprConverter) don't traverse into
-                                   ObjectExprs that reference soon-to-be-stripped struct
-                                   members. Mark the stmnt dead so GLSLConverter drops it. */
-                                ax->lvalueExpr = std::make_shared<NullExpr>(SourcePosition::ignore);
-                                ax->rvalueExpr = std::make_shared<NullExpr>(SourcePosition::ignore);
-                                ast->flags << AST::isDeadCode;
-                                return;
-                            }
+                            AliasEntry e;
+                            e.target = target;
+                            (*m)[path] = e;
                         }
+                        else
+                        {
+                            AliasEntry e;
+                            e.ambiguous = true;
+                            (*m)[path] = e;
+                        }
+                        /* Replace the assignment's operands with NullExpr so downstream
+                           passes (ExprConverter) don't traverse into ObjectExprs that
+                           reference soon-to-be-stripped struct members. Mark the stmnt
+                           dead so GLSLConverter drops it. */
+                        ax->lvalueExpr = std::make_shared<NullExpr>(SourcePosition::ignore);
+                        ax->rvalueExpr = std::make_shared<NullExpr>(SourcePosition::ignore);
+                        ast->flags << AST::isDeadCode;
+                        return;
                     }
                 }
             }
@@ -562,32 +738,34 @@ IMPLEMENT_VISIT_PROC(AssignExpr)
 
 IMPLEMENT_VISIT_PROC(ObjectExpr)
 {
-    /* Recursively visit the prefix first (so nested rewrites happen). */
-    if (ast->prefixExpr)
-        Visit(ast->prefixExpr);
-
-    /* Detect `localVar.opaqueField` access pattern and rewrite in-place to a direct
-       reference to the resolved global Decl. Only opaque fields are in the alias map,
-       so POD member access (e.g. `tc.tint`) falls through unchanged. */
+    /* Detect an opaque field-access chain `localVar.[a.b...].opaqueField` and rewrite it
+       in-place to a direct reference to the resolved global Decl. Only opaque fields are
+       in the alias map, so POD member access (e.g. `tc.tint` or `s.mat` as a whole)
+       falls through to a normal prefix visit unchanged. */
     if (ast->prefixExpr)
     {
-        if (auto prefixObj = ast->prefixExpr->As<ObjectExpr>())
+        VarDecl* localVar = nullptr;
+        std::string path;
+        if (ResolveFieldChain(ast, localVar, path))
         {
-            if (auto localVar = prefixObj->FetchVarDecl())
+            if (auto* m = FindAliasMap(localVar))
             {
-                if (auto* m = FindAliasMap(localVar))
+                if (m->find(path) != m->end())
                 {
-                    if (m->find(ast->ident) != m->end())
+                    if (auto target = ResolveOpaqueFieldAccess(localVar, path, ast))
                     {
-                        if (auto target = ResolveOpaqueFieldAccess(localVar, ast->ident, ast))
-                        {
-                            ast->ReplaceSymbol(target);
-                            ast->prefixExpr.reset();
-                        }
+                        ast->ReplaceSymbol(target);
+                        ast->prefixExpr.reset();
                     }
+                    /* Matched an opaque field; the prefix chain is consumed (or an error
+                       was already raised). Do not visit the discarded prefix. */
+                    return;
                 }
             }
         }
+
+        /* Not an opaque field access: visit the prefix for any nested rewrites. */
+        Visit(ast->prefixExpr);
     }
 }
 
@@ -635,24 +813,25 @@ IMPLEMENT_VISIT_PROC(CallExpr)
         if (!info.opaqueParamsPerOriginal[i].empty())
         {
             /* Resolve each opaque field of the arg via the alias map of the local
-               opaque-bearing struct variable passed as the argument. */
+               opaque-bearing struct variable (or sub-struct) passed as the argument.
+               When a sub-struct is passed (e.g. `s.mat`), `basePath` is the access path
+               within the local and the callee's field paths are looked up relative to it. */
             VarDecl* localVar = nullptr;
-            if (auto d = ResolveOpaqueExprToDecl(origArg.get()))
-                localVar = d->As<VarDecl>();
-            const auto* m = (localVar ? FindAliasMap(localVar) : nullptr);
+            std::string basePath;
+            ResolveArgToVarPath(origArg.get(), localVar, basePath);
             for (std::size_t k = 0; k < info.opaqueFieldsPerOriginal[i].size(); ++k)
             {
                 const auto& fieldName = info.opaqueFieldsPerOriginal[i][k];
-                Decl* target = nullptr;
-                if (m)
-                {
-                    auto mit = m->find(fieldName);
-                    if (mit != m->end() && !mit->second.ambiguous && mit->second.target)
-                        target = mit->second.target;
-                }
+                const std::string key = (basePath.empty() ? fieldName : basePath + "." + fieldName);
+
+                /* Resolve through the same diagnostic path as a direct field access, so a
+                   failure reports "read before assigned" vs. "ambiguous after a branch"
+                   consistently (ResolveOpaqueFieldAccess raises the error and returns null). */
+                Decl* target = (localVar ? ResolveOpaqueFieldAccess(localVar, key, ast) : nullptr);
                 if (!target)
                 {
-                    RuntimeErr(R_OpaqueStructAmbiguousAlias(fieldName), ast);
+                    if (!localVar)
+                        RuntimeErr(R_OpaqueStructUninitialized(key), ast);
                     return;
                 }
                 newArgs.push_back(ASTFactory::MakeObjectExpr(target));

@@ -5,17 +5,21 @@
  * containing opaque resources (Texture2D, SamplerState, Buffer<>, etc.) and pass
  * them through function calls, while emitting valid GLSL/SPIR-V.
  *
+ * Opaque members may be nested inside further opaque-bearing struct members; such
+ * fields are flattened to dotted access paths (e.g. "mat.albedo") throughout.
+ *
  * GLSL/SPIR-V disallow opaque types as struct members, so this pass:
  *   1. Walks function declarations: for parameters whose type is a struct that
- *      contains opaque members, splits each opaque field out as its own
- *      synthesized parameter.
+ *      contains opaque members (directly or nested), splits each opaque field out as
+ *      its own synthesized parameter (one per flattened path).
  *   2. Walks function bodies: tracks, for every local variable of opaque-bearing
- *      struct type, which global resource each opaque field currently aliases.
- *      Straight-line initializers, copies and field assignments are supported;
- *      conditional rebinding causes the field to become "ambiguous" at the join
- *      point and is rejected if subsequently read.
- *   3. Rewrites every `s.opaqueField` ObjectExpr that resolves through the alias
- *      map (or new opaque parameter) to reference the global / parameter directly.
+ *      struct type, which global resource each opaque field (by dotted path)
+ *      currently aliases. Straight-line initializers, copies (whole or sub-struct)
+ *      and field assignments are supported; conditional rebinding causes the field to
+ *      become "ambiguous" at the join point and is rejected if subsequently read.
+ *   3. Rewrites every `s.[a.b...].opaqueField` ObjectExpr chain that resolves through
+ *      the alias map (or new opaque parameter) to reference the global / parameter
+ *      directly.
  *   4. Rewrites every CallExpr that passes an opaque-bearing struct argument:
  *      the original argument expression is followed by the resolved opaque
  *      arguments (one per opaque field).
@@ -98,10 +102,19 @@ class OpaqueStructResolver : public VisitorTracker
         // Out parameter receives the StructDecl, if any.
         static StructDecl* ResolveOpaqueStruct(const TypeDenoterPtr& typeDen);
 
-        // Collects (in declaration order) the opaque members of a struct,
-        // including inherited members. Returns pairs of (field name, type denoter copy).
-        static void CollectOpaqueFields(StructDecl* structDecl, std::vector<std::pair<std::string, TypeDenoterPtr>>& outFields
+        // Collects (in declaration order) the opaque members of a struct, including
+        // inherited members and members nested inside opaque-bearing sub-structs.
+        // Returns pairs of (dotted access path, type denoter copy); e.g. a struct with
+        // member `Material mat; Texture2D tex;` yields "mat.albedo", "mat.samp", "tex".
+        // `prefix` is prepended to every collected path (used during recursion).
+        static void CollectOpaqueFields(StructDecl* structDecl, std::vector<std::pair<std::string, TypeDenoterPtr>>& outFields, const std::string& prefix = ""
         );
+
+        // True if every leaf member of the struct (recursing through base structs and
+        // nested opaque-bearing struct members) is an opaque resource, i.e. nothing
+        // survives stripping. Such a struct becomes empty and the generator gives it a
+        // dummy member.
+        static bool StructIsFullyOpaque(StructDecl* structDecl);
 
         // Splits one parameter VarDeclStmnt of opaque-bearing struct type by
         // appending new opaque-only parameters. `actualIndex` is the parameter's
@@ -120,10 +133,22 @@ class OpaqueStructResolver : public VisitorTracker
         AliasMap* FindAliasMap(VarDecl* localVar);
         const AliasMap* FindAliasMap(VarDecl* localVar) const;
 
+        // Decomposes a member-access chain `localVar.f1.f2...fN` (an ObjectExpr) rooted
+        // at a tracked local/parameter into that local and the dotted field path
+        // "f1.f2...fN". Returns false if the expression is not such a chain.
+        bool ResolveFieldChain(ObjectExpr* obj, VarDecl*& outVar, std::string& outPath);
+
+        // Resolves an argument/initializer expression that denotes a (whole or sub-)
+        // opaque-bearing struct value to its base local and the dotted sub-path within
+        // that local's alias map ("" when the whole variable is referenced). Returns
+        // false if the expression does not reference a tracked local.
+        bool ResolveArgToVarPath(Expr* expr, VarDecl*& outVar, std::string& outPath);
+
         // Initializes the alias map for a newly-declared local from its initializer expression.
         void InitAliasFromInitializer(VarDecl* localVar, StructDecl* structDecl, Expr* initializer);
 
         // Visit overrides used by RewriteFunctionBodies.
+        DECL_VISIT_PROC( StructDecl        );
         DECL_VISIT_PROC( FunctionDecl      );
         DECL_VISIT_PROC( VarDeclStmnt      );
         DECL_VISIT_PROC( CallExpr          );

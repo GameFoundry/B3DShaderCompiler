@@ -331,21 +331,11 @@ IMPLEMENT_VISIT_PROC(StructDecl)
         if (!ast->funcMembers.empty())
             Error(R_OpaqueStructNoMemberFunc(ast->ToString()), ast);
 
-        /* Members must be a single opaque VarDecl (no arrays), or a non-opaque-bearing
-           struct (no nesting), or POD. */
+        /* Members must be a single opaque VarDecl (no arrays), a nested opaque-bearing
+           struct (flattened by the resolver), a non-opaque struct, or POD. */
         for (const auto& member : ast->varMembers)
         {
             const auto& memberType = member->typeSpecifier->GetTypeDenoter()->GetAliased();
-
-            /* Reject member that is itself an opaque-bearing struct. */
-            if (auto structTypeDen = memberType.As<StructTypeDenoter>())
-            {
-                if (auto sd = structTypeDen->structDeclRef)
-                {
-                    if (sd->HasOpaqueMember())
-                        Error(R_OpaqueStructNoNested(sd->ToString()), member.get());
-                }
-            }
 
             /* Reject array of opaque type. */
             if (auto arrTypeDen = memberType.As<ArrayTypeDenoter>())
