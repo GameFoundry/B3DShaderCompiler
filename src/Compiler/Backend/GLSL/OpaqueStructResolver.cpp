@@ -497,6 +497,26 @@ OpaqueStructResolver::AliasMap OpaqueStructResolver::JoinAliasMaps(const AliasMa
     return r;
 }
 
+void OpaqueStructResolver::CopyAliasSubtree(
+    AliasMap& destMap, const std::string& destPath,
+    const AliasMap& srcMap, const std::string& srcPath)
+{
+    const std::string destPrefix = (destPath.empty() ? std::string() : destPath + ".");
+    const std::string srcPrefix  = (srcPath.empty()  ? std::string() : srcPath  + ".");
+    for (auto& kv : destMap)
+    {
+        const std::string& destKey = kv.first;
+        /* Restrict to the opaque leaves under destPath. */
+        if (!destPrefix.empty() && destKey.compare(0, destPrefix.size(), destPrefix) != 0)
+            continue;
+        /* Map the suffix below destPath to the matching leaf below srcPath. */
+        const std::string suffix = (destPrefix.empty() ? destKey : destKey.substr(destPrefix.size()));
+        auto it = srcMap.find(srcPrefix + suffix);
+        if (it != srcMap.end())
+            kv.second = it->second;
+    }
+}
+
 
 #define IMPLEMENT_VISIT_PROC(AST_NAME) \
     void OpaqueStructResolver::Visit##AST_NAME(AST_NAME* ast, void* args)
@@ -681,41 +701,77 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
 
 IMPLEMENT_VISIT_PROC(ExprStmnt)
 {
-    /* Detect a straight-line opaque-field assignment: `localVar.[a.b...].opaqueField = rhs;`.
-       Update the alias map and mark the entire statement as dead so the GLSL emit
-       pass skips it. */
     if (auto ax = ast->expr ? ast->expr->As<AssignExpr>() : nullptr)
     {
         if (auto lhsObj = ax->lvalueExpr ? ax->lvalueExpr->As<ObjectExpr>() : nullptr)
         {
-            VarDecl* localVar = nullptr;
-            std::string path;
-            if (ResolveFieldChain(lhsObj, localVar, path))
+            /* Resolve the assignment target to a tracked (sub-)struct: (destVar, destPath),
+               where destPath is the dotted path within destVar ("" = the whole variable). */
+            VarDecl* destVar = nullptr;
+            std::string destPath;
+            bool lhsResolved = false;
+            if (lhsObj->prefixExpr)
             {
-                if (auto* m = FindAliasMap(localVar))
+                lhsResolved = ResolveFieldChain(lhsObj, destVar, destPath);
+            }
+            else if (auto v = lhsObj->FetchVarDecl())
+            {
+                /* Whole-variable target (e.g. `dst = src;`). */
+                if (FindAliasMap(v))
                 {
-                    if (m->find(path) != m->end())
+                    destVar = v;
+                    lhsResolved = true;
+                }
+            }
+
+            if (lhsResolved)
+            {
+                if (auto* m = FindAliasMap(destVar))
+                {
+                    /* Case 1: straight-line opaque-field assignment
+                       `localVar.[a.b...].opaqueField = rhs;`. The opaque member vanishes
+                       after stripping, so update the alias map and drop the statement. */
+                    if (m->find(destPath) != m->end())
                     {
                         if (auto target = ResolveOpaqueExprToDecl(ax->rvalueExpr.get()))
                         {
                             AliasEntry e;
                             e.target = target;
-                            (*m)[path] = e;
+                            (*m)[destPath] = e;
                         }
                         else
                         {
                             AliasEntry e;
                             e.ambiguous = true;
-                            (*m)[path] = e;
+                            (*m)[destPath] = e;
                         }
-                        /* Replace the assignment's operands with NullExpr so downstream
-                           passes (ExprConverter) don't traverse into ObjectExprs that
-                           reference soon-to-be-stripped struct members. Mark the stmnt
-                           dead so GLSLConverter drops it. */
-                        ax->lvalueExpr = std::make_shared<NullExpr>(SourcePosition::ignore);
-                        ax->rvalueExpr = std::make_shared<NullExpr>(SourcePosition::ignore);
+                        /* Replace the whole expression with a NullExpr so downstream passes
+                           (ExprConverter) don't traverse into ObjectExprs that reference
+                           soon-to-be-stripped struct members, and mark the stmnt dead so
+                           RemoveDeadCode drops it from its CodeBlock. Replacing the entire
+                           expr (rather than just nulling the operands) also degrades to a
+                           valid empty statement `;` in the case RemoveDeadCode cannot reach
+                           -- an unbraced single-statement branch/loop body, which is not held
+                           in a statement list. */
+                        ast->expr = std::make_shared<NullExpr>(SourcePosition::ignore);
                         ast->flags << AST::isDeadCode;
                         return;
+                    }
+
+                    /* Case 2: whole-struct or sub-struct copy assignment
+                       `dst = src;`, `dst.sub = src;` or `dst.sub = other.sub;`. The opaque
+                       leaves under destPath inherit the source's aliases; any POD residual is
+                       copied by the surviving struct assignment, so the statement is kept and
+                       emitted normally (only the opaque leaves were tracked here). */
+                    VarDecl* srcVar = nullptr;
+                    std::string srcPath;
+                    if (ResolveArgToVarPath(ax->rvalueExpr.get(), srcVar, srcPath))
+                    {
+                        if (auto* srcMap = FindAliasMap(srcVar))
+                        {
+                            CopyAliasSubtree(*m, destPath, *srcMap, srcPath);
+                            return;
+                        }
                     }
                 }
             }

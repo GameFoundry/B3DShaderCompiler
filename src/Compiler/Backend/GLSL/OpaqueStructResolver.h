@@ -167,6 +167,12 @@ class OpaqueStructResolver : public VisitorTracker
         // map; any field that differs becomes ambiguous.
         static AliasMap JoinAliasMaps(const AliasMap& a, const AliasMap& b);
 
+        // Copies the alias entries for all opaque leaves under `srcPath` in `srcMap` into
+        // `destMap` under `destPath` (either path "" means the whole struct). Used for
+        // whole-struct and sub-struct copy assignments (`dst = src;`, `dst.sub = src;`).
+        static void CopyAliasSubtree(AliasMap& destMap, const std::string& destPath,
+            const AliasMap& srcMap, const std::string& srcPath);
+
         /* ----- Members ----- */
 
         NameMangling                                    nameMangling_;

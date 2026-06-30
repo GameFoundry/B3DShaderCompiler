@@ -50,10 +50,14 @@ set(XSC_GLSL_ROUNDTRIP_CASES
     "OpaqueStructTest5|main|frag"   # chained calls passing the struct through
     "OpaqueStructTest6|main|frag"   # straight-line reassignment (via helper)
     "OpaqueStructTest7|main|frag"   # straight-line reassignment (inline access)
+    "OpaqueStructTest8|main|frag"   # field reassigned inside a callee, then forwarded to a deeper call
+    "OpaqueStructTest9|main|frag"   # if/else both arms rebind to the same global -> join stays resolved
     "OpaqueStructNested1|main|frag" # nested bundle, field-assignment init
     "OpaqueStructNested2|main|frag" # nested bundle w/ inner POD, field-assignment (inner POD survives stripping)
     "OpaqueStructNested3|main|frag" # pass nested sub-struct to a function
     "OpaqueStructNested4|main|frag" # nested fully-opaque bundle, copy-init propagates dotted alias map
+    "OpaqueStructNested5|main|frag" # sub-struct as copy source (TexBundle b = m.albedo)
+    "OpaqueStructNested6|main|frag" # sub-struct as copy destination (m.albedo = src)
 )
 
 # No PROFILE_DEFINE: glslangValidator infers the stage from the file extension,
@@ -93,5 +97,6 @@ add_expect_error(Global       OpaqueStructRejectGlobal       main frag "cannot b
 add_expect_error(Entry        OpaqueStructRejectEntry        main frag "entry-point parameters or return types" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(CBuffer      OpaqueStructRejectCBuffer      main frag "constant-buffer members"               "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(CondReassign OpaqueStructRejectCondReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(LoopReassign OpaqueStructRejectLoopReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 # Without the extension, the struct is rejected outright (no extra flags).
 add_expect_error(ExtDisabled  OpaqueStructRejectExtDisabled  main frag "opaque-struct' language extension is enabled")

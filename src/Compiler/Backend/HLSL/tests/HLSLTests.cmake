@@ -80,10 +80,14 @@ set(XSC_HLSL_OPAQUE_CASES
     "OpaqueStructTest5|main|ps_5_0|frag"
     "OpaqueStructTest6|main|ps_5_0|frag"
     "OpaqueStructTest7|main|ps_5_0|frag"
+    "OpaqueStructTest8|main|ps_5_0|frag"     # field reassigned inside a callee, then forwarded to a deeper call
+    "OpaqueStructTest9|main|ps_5_0|frag"     # if/else both arms rebind to the same global -> join stays resolved
     "OpaqueStructNested1|main|ps_5_0|frag"   # nested bundle, field-assignment init
     "OpaqueStructNested2|main|ps_5_0|frag"   # nested bundle w/ inner POD, field-assignment (inner POD survives stripping)
     "OpaqueStructNested3|main|ps_5_0|frag"   # pass nested sub-struct to a function
     "OpaqueStructNested4|main|ps_5_0|frag"   # nested fully-opaque bundle, copy-init propagates dotted alias map
+    "OpaqueStructNested5|main|ps_5_0|frag"   # sub-struct as copy source (TexBundle b = m.albedo)
+    "OpaqueStructNested6|main|ps_5_0|frag"   # sub-struct as copy destination (m.albedo = src)
 )
 
 xsc_add_roundtrip_tests(
