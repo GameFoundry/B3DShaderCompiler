@@ -59,9 +59,17 @@ class OpaqueStructResolver : public VisitorTracker
 
         /* ----- Internal data ----- */
 
+        // One synthesized opaque parameter: the VarDecl appended to the signature and the
+        // dotted opaque field path of the original struct it carries.
+        struct OpaqueParam
+        {
+            VarDecl*    param = nullptr;
+            std::string field;
+        };
+
         // For each function whose params include opaque-bearing struct types,
-        // remembers the synthesized opaque-field parameter VarDecls that were
-        // appended after each original parameter, in declaration order.
+        // remembers the synthesized opaque-field parameters that were appended after
+        // each original parameter, in declaration order.
         struct FunctionRewriteInfo
         {
             // The number of parameters before any rewriting (i.e. the original count).
@@ -69,26 +77,67 @@ class OpaqueStructResolver : public VisitorTracker
             // the parameter list has been augmented.
             std::size_t originalParamCount = 0;
 
-            // Per-original-parameter index -> ordered list of new opaque parameter VarDecls.
-            // Empty entry means that parameter was not opaque-bearing.
-            std::vector<std::vector<VarDecl*>> opaqueParamsPerOriginal;
-
-            // Per-original-parameter index -> ordered list of opaque field names
-            // (parallel to opaqueParamsPerOriginal). Used to decompose call arguments.
-            std::vector<std::vector<std::string>> opaqueFieldsPerOriginal;
+            // Per-original-parameter index -> ordered list of synthesized opaque params
+            // (VarDecl + field path). Empty entry means that parameter was not opaque-bearing.
+            std::vector<std::vector<OpaqueParam>> opaqueParamsPerOriginal;
         };
 
         // Alias state for a single opaque field of a local opaque-bearing struct var.
         struct AliasEntry
         {
-            // Resolved global declaration. May be a global BufferDecl/SamplerDecl, or a
-            // new opaque parameter VarDecl introduced by signature rewriting. We use the
-            // common Decl base so all three can be stored uniformly.
+            // Tri-state resolution of the field at the current program point.
+            enum class State
+            {
+                Unset,      // seeded but not yet bound to a global
+                Resolved,   // bound to `target`
+                Ambiguous,  // a control-flow join made it unresolvable
+            };
+
+            State       state       = State::Unset;
+            // Resolved global declaration (meaningful only when state == Resolved). May be
+            // a global BufferDecl/SamplerDecl, or a new opaque parameter VarDecl introduced
+            // by signature rewriting. We use the common Decl base so all three can be stored
+            // uniformly.
             Decl*       target      = nullptr;
-            bool        ambiguous   = false;    // Set if a control-flow join made it unresolvable.
+
+            static AliasEntry MakeResolved(Decl* target)
+            {
+                AliasEntry e;
+                e.state  = State::Resolved;
+                e.target = target;
+                return e;
+            }
+            static AliasEntry MakeAmbiguous()
+            {
+                AliasEntry e;
+                e.state = State::Ambiguous;
+                return e;
+            }
         };
 
         using AliasMap = std::unordered_map<std::string, AliasEntry>;
+
+        // Per-variable alias state: the alias map of every opaque-bearing struct local
+        // currently in scope. Snapshotted and joined at control-flow merge points.
+        using AliasState = std::unordered_map<VarDecl*, AliasMap>;
+
+        // One entry per slot of a flat aggregate initializer, in struct-layout order.
+        struct InitSlot
+        {
+            enum class Kind
+            {
+                Opaque,             // an opaque resource leaf (dropped from the residual)
+                Pod,                // a POD leaf (kept in the residual)
+                EmptyNestedDummy,   // a fully-opaque nested struct (becomes one dummy int)
+            };
+            Kind        kind        = Kind::Pod;
+            std::string path;                   // dotted path (Opaque)
+            std::size_t exprIndex   = 0;        // initializer slot read (Opaque/Pod)
+            // For EmptyNestedDummy: the inner opaque leaves (dotted path, initializer slot)
+            // whose aliases must still be seeded even though the residual collapses to one
+            // dummy int.
+            std::vector<std::pair<std::string, std::size_t>> innerOpaqueLeaves;
+        };
 
         /* ----- Pass orchestration ----- */
 
@@ -98,8 +147,8 @@ class OpaqueStructResolver : public VisitorTracker
 
         /* ----- Helpers ----- */
 
-        // True if the type denoter resolves to a struct decl that HasOpaqueMember.
-        // Out parameter receives the StructDecl, if any.
+        // If the type denoter resolves to a struct decl that HasOpaqueMember, returns
+        // that StructDecl; otherwise returns null.
         static StructDecl* ResolveOpaqueStruct(const TypeDenoterPtr& typeDen);
 
         // Collects (in declaration order) the opaque members of a struct, including
@@ -138,11 +187,20 @@ class OpaqueStructResolver : public VisitorTracker
         // "f1.f2...fN". Returns false if the expression is not such a chain.
         bool ResolveFieldChain(ObjectExpr* obj, VarDecl*& outVar, std::string& outPath);
 
-        // Resolves an argument/initializer expression that denotes a (whole or sub-)
-        // opaque-bearing struct value to its base local and the dotted sub-path within
-        // that local's alias map ("" when the whole variable is referenced). Returns
-        // false if the expression does not reference a tracked local.
-        bool ResolveArgToVarPath(Expr* expr, VarDecl*& outVar, std::string& outPath);
+        // Decomposes any expression denoting a (whole or sub-) opaque-bearing struct value
+        // -- a bare local, a sub-struct field chain, optionally parenthesized -- into its
+        // base local and the dotted sub-path within that local's alias map ("" when the
+        // whole variable is referenced). Returns false if it does not reference a tracked
+        // local. The single entry point for arguments, initializers and assignment sides;
+        // ResolveFieldChain is its recursive worker for the field-chain case.
+        bool DecomposeToVarPath(Expr* expr, VarDecl*& outVar, std::string& outPath);
+
+        // Walks the flat aggregate-initializer slots of `structDecl` (base members first,
+        // then declared members, nested opaque-bearing structs flattened in place), up to
+        // `exprCount` available initializer expressions, producing one InitSlot per slot.
+        // The single source of truth for the initializer's member/index layout, shared by
+        // the alias-seeding and residual-stripping walks.
+        void BuildInitializerSlots(StructDecl* structDecl, std::size_t exprCount, std::vector<InitSlot>& outSlots);
 
         // Initializes the alias map for a newly-declared local from its initializer expression.
         void InitAliasFromInitializer(VarDecl* localVar, StructDecl* structDecl, Expr* initializer);
@@ -167,6 +225,14 @@ class OpaqueStructResolver : public VisitorTracker
         // map; any field that differs becomes ambiguous.
         static AliasMap JoinAliasMaps(const AliasMap& a, const AliasMap& b);
 
+        // Joins `src` into `dst` per variable, for keys present in both (their alias maps
+        // are merged with JoinAliasMaps). Variables only in `src` are left untouched.
+        static void JoinCommonInto(AliasState& dst, const AliasState& src);
+
+        // Like JoinCommonInto, but also carries over variables that exist only in `src`
+        // (e.g. a local first bound inside one branch of an if/else).
+        static void JoinStateInto(AliasState& dst, const AliasState& src);
+
         // Copies the alias entries for all opaque leaves under `srcPath` in `srcMap` into
         // `destMap` under `destPath` (either path "" means the whole struct). Used for
         // whole-struct and sub-struct copy assignments (`dst = src;`, `dst.sub = src;`).
@@ -177,7 +243,7 @@ class OpaqueStructResolver : public VisitorTracker
 
         NameMangling                                    nameMangling_;
         std::unordered_map<FunctionDecl*, FunctionRewriteInfo>  funcRewrites_;
-        std::unordered_map<VarDecl*, AliasMap>          activeAliasMaps_;
+        AliasState                                      activeAliasMaps_;
 
 };
 
