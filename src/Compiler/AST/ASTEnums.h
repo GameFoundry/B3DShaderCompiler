@@ -675,6 +675,15 @@ bool IsShaderModel3AttributeType(const AttributeType t);
 // Returns true if the specified attribute is supported since shader model 5.
 bool IsShaderModel5AttributeType(const AttributeType t);
 
+#ifdef XSC_ENABLE_LANGUAGE_EXT
+
+// Returns true if the specified attribute is a language-extension attribute
+// ([space], [layout(...)], [color], [name("...")], ...) — host-engine metadata
+// rather than shader semantics.
+bool IsLanguageExtAttributeType(const AttributeType t);
+
+#endif
+
 
 /* ----- AttributeValue Enum ----- */
 

@@ -95,6 +95,14 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // can default-fill an element type on untyped textures.
         virtual void WriteBufferDeclGenericArgs(BufferType bufferType, BufferDeclStmnt* ast);
 
+        // Writes the optional `<T>` / `<T, N>` template suffix wherever a buffer type
+        // is spelled through a type denoter (function parameters, locals, casts).
+        // Default behavior mirrors WriteBufferDeclGenericArgs' default. Overridable so
+        // backends that default-fill template arguments on declarations can keep every
+        // other spelling of the same type identical (otherwise overload resolution on
+        // functions taking resource parameters breaks).
+        virtual void WriteBufferTypeDenoterGenericArgs(const BufferTypeDenoter& bufferTypeDenoter, const AST* ast, BufferType bufferType);
+
         // Writes the register annotation list (e.g. " : register(t0, space1)").
         virtual void WriteRegisters(const std::vector<RegisterPtr>& registers);
 
@@ -136,6 +144,17 @@ class XSC_EXPORT HLSLGenerator : public Generator
 
         // Writes a single statement; wraps non-block bodies in a block when needed for readability.
         virtual void WriteScopedStmnt(Stmnt* ast);
+
+        /* === Auto-binding === */
+
+        // Assigns register slot to every resource declaration that lacks on. Similar to GLSLConverter::ConvertSlotRegisters.
+        // Returns true if any bindable resource declaration was seen (registered or not).
+        bool AssignAutoBindings(Program& program, const ShaderOutput& outputDesc);
+
+        // True when AssignAutoBindings ran and saw at least one bindable resource
+        // declaration. Lets derived backends make binding-related emission decisions
+        // (e.g. an entry-point attribute) before any resource declaration was visited.
+        bool hasBindableResources_ = false;
 
         /* --- Visit procs derived backends override --- */
 

@@ -1092,6 +1092,15 @@ bool IsShaderModel5AttributeType(const AttributeType t)
     return (t >= AttributeType::Domain && t <= AttributeType::PatchConstantFunc);
 }
 
+#ifdef XSC_ENABLE_LANGUAGE_EXT
+
+bool IsLanguageExtAttributeType(const AttributeType t)
+{
+    return (t >= AttributeType::Space && t <= AttributeType::HDR);
+}
+
+#endif
+
 
 /* ----- AttributeValue Enum ----- */
 

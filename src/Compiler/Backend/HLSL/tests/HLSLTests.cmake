@@ -68,6 +68,27 @@ xsc_add_roundtrip_tests(
     CASES          ${XSC_HLSL_ROUNDTRIP_CASES}
 )
 
+# --- Auto-binding case ---
+# Driven with -AB: unregistered resources must receive sequential per-space
+# slots, an explicit slot must be reserved against the counter, and the
+# DX9-style register(c0, space1) cbuffer spelling must be normalized to a
+# b-register binding. ps_5_1 because the normalized binding keeps its space.
+set(XSC_HLSL_AUTOBIND_CASES
+    "AutoBindTest1|PS|ps_5_1|frag"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;auto-binding"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -AB
+    CASES          ${XSC_HLSL_AUTOBIND_CASES}
+)
+
 # --- Opaque-struct pass-through cases ---
 # HLSL natively supports opaque types inside structs (the FXAA bundle pattern),
 # so the backend emits the struct unchanged; fxc must still accept the result.

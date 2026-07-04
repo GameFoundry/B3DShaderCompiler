@@ -11,7 +11,10 @@
 #include "Exception.h"
 #include "Helper.h"
 #include "ReportIdents.h"
+#include "ASTFactory.h"
 #include <algorithm>
+#include <map>
+#include <set>
 
 
 namespace Xsc
@@ -31,6 +34,112 @@ namespace
         bool inEndWithSemicolon;
     };
 } // namespace
+
+
+/*
+Assigns registers to resource declarations that lack them (see
+HLSLGenerator::AssignAutoBindings). Slots are numbered sequentially per register
+space, with all resource kinds sharing one counter per space, matching the GLSL
+backend's auto-binding numbering; explicit registers are respected and their
+slots reserved against auto-assignment.
+*/
+class HLSLAutoBindingVisitor final : public Visitor
+{
+
+    public:
+
+        HLSLAutoBindingVisitor(int startSlot) :
+            startSlot_ { startSlot }
+        {
+        }
+
+        // Walks the program and assigns the missing registers. Returns true if any
+        // bindable resource declaration was seen (registered or not).
+        bool Run(Program& program)
+        {
+            Visit(&program);
+            return hasResources_;
+        }
+
+    private:
+
+        DECL_VISIT_PROC( BufferDecl        );
+        DECL_VISIT_PROC( SamplerDecl       );
+        DECL_VISIT_PROC( UniformBufferDecl );
+
+        void AssignRegister(std::vector<RegisterPtr>& slotRegisters, const RegisterType registerType);
+
+        // Reserves and returns the lowest free slot in the given space at or above
+        // that space's running counter.
+        int TakeNextFreeSlot(int space);
+
+        std::map<int, std::set<int>>    usedSlots_;                 // Per-space used binding slots
+        std::map<int, int>              nextSlot_;                  // Per-space auto-binding slot counters
+        int                             startSlot_      = 0;
+        bool                            hasResources_   = false;
+
+};
+
+int HLSLAutoBindingVisitor::TakeNextFreeSlot(int space)
+{
+    auto it = nextSlot_.find(space);
+    if (it == nextSlot_.end())
+        it = nextSlot_.insert({ space, startSlot_ }).first;
+
+    auto& usedSlots = usedSlots_[space];
+    while (usedSlots.count(it->second) > 0)
+        ++it->second;
+
+    usedSlots.insert(it->second);
+    return it->second++;
+}
+
+void HLSLAutoBindingVisitor::AssignRegister(std::vector<RegisterPtr>& slotRegisters, const RegisterType registerType)
+{
+    hasResources_ = true;
+
+    if (!slotRegisters.empty())
+    {
+        /* Explicit register: reserve its slot (within its space) so auto-assignment
+           can't collide; fill in an unassigned slot (register(space#) only) the same
+           way as a missing one. Normalize the register type to the resource's actual
+           kind when the source used a spelling that doesn't map to one — most notably
+           the DX9 'c' register (BufferOffset) hosts use on cbuffers purely to carry
+           an explicit slot + space pair. */
+        auto& reg = slotRegisters.front();
+        if (reg->registerType == RegisterType::Undefined || reg->registerType == RegisterType::BufferOffset)
+            reg->registerType = registerType;
+
+        const int space = (reg->space >= 0 ? reg->space : 0);
+        if (reg->slot >= 0)
+            usedSlots_[space].insert(reg->slot);
+        else
+            reg->slot = TakeNextFreeSlot(space);
+        return;
+    }
+
+    slotRegisters.push_back(ASTFactory::MakeRegister(TakeNextFreeSlot(0), 0, registerType));
+}
+
+void HLSLAutoBindingVisitor::VisitBufferDecl(BufferDecl* ast, void* args)
+{
+    AssignRegister(
+        ast->slotRegisters,
+        IsRWBufferType(ast->GetBufferType()) ? RegisterType::UnorderedAccessView : RegisterType::TextureBuffer);
+    VISIT_DEFAULT(BufferDecl);
+}
+
+void HLSLAutoBindingVisitor::VisitSamplerDecl(SamplerDecl* ast, void* args)
+{
+    AssignRegister(ast->slotRegisters, RegisterType::Sampler);
+    VISIT_DEFAULT(SamplerDecl);
+}
+
+void HLSLAutoBindingVisitor::VisitUniformBufferDecl(UniformBufferDecl* ast, void* args)
+{
+    AssignRegister(ast->slotRegisters, RegisterType::ConstantBuffer);
+    VISIT_DEFAULT(UniformBufferDecl);
+}
 
 
 /* ----- Token-spelling virtuals ----- */
@@ -107,6 +216,16 @@ const std::string& HLSLGenerator::SemanticKeyword(Semantic s) const
 const std::string& HLSLGenerator::AttributeTypeKeyword(AttributeType t) const
 {
     static const std::string undef = "";
+
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    /* Language-extension attributes ([color], [layout(...)], [name("...")], ...) are
+       host-engine metadata, not shader semantics; no HLSL-family compiler understands
+       them. Returning the empty keyword suppresses their emission (WriteAttribute
+       skips attributes without a keyword). */
+    if (IsLanguageExtAttributeType(t))
+        return undef;
+    #endif
+
     if (auto p = AttributeTypeToHLSLKeyword(t))
         return *p;
     return undef;
@@ -167,13 +286,19 @@ HLSLGenerator::HLSLGenerator(Log* log) :
 }
 
 void HLSLGenerator::GenerateCodePrimary(
-    Program& program, const ShaderInput& inputDesc, const ShaderOutput& /*outputDesc*/)
+    Program& program, const ShaderInput& inputDesc, const ShaderOutput& outputDesc)
 {
     try
     {
+        /* Auto-assign registers before emission when requested: hosts that rely on
+           auto-binding declare resources without registers. */
+        hasBindableResources_ = false;
+        if (outputDesc.options.autoBinding)
+            hasBindableResources_ = AssignAutoBindings(program, outputDesc);
+
         WriteFileHeader(inputDesc);
 
-        /* Visit program AST as-is (no AST rewriting was performed for HLSL output) */
+        /* Visit program AST as-is (no further AST rewriting is performed for HLSL output) */
         Visit(&program);
     }
     catch (const Report&)
@@ -188,6 +313,12 @@ void HLSLGenerator::GenerateCodePrimary(
     {
         Error(e.what());
     }
+}
+
+bool HLSLGenerator::AssignAutoBindings(Program& program, const ShaderOutput& outputDesc)
+{
+    HLSLAutoBindingVisitor visitor { outputDesc.options.autoBindingStartSlot };
+    return visitor.Run(program);
 }
 
 void HLSLGenerator::WriteFileHeader(const ShaderInput& inputDesc)
@@ -360,6 +491,22 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
 
     if (InsideGlobalScope())
         Blank();
+}
+
+void HLSLGenerator::WriteBufferTypeDenoterGenericArgs(const BufferTypeDenoter& bufferTypeDenoter, const AST* ast, BufferType /*bufferType*/)
+{
+    /* Optional generic sub-type: Texture2D<float4>, RWStructuredBuffer<S>, ... */
+    if (bufferTypeDenoter.genericTypeDenoter)
+    {
+        Write("<");
+        WriteTypeDenoter(*bufferTypeDenoter.genericTypeDenoter, ast);
+        if (bufferTypeDenoter.genericSize > 1)
+        {
+            Write(", ");
+            Write(std::to_string(bufferTypeDenoter.genericSize));
+        }
+        Write(">");
+    }
 }
 
 void HLSLGenerator::WriteBufferDeclGenericArgs(BufferType /*bufferType*/, BufferDeclStmnt* ast)
@@ -807,19 +954,7 @@ void HLSLGenerator::WriteTypeDenoter(const TypeDenoter& typeDenoter, const AST* 
                 bufferType = bufferTypeDen->bufferDeclRef->GetBufferType();
 
             Write(BufferTypeKeyword(bufferType));
-
-            /* Optional generic sub-type: Texture2D<float4>, RWStructuredBuffer<S>, ... */
-            if (bufferTypeDen->genericTypeDenoter)
-            {
-                Write("<");
-                WriteTypeDenoter(*bufferTypeDen->genericTypeDenoter, ast);
-                if (bufferTypeDen->genericSize > 1)
-                {
-                    Write(", ");
-                    Write(std::to_string(bufferTypeDen->genericSize));
-                }
-                Write(">");
-            }
+            WriteBufferTypeDenoterGenericArgs(*bufferTypeDen, ast, bufferType);
         }
         else if (auto samplerTypeDen = typeDenoter.As<SamplerTypeDenoter>())
         {
