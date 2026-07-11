@@ -122,7 +122,6 @@ add_expect_error(CBuffer      OpaqueStructRejectCBuffer      main frag "constant
 add_expect_error(CondReassign OpaqueStructRejectCondReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(LoopReassign OpaqueStructRejectLoopReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(ReturnAmbiguous OpaqueStructRejectReturnAmbiguous main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(CallFieldAccess OpaqueStructRejectCallFieldAccess main frag "assign the result to a local variable"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 # Without the extension, the struct is rejected outright (no extra flags).
 add_expect_error(ExtDisabled  OpaqueStructRejectExtDisabled  main frag "opaque-struct' language extension is enabled")
 
@@ -165,6 +164,6 @@ if(XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
         "void makeSet\\(out BundleSet"
         "dummy|struct Bundle[ \\t\\r\\n]*\\{")
 else()
-    # The legacy analyzer deliberately rejects direct access through a call result.
-    add_expect_error(CallFieldAccess OpaqueTypeDirectCallField main frag "cannot return a structure containing opaque resources" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+    # The legacy resolver deliberately rejects direct access through a call result.
+    add_expect_error(CallFieldAccess OpaqueStructRejectCallFieldAccess main frag "assign the result to a local variable" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 endif()
