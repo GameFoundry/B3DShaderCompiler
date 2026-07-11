@@ -487,6 +487,10 @@ DECL_REPORT( StrictHlslMulMatVecDimMismatch,    "strict-hlsl forbids implicit pr
 DECL_REPORT( StrictHlslMulVecMatDimMismatch,    "strict-hlsl forbids implicit promotion in mul(vector, matrix): matrix has {0} row(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
 DECL_REPORT( OpaqueStructNoArrayMember,         "array members of opaque type inside a struct are not supported[: '{0}']"                                         );
 DECL_REPORT( OpaqueStructNoOutInout,            "opaque-bearing struct parameters must be passed by value (no 'out'/'inout')[: '{0}']"                            );
+DECL_REPORT( OpaqueTypeUnsizedArray,            "opaque-bearing arrays require a fixed, positive compile-time extent[: '{0}']"                                   );
+DECL_REPORT( OpaqueTypeInvalidRuntimeIndex,     "runtime indexing requires one cohesive global or formal opaque resource array[: '{0}']"                         );
+DECL_REPORT( OpaqueTypeDynamicWrite,            "runtime-indexed writes to opaque values are not supported[: '{0}']"                                             );
+DECL_REPORT( OpaqueTypeDefaultArgument,         "opaque-bearing function parameters cannot use default arguments[: '{0}']"                                       );
 DECL_REPORT( DeclTypeDiffersFromDefType,        "declaration type '{0}' differs from definition type '{1}'"                                                     );
 DECL_REPORT( ArrayTypeCanOnlyAppearInDef,       "array type can only appear in definition of static member variables[: '{0}']"                                  );
 DECL_REPORT( ExpectedStringArgInAttribute,      "expected string as argument for attribute[ '{0}']"                                                             );

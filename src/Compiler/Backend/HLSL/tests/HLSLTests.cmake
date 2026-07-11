@@ -111,6 +111,21 @@ set(XSC_HLSL_OPAQUE_CASES
     "OpaqueStructNested6|main|ps_5_0|frag"   # sub-struct as copy destination (m.albedo = src)
 )
 
+if(XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
+    list(APPEND XSC_HLSL_OPAQUE_CASES
+        "OpaqueTypeLocalValues|main|ps_5_0|frag"
+        "OpaqueTypeFixedArrays|main|ps_5_0|frag"
+        "OpaqueTypeAggregateArrays|main|ps_5_0|frag"
+        "OpaqueTypeNestedArrayAxes|main|ps_5_0|frag"
+        "OpaqueTypeReturnsAndOut|main|ps_5_0|frag"
+        "OpaqueTypeArrayContracts|main|ps_5_0|frag"
+        "OpaqueTypeDirectCallField|main|ps_5_0|frag"
+        # FXC itself rejects runtime sampler-array indexing and opaque-struct
+        # ternaries, so those two GLSL-lowering fixtures are intentionally not
+        # part of the HLSL backend round-trip list.
+    )
+endif()
+
 xsc_add_roundtrip_tests(
     PREFIX         hlsl_roundtrip
     DRIVER         ${_HLSL_DRIVER}

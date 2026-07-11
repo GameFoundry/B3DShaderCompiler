@@ -9,7 +9,13 @@
 #include "GLSLExtensionAgent.h"
 #include "GLSLConverter.h"
 #include "BackendRegistry.h"
-#include "OpaqueStructResolver.h"
+#ifdef XSC_ENABLE_LANGUAGE_EXT
+#   ifdef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+#       include "OpaqueTypeLowering.h"
+#   else
+#       include "OpaqueStructResolver.h"
+#   endif
+#endif
 #include "GLSLKeywords.h"
 #include "GLSLIntrinsics.h"
 #include "ReferenceAnalyzer.h"
@@ -1124,12 +1130,15 @@ void GLSLGenerator::PreProcessOpaqueStructResolver(const ShaderOutput& outputDes
     if (!extensions_(Extensions::OpaqueStructTypes))
         return;
 
-    /* GLSL/SPIR-V disallows opaque types as struct members. Rewrite functions to
-       flatten opaque struct parameters into individual opaque parameters, strip the
-       opaque members from struct declarations, and resolve `s.opaqueField` member
-       accesses to the corresponding global resource. */
+    /* GLSL/SPIR-V disallows opaque values in several source-language positions.
+       Select the implementation at build time while retaining the same extension gate. */
+    #ifdef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+    OpaqueTypeLowering lowering;
+    lowering.Run(*GetProgram(), outputDesc.nameMangling);
+    #else
     OpaqueStructResolver resolver;
     resolver.Resolve(*GetProgram(), outputDesc.nameMangling);
+    #endif
     #endif
 }
 

@@ -331,13 +331,14 @@ IMPLEMENT_VISIT_PROC(StructDecl)
         if (!ast->funcMembers.empty())
             Error(R_OpaqueStructNoMemberFunc(ast->ToString()), ast);
 
-        /* Members must be a single opaque VarDecl (no arrays), a nested opaque-bearing
-           struct (flattened by the resolver), a non-opaque struct, or POD. */
+        #ifndef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+
+        /* Preserve the legacy resolver's direct opaque-array member restrictions. */
         for (const auto& member : ast->varMembers)
         {
             const auto& memberType = member->typeSpecifier->GetTypeDenoter()->GetAliased();
 
-            /* Reject array of opaque type. */
+            /* The legacy resolver cannot split direct opaque array members. */
             if (auto arrTypeDen = memberType.As<ArrayTypeDenoter>())
             {
                 if (arrTypeDen->subTypeDenoter)
@@ -358,6 +359,8 @@ IMPLEMENT_VISIT_PROC(StructDecl)
                 }
             }
         }
+
+        #endif // XSC_USE_NEW_OPAQUE_TYPE_LOWERING
     }
 
     /* Report warning if structure is empty */
@@ -399,10 +402,12 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
     AnalyzeExtAttributes(ast->declStmntRef->attribs, ast->returnType->typeDenoter->GetSub());
     #endif // XSC_ENABLE_LANGUAGE_EXT
 
-    /* Disallow returning an opaque-bearing struct by value: the alias map cannot
-       propagate opaque resources across the call boundary. */
+    #ifndef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+
+    /* The legacy resolver cannot propagate resources across a return boundary. */
     if (auto returnStruct = ResolveOpaqueBearingStructDecl(ast->returnType->typeDenoter))
         Error(R_OpaqueStructNoReturn(returnStruct->ToString()), ast->returnType.get());
+    #endif // XSC_USE_NEW_OPAQUE_TYPE_LOWERING
 
     /* Analyze parameter type denoters (required before function can be registered in symbol table) */
     for (auto& param : ast->parameters)
@@ -420,7 +425,9 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
         }
     }
 
-    /* Disallow arrays of opaque-bearing struct in function parameters, and 'out'/'inout'. */
+    #ifndef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+
+    /* Preserve the legacy resolver's parameter restrictions in fallback builds. */
     for (auto& param : ast->parameters)
     {
         if (TypeDenoterIsArray(param->typeSpecifier->typeDenoter))
@@ -435,6 +442,8 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
                 Error(R_OpaqueStructNoOutInout(sd->ToString()), param.get());
         }
     }
+
+    #endif // XSC_USE_NEW_OPAQUE_TYPE_LOWERING
 
     /* Only use global symbol table for non-member functions */
     if (!ast->IsMemberFunction())
@@ -535,6 +544,28 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
     Visit(ast->typeSpecifier);
     Visit(ast->varDecls);
 
+    #ifdef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+
+    /* Ordinary local opaque declarations are part of the same opt-in language
+       extension as opaque-bearing structs. Native opaque input parameters and
+       global resource declarations keep their existing behavior. */
+    if (!InsideStructDecl() && !InsideGlobalScope() && !ast->flags(VarDeclStmnt::isParameter))
+    {
+        const auto& localType = ast->typeSpecifier->GetTypeDenoter()->GetAliased();
+        const TypeDenoter* leafType = &localType;
+        if (auto arrayType = localType.As<ArrayTypeDenoter>())
+            leafType = arrayType->subTypeDenoter.get();
+        if (leafType && (leafType->GetAliased().IsBuffer() || leafType->GetAliased().IsSampler()))
+        {
+            #ifdef XSC_ENABLE_LANGUAGE_EXT
+            if (!extensions_(Extensions::OpaqueStructTypes))
+            #endif
+                Error(R_OpaqueStructExtDisabled(ast->typeSpecifier->ToString()), ast);
+        }
+    }
+
+    #endif // XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+
     /* Validation for opaque-bearing struct usage. Skips struct member declarations
        (those are handled by the StructDecl visitor) and function parameters
        (handled by the FunctionDecl visitor). */
@@ -549,9 +580,13 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
             else if (InsideGlobalScope())
                 Error(R_OpaqueStructNoGlobal(opaqueStruct->ToString()), ast);
 
-            /* Reject arrays of opaque-bearing struct everywhere. */
+            #ifndef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+
+            /* The legacy resolver only supports scalar local composites. */
             if (TypeDenoterIsArray(ast->typeSpecifier->typeDenoter))
                 Error(R_OpaqueStructNoArray(opaqueStruct->ToString()), ast);
+
+            #endif // XSC_USE_NEW_OPAQUE_TYPE_LOWERING
         }
     }
 
