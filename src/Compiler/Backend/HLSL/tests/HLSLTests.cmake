@@ -109,6 +109,10 @@ set(XSC_HLSL_OPAQUE_CASES
     "OpaqueStructNested4|main|ps_5_0|frag"   # nested fully-opaque bundle, copy-init propagates dotted alias map
     "OpaqueStructNested5|main|ps_5_0|frag"   # sub-struct as copy source (TexBundle b = m.albedo)
     "OpaqueStructNested6|main|ps_5_0|frag"   # sub-struct as copy destination (m.albedo = src)
+    "OpaqueStructTest10|main|ps_5_0|frag"    # function returns opaque-bearing struct by value
+    "OpaqueStructTest11|main|ps_5_0|frag"    # pure 'out' parameter of opaque-bearing struct type
+    "OpaqueStructTest12|main|ps_5_0|frag"    # 'inout' parameter rebinds a field inside the callee
+    "OpaqueStructNested7|main|ps_5_0|frag"   # nested struct returned by value; fields from a parameter
 )
 
 xsc_add_roundtrip_tests(

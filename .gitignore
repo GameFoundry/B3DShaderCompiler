@@ -2,4 +2,4 @@
 Build
 
 # Generated install tree (cmake --install output)
-install/
+install/.context-compiler/

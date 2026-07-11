@@ -11,7 +11,10 @@
  * GLSL/SPIR-V disallow opaque types as struct members, so this pass:
  *   1. Walks function declarations: for parameters whose type is a struct that
  *      contains opaque members (directly or nested), splits each opaque field out as
- *      its own synthesized parameter (one per flattened path).
+ *      its own synthesized parameter (one per flattened path). Pure 'out' parameters
+ *      are not split (the callee cannot read their opaque leaves before writing
+ *      them, so the caller has nothing to pass in); 'inout' parameters are split
+ *      like by-value ones.
  *   2. Walks function bodies: tracks, for every local variable of opaque-bearing
  *      struct type, which global resource each opaque field (by dotted path)
  *      currently aliases. Straight-line initializers, copies (whole or sub-struct)
@@ -25,10 +28,22 @@
  *      arguments (one per opaque field).
  *   5. Strips opaque members from StructDecl::varMembers so the generator emits
  *      only the POD residual.
+ *   6. Propagates alias resolution across call boundaries. While a body is
+ *      processed, a per-function summary records how the opaque leaves of its
+ *      return value (joined over all return statements) and of each out/inout
+ *      opaque-struct parameter (joined over all function exits) resolve, in
+ *      callee-context targets (globals, or the callee's own opaque parameters).
+ *      Every call site translates that summary into the caller by mapping parameter
+ *      targets to the resolved arguments it passed, enabling
+ *      `Bundle b = make();`, `dst = make();`, `return make();`, direct pass-through
+ *      (`helper(make(), uv)`), ternaries over struct values, and out/inout
+ *      copy-back after the call. Callee bodies are processed on demand (memoized),
+ *      so a call site never reads a missing summary.
  *
  * Restrictions enforced by the frontend (HLSLAnalyzer) before this pass runs:
  *   - opaque-bearing structs may not appear as globals, cbuffer/SB members,
- *     entry-point I/O, return-by-value, member-function carriers, or as arrays.
+ *     entry-point I/O, member-function carriers, or as arrays (including arrays as
+ *     parameters or return types).
  */
 
 #ifndef XSC_OPAQUE_STRUCT_RESOLVER_H
@@ -139,6 +154,25 @@ class OpaqueStructResolver : public VisitorTracker
             std::vector<std::pair<std::string, std::size_t>> innerOpaqueLeaves;
         };
 
+        // Dataflow summary of one function, computed while its body is processed: how
+        // the opaque leaves of its return value and of each out/inout opaque-struct
+        // parameter resolve at function exit. Targets are callee-context Decls (global
+        // BufferDecl/SamplerDecl, or one of the callee's own opaque parameter VarDecls);
+        // call sites translate them into caller context via the argument bindings.
+        struct FunctionSummary
+        {
+            // True once at least one ReturnStmnt of an opaque-struct-returning function
+            // has been summarized (multiple returns are joined; differing bindings
+            // become ambiguous).
+            bool     hasReturnAliases = false;
+            AliasMap returnAliases;
+
+            // Exit-state alias map of each out/inout opaque-struct parameter (keyed by
+            // the parameter's VarDecl), joined over every return statement and the
+            // fall-through end of the body.
+            std::unordered_map<VarDecl*, AliasMap> outParamAliases;
+        };
+
         /* ----- Pass orchestration ----- */
 
         void RewriteFunctionSignatures(Program& program);
@@ -149,7 +183,7 @@ class OpaqueStructResolver : public VisitorTracker
 
         // If the type denoter resolves to a struct decl that HasOpaqueMember, returns
         // that StructDecl; otherwise returns null.
-        static StructDecl* ResolveOpaqueStruct(const TypeDenoterPtr& typeDen);
+        static StructDecl* TryGetOpaqueStructDeclaration(const TypeDenoterPtr& typeDen);
 
         // Collects (in declaration order) the opaque members of a struct, including
         // inherited members and members nested inside opaque-bearing sub-structs.
@@ -205,6 +239,43 @@ class OpaqueStructResolver : public VisitorTracker
         // Initializes the alias map for a newly-declared local from its initializer expression.
         void InitAliasFromInitializer(VarDecl* localVar, StructDecl* structDecl, Expr* initializer);
 
+        /* ----- Cross-call propagation ----- */
+
+        // Processes one function body exactly once (memoized in processedFuncs_):
+        // seeds parameter alias maps, walks the body (applying all rewrites), and
+        // captures the function's return-value / out-param summaries. Alias state and
+        // the struct-decl tracker stack are saved and restored around the body, so a
+        // callee processed on demand from the middle of a caller's body neither sees
+        // nor pollutes the caller's state. Forward declarations (no body) are marked
+        // processed and skipped.
+        void ProcessFunction(FunctionDecl* funcDecl);
+
+        // Folds the CURRENT alias state of every out/inout opaque-struct parameter of
+        // `funcDecl` into its exit summary (first capture copies, later captures join).
+        // Called at every ReturnStmnt and once more at the fall-through end of the body.
+        void AccumulateOutParamState(FunctionDecl* funcDecl);
+
+        // Computes the alias map (keys relative to `structDecl`'s opaque leaves) of an
+        // expression that yields an opaque-bearing struct value:
+        //   - a (whole or sub-) reference to a tracked local/parameter,
+        //   - a call whose translated return aliases were recorded (expr must already
+        //     have been visited),
+        //   - a ternary over two such values (sides are joined),
+        //   - any of the above in brackets.
+        // Returns false if the expression's aliases cannot be determined.
+        bool GetOrComputeAliasMapForExpression(Expr* expr, StructDecl* structDecl, AliasMap& outMap);
+
+        // Translates alias map built by callee for its return values and output parameters. 
+        // Maps those aliases into caller's variables (or global variables) through @p paramBindings 
+        // (set of arguments caller passed to the callee).
+        // 
+        static AliasMap RemapAliasesCalleeToCaller(const AliasMap& calleeMap, const std::unordered_map<VarDecl*, Decl*>& paramBindings);
+
+        // Writes every entry of `srcMap` (keys relative to some struct type) into
+        // `destMap` under `destPath` ("" = the whole variable), overwriting the
+        // previous entries for those leaves.
+        static void RemapAliasMap(AliasMap& destMap, const std::string& destPath, const AliasMap& srcMap);
+
         // Visit overrides used by RewriteFunctionBodies.
         DECL_VISIT_PROC( StructDecl        );
         DECL_VISIT_PROC( FunctionDecl      );
@@ -213,6 +284,7 @@ class OpaqueStructResolver : public VisitorTracker
         DECL_VISIT_PROC( ObjectExpr        );
         DECL_VISIT_PROC( AssignExpr        );
         DECL_VISIT_PROC( ExprStmnt         );
+        DECL_VISIT_PROC( ReturnStmnt       );
         DECL_VISIT_PROC( IfStmnt           );
         DECL_VISIT_PROC( ElseStmnt         );
         DECL_VISIT_PROC( ForLoopStmnt      );
@@ -244,6 +316,18 @@ class OpaqueStructResolver : public VisitorTracker
         NameMangling                                    nameMangling_;
         std::unordered_map<FunctionDecl*, FunctionRewriteInfo>  funcRewrites_;
         AliasState                                      activeAliasMaps_;
+
+        // Per-function return/out-param summaries (keyed by the implementation's
+        // FunctionDecl), produced by ProcessFunction.
+        std::unordered_map<FunctionDecl*, FunctionSummary>  funcSummaries_;
+
+        // Per-call-site translated (caller-context) return aliases of calls to
+        // functions that return an opaque-bearing struct.
+        std::unordered_map<CallExpr*, AliasMap>             callReturnAliases_;
+
+        // Function bodies already processed (or currently being processed); makes
+        // ProcessFunction idempotent and breaks (illegal) recursion cycles.
+        std::unordered_set<FunctionDecl*>                   processedFuncs_;
 
 };
 

@@ -399,10 +399,15 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
     AnalyzeExtAttributes(ast->declStmntRef->attribs, ast->returnType->typeDenoter->GetSub());
     #endif // XSC_ENABLE_LANGUAGE_EXT
 
-    /* Disallow returning an opaque-bearing struct by value: the alias map cannot
-       propagate opaque resources across the call boundary. */
-    if (auto returnStruct = ResolveOpaqueBearingStructDecl(ast->returnType->typeDenoter))
-        Error(R_OpaqueStructNoReturn(returnStruct->ToString()), ast->returnType.get());
+    /* Returning an opaque-bearing struct by value is supported (the GLSL backend's
+       OpaqueStructResolver propagates the callee's opaque-field aliases to the caller
+       across the call boundary), but ARRAYS of such structs cannot be returned: the
+       resolver only tracks scalar struct values. */
+    if (TypeDenoterIsArray(ast->returnType->typeDenoter))
+    {
+        if (auto returnStruct = ResolveOpaqueBearingStructDecl(ast->returnType->typeDenoter))
+            Error(R_OpaqueStructNoArray(returnStruct->ToString()), ast->returnType.get());
+    }
 
     /* Analyze parameter type denoters (required before function can be registered in symbol table) */
     for (auto& param : ast->parameters)
@@ -420,19 +425,15 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
         }
     }
 
-    /* Disallow arrays of opaque-bearing struct in function parameters, and 'out'/'inout'. */
+    /* Disallow arrays of opaque-bearing struct in function parameters. 'out'/'inout'
+       opaque-bearing struct parameters are supported: the GLSL backend's
+       OpaqueStructResolver flows the callee's exit-state bindings back to the caller. */
     for (auto& param : ast->parameters)
     {
         if (TypeDenoterIsArray(param->typeSpecifier->typeDenoter))
         {
             if (auto sd = ResolveOpaqueBearingStructDecl(param->typeSpecifier->typeDenoter))
                 Error(R_OpaqueStructNoArray(sd->ToString()), param.get());
-        }
-
-        if (auto sd = ResolveOpaqueBearingStructDecl(param->typeSpecifier->typeDenoter))
-        {
-            if (param->typeSpecifier->isOutput)
-                Error(R_OpaqueStructNoOutInout(sd->ToString()), param.get());
         }
     }
 

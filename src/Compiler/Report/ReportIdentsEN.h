@@ -487,6 +487,8 @@ DECL_REPORT( StrictHlslMulMatVecDimMismatch,    "strict-hlsl forbids implicit pr
 DECL_REPORT( StrictHlslMulVecMatDimMismatch,    "strict-hlsl forbids implicit promotion in mul(vector, matrix): matrix has {0} row(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
 DECL_REPORT( OpaqueStructNoArrayMember,         "array members of opaque type inside a struct are not supported[: '{0}']"                                         );
 DECL_REPORT( OpaqueStructNoOutInout,            "opaque-bearing struct parameters must be passed by value (no 'out'/'inout')[: '{0}']"                            );
+DECL_REPORT( OpaqueStructCallFieldAccess,       "cannot access opaque field '{0}' directly on a function-call result; assign the result to a local variable first" );
+DECL_REPORT( OpaqueStructOutArgUntracked,       "cannot track opaque fields of 'out'/'inout' argument; the argument must be a local opaque-bearing struct variable (or sub-struct)[: '{0}']" );
 DECL_REPORT( DeclTypeDiffersFromDefType,        "declaration type '{0}' differs from definition type '{1}'"                                                     );
 DECL_REPORT( ArrayTypeCanOnlyAppearInDef,       "array type can only appear in definition of static member variables[: '{0}']"                                  );
 DECL_REPORT( ExpectedStringArgInAttribute,      "expected string as argument for attribute[ '{0}']"                                                             );

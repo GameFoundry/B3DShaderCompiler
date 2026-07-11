@@ -22,6 +22,12 @@ void OpaqueStructResolver::Resolve(Program& program, const NameMangling& nameMan
 {
     nameMangling_ = nameMangling;
 
+    funcRewrites_.clear();
+    activeAliasMaps_.clear();
+    funcSummaries_.clear();
+    callReturnAliases_.clear();
+    processedFuncs_.clear();
+
     RewriteFunctionSignatures(program);
     RewriteFunctionBodies(program);
     StripOpaqueMembersFromStructs(program);
@@ -30,7 +36,7 @@ void OpaqueStructResolver::Resolve(Program& program, const NameMangling& nameMan
 
 /* ----- Helpers ----- */
 
-StructDecl* OpaqueStructResolver::ResolveOpaqueStruct(const TypeDenoterPtr& typeDen)
+StructDecl* OpaqueStructResolver::TryGetOpaqueStructDeclaration(const TypeDenoterPtr& typeDen)
 {
     if (!typeDen)
         return nullptr;
@@ -63,7 +69,7 @@ void OpaqueStructResolver::CollectOpaqueFields(StructDecl* structDecl, std::vect
             for (const auto& varDecl : member->varDecls)
                 outFields.emplace_back(prefix + varDecl->ident, typeDen);
         }
-        else if (auto nestedStruct = ResolveOpaqueStruct(typeDen))
+        else if (auto nestedStruct = TryGetOpaqueStructDeclaration(typeDen))
         {
             /* Recurse into a nested opaque-bearing struct member, extending the dotted
                access path (e.g. "mat.albedo"). Pure-POD struct members resolve to null
@@ -87,7 +93,7 @@ bool OpaqueStructResolver::StructIsFullyOpaque(StructDecl* structDecl)
         auto typeDen = member->typeSpecifier->GetTypeDenoter();
         if (Converter::IsOpaqueTypeDenoter(typeDen))
             continue;                                   // opaque leaf: removed by stripping
-        if (auto nested = ResolveOpaqueStruct(typeDen))
+        if (auto nested = TryGetOpaqueStructDeclaration(typeDen))
         {
             if (!StructIsFullyOpaque(nested))
                 return false;
@@ -112,7 +118,7 @@ void OpaqueStructResolver::BuildInitializerSlots(StructDecl* structDecl, std::si
         {
             auto memberType = member->typeSpecifier->GetTypeDenoter();
             const bool isOpaque = Converter::IsOpaqueTypeDenoter(memberType);
-            StructDecl* nested = (isOpaque ? nullptr : ResolveOpaqueStruct(memberType));
+            StructDecl* nested = (isOpaque ? nullptr : TryGetOpaqueStructDeclaration(memberType));
             for (const auto& vd : member->varDecls)
             {
                 if (idx >= exprCount)
@@ -172,7 +178,7 @@ void OpaqueStructResolver::BuildInitializerSlots(StructDecl* structDecl, std::si
 void OpaqueStructResolver::SplitOpaqueParameter(FunctionDecl& funcDecl, std::size_t actualIndex, std::size_t logicalIndex, FunctionRewriteInfo& info)
 {
     auto& param = funcDecl.parameters[actualIndex];
-    auto structDecl = ResolveOpaqueStruct(param->typeSpecifier->typeDenoter);
+    auto structDecl = TryGetOpaqueStructDeclaration(param->typeSpecifier->typeDenoter);
     if (!structDecl)
         return;
 
@@ -272,7 +278,15 @@ void OpaqueStructResolver::RewriteFunctionSignatures(Program& program)
                 break;
 
             auto& param = fd.parameters[actualIndex];
-            if (ResolveOpaqueStruct(param->typeSpecifier->typeDenoter))
+
+            /* Pure 'out' parameters are not split: the callee cannot legally read
+               their opaque leaves before writing them, so the caller has nothing to
+               pass in. Their alias maps are seeded all-Unset when the body is
+               processed, and the exit state flows back to the caller through the
+               function summary. 'inout' parameters (IsInput() && IsOutput()) are
+               split like by-value ones, since the callee may read them. */
+            const bool isPureOut = (param->IsOutput() && !param->IsInput());
+            if (!isPureOut && TryGetOpaqueStructDeclaration(param->typeSpecifier->typeDenoter))
             {
                 SplitOpaqueParameter(fd, actualIndex, i, info);
                 anyRewrite = true;
@@ -429,6 +443,32 @@ static Decl* ResolveOpaqueExprToDecl(Expr* expr)
     return nullptr;
 }
 
+/* If `obj` terminates a member-access chain whose ROOT is a function call (e.g. the
+   `tex` in `makeBundle().tex`, possibly through brackets), returns that CallExpr and
+   the dotted field path from the call result to `obj` ("tex", "albedo.tex", ...).
+   Returns null if the chain is rooted at anything else (variable, literal, ...). */
+static CallExpr* FindFieldChainRootCall(ObjectExpr* obj, std::string& outPath)
+{
+    outPath = obj->ident;
+    Expr* prefix = obj->prefixExpr.get();
+    while (prefix)
+    {
+        if (auto bracket = prefix->As<BracketExpr>())
+        {
+            prefix = bracket->expr.get();
+            continue;
+        }
+        if (auto prefixObj = prefix->As<ObjectExpr>())
+        {
+            outPath = prefixObj->ident + "." + outPath;
+            prefix = prefixObj->prefixExpr.get();
+            continue;
+        }
+        break;
+    }
+    return (prefix ? prefix->As<CallExpr>() : nullptr);
+}
+
 void OpaqueStructResolver::InitAliasFromInitializer(VarDecl* localVar, StructDecl* structDecl, Expr* initializer)
 {
     AliasMap m;
@@ -445,34 +485,19 @@ void OpaqueStructResolver::InitAliasFromInitializer(VarDecl* localVar, StructDec
         return;
     }
 
-    /* Case A: copy-init from another opaque-bearing struct variable or one of its
-       sub-structs. `Combined c2 = c;` (whole) or `Material m = s.mat;` (sub-struct). */
+    /* Case A: an initializer whose opaque aliases are statically computable: a copy
+       from another tracked variable or sub-struct (`Combined c2 = c;`,
+       `Material m = s.mat;`), a call returning an opaque-bearing struct
+       (`Bundle b = make();` -- the call was visited just before this and its
+       translated return aliases recorded), or a ternary over such values. */
     {
-        VarDecl* srcVar = nullptr;
-        std::string srcPath;
-        if (DecomposeToVarPath(initializer, srcVar, srcPath))
+        AliasMap computed;
+        if (GetOrComputeAliasMapForExpression(initializer, structDecl, computed))
         {
-            if (auto* srcMap = FindAliasMap(srcVar))
-            {
-                if (srcPath.empty())
-                {
-                    m = *srcMap;
-                }
-                else
-                {
-                    /* Import the entries under srcPath, stripping the prefix so the keys
-                       become relative to the destination struct. */
-                    const std::string keyPrefix = srcPath + ".";
-                    for (const auto& f : opaqueFields)
-                    {
-                        auto it = srcMap->find(keyPrefix + f.first);
-                        if (it != srcMap->end())
-                            m[f.first] = it->second;
-                    }
-                }
-                activeAliasMaps_[localVar] = std::move(m);
-                return;
-            }
+            for (auto& kv : computed)
+                m[kv.first] = kv.second;
+            activeAliasMaps_[localVar] = std::move(m);
+            return;
         }
     }
 
@@ -581,6 +606,216 @@ void OpaqueStructResolver::CopyAliasSubtree(
     }
 }
 
+bool OpaqueStructResolver::GetOrComputeAliasMapForExpression(Expr* expr, StructDecl* structDecl, AliasMap& outMap)
+{
+    if (!expr || !structDecl)
+        return false;
+
+    if (auto bracket = expr->As<BracketExpr>())
+        return GetOrComputeAliasMapForExpression(bracket->expr.get(), structDecl, outMap);
+
+    /* Case 1: a (whole or sub-) reference to a tracked local/parameter. Extract the
+       entries under the sub-path, re-keyed relative to `structDecl`'s opaque leaves
+       (missing entries default to Unset). */
+    {
+        VarDecl* srcVar = nullptr;
+        std::string srcPath;
+        if (DecomposeToVarPath(expr, srcVar, srcPath))
+        {
+            if (auto* srcMap = FindAliasMap(srcVar))
+            {
+                std::vector<std::pair<std::string, TypeDenoterPtr>> fields;
+                CollectOpaqueFields(structDecl, fields);
+                const std::string keyPrefix = (srcPath.empty() ? std::string() : srcPath + ".");
+                for (const auto& f : fields)
+                {
+                    auto it = srcMap->find(keyPrefix + f.first);
+                    outMap[f.first] = (it != srcMap->end() ? it->second : AliasEntry{});
+                }
+                return true;
+            }
+        }
+    }
+
+    /* Case 2: a call to a function returning an opaque-bearing struct. The call has
+       already been visited at this point, so its caller-context return aliases are on
+       record in callReturnAliases_. */
+    if (auto call = expr->As<CallExpr>())
+    {
+        auto it = callReturnAliases_.find(call);
+        if (it != callReturnAliases_.end())
+        {
+            outMap = it->second;
+            return true;
+        }
+        return false;
+    }
+
+    /* Case 3: a ternary over two opaque-struct values: resolvable only where a field
+       resolves identically on both sides (JoinAliasMaps marks the rest ambiguous). */
+    if (auto ternary = expr->As<TernaryExpr>())
+    {
+        AliasMap thenMap, elseMap;
+        if (GetOrComputeAliasMapForExpression(ternary->thenExpr.get(), structDecl, thenMap) &&
+            GetOrComputeAliasMapForExpression(ternary->elseExpr.get(), structDecl, elseMap))
+        {
+            outMap = JoinAliasMaps(thenMap, elseMap);
+            return true;
+        }
+        return false;
+    }
+
+    return false;
+}
+
+OpaqueStructResolver::AliasMap OpaqueStructResolver::RemapAliasesCalleeToCaller(const AliasMap& calleeMap, const std::unordered_map<VarDecl*, Decl*>& paramBindings)
+{
+    AliasMap r;
+    for (const auto& kv : calleeMap)
+    {
+        const AliasEntry& e = kv.second;
+        if (e.state == AliasEntry::State::Resolved && e.target != nullptr && e.target->Type() == AST::Types::VarDecl)
+        {
+            /* A VarDecl target is one of the callee's opaque parameters; map it to
+               whatever the caller passed for it. A parameter the caller did not bind
+               (e.g. default arguments) cannot be resolved here. */
+            auto it = paramBindings.find(static_cast<VarDecl*>(e.target));
+            if (it != paramBindings.end() && it->second != nullptr)
+                r[kv.first] = AliasEntry::MakeResolved(it->second);
+            else
+                r[kv.first] = AliasEntry::MakeAmbiguous();
+        }
+        else
+        {
+            /* Global BufferDecl/SamplerDecl targets, Unset and Ambiguous states are
+               valid in any context and pass through unchanged. */
+            r[kv.first] = e;
+        }
+    }
+    return r;
+}
+
+void OpaqueStructResolver::RemapAliasMap(AliasMap& destMap, const std::string& destPath, const AliasMap& srcMap)
+{
+    const std::string prefix = (destPath.empty() ? std::string() : destPath + ".");
+    for (const auto& kv : srcMap)
+        destMap[prefix + kv.first] = kv.second;
+}
+
+void OpaqueStructResolver::AccumulateOutParamState(FunctionDecl* funcDecl)
+{
+    if (!funcDecl)
+        return;
+
+    for (auto& param : funcDecl->parameters)
+    {
+        /* Only out/inout parameters of opaque-bearing struct type carry state back. */
+        if (!param->IsOutput() || param->varDecls.empty())
+            continue;
+        if (!TryGetOpaqueStructDeclaration(param->typeSpecifier->typeDenoter))
+            continue;
+
+        VarDecl* paramVar = param->varDecls.front().get();
+        auto* m = FindAliasMap(paramVar);
+        if (!m)
+            continue;
+
+        auto& summary = funcSummaries_[funcDecl];
+        auto it = summary.outParamAliases.find(paramVar);
+        if (it == summary.outParamAliases.end())
+            summary.outParamAliases[paramVar] = *m;
+        else
+            it->second = JoinAliasMaps(it->second, *m);
+    }
+}
+
+void OpaqueStructResolver::ProcessFunction(FunctionDecl* funcDecl)
+{
+    /* Each body is processed exactly once. Besides the natural program-order walk,
+       VisitCallExpr requests its callee eagerly so the callee's summary exists before
+       the call site is translated; the guard also breaks (illegal) recursion cycles
+       and makes repeated requests cheap. */
+    if (!funcDecl || processedFuncs_.find(funcDecl) != processedFuncs_.end())
+        return;
+    processedFuncs_.insert(funcDecl);
+
+    /* Forward declaration: no body to process (the implementation is its own node). */
+    if (!funcDecl->codeBlock)
+        return;
+
+    /* Isolate the alias state: when a callee is processed from the middle of a
+       caller's body, the caller's live alias maps must neither leak into the callee
+       nor be polluted by the callee's locals. */
+    auto savedState = std::move(activeAliasMaps_);
+    activeAliasMaps_.clear();
+
+    /* Likewise the struct-decl tracker context must not leak in: VisitVarDeclStmnt
+       skips alias seeding while InsideStructDecl(), but a global function processed
+       on demand from a member-function call site is not itself a struct member. */
+    std::vector<StructDecl*> savedStructStack = GetStructDeclStack();
+    for (std::size_t n = savedStructStack.size(); n > 0; --n)
+        PopStructDecl();
+
+    /* Seed alias maps for opaque-bearing struct parameters of this function from the
+       signature rewriting that already happened. */
+    auto it = funcRewrites_.find(funcDecl);
+    if (it != funcRewrites_.end())
+    {
+        const auto& info = it->second;
+        std::size_t actualIndex = 0;
+        for (std::size_t i = 0; i < info.originalParamCount; ++i)
+        {
+            if (actualIndex >= funcDecl->parameters.size())
+                break;
+            auto& origParam = funcDecl->parameters[actualIndex];
+            const auto& opaques = info.opaqueParamsPerOriginal[i];
+            if (!origParam->varDecls.empty() && !opaques.empty())
+            {
+                VarDecl* localVar = origParam->varDecls.front().get();
+                AliasMap m;
+                for (const auto& op : opaques)
+                    m[op.field] = AliasEntry::MakeResolved(op.param);
+                activeAliasMaps_[localVar] = std::move(m);
+            }
+            /* Advance past this original + any opaque params it spawned. */
+            actualIndex += 1 + opaques.size();
+        }
+    }
+
+    /* Pure 'out' opaque-struct parameters were not split, but their opaque leaves
+       still need an alias map so writes in this body are tracked (and the statements
+       dropped). They start out Unset, matching HLSL's uninitialized-on-entry 'out'
+       semantics: a read before a write is an error. */
+    for (auto& param : funcDecl->parameters)
+    {
+        if (!param->IsOutput() || param->IsInput() || param->varDecls.empty())
+            continue;
+        if (auto structDecl = TryGetOpaqueStructDeclaration(param->typeSpecifier->typeDenoter))
+        {
+            AliasMap m;
+            std::vector<std::pair<std::string, TypeDenoterPtr>> fields;
+            CollectOpaqueFields(structDecl, fields);
+            for (const auto& f : fields)
+                m[f.first] = AliasEntry{};
+            activeAliasMaps_[param->varDecls.front().get()] = std::move(m);
+        }
+    }
+
+    PushFunctionDecl(funcDecl);
+    Visit(funcDecl->codeBlock);
+    PopFunctionDecl();
+
+    /* Fall-through exit (void functions, or a body whose last statement is not a
+       return): fold the final state of out/inout opaque-struct parameters into their
+       exit summaries. For bodies ending in a return this is an idempotent re-join. */
+    AccumulateOutParamState(funcDecl);
+
+    /* Restore the caller's context. */
+    for (auto* sd : savedStructStack)
+        PushStructDecl(sd);
+    activeAliasMaps_ = std::move(savedState);
+}
+
 
 #define IMPLEMENT_VISIT_PROC(AST_NAME) \
     void OpaqueStructResolver::Visit##AST_NAME(AST_NAME* ast, void* args)
@@ -600,45 +835,10 @@ IMPLEMENT_VISIT_PROC(StructDecl)
 
 IMPLEMENT_VISIT_PROC(FunctionDecl)
 {
-    /* Seed alias maps for opaque-bearing struct parameters of this function from the
-       signature rewriting that already happened. */
-    auto it = funcRewrites_.find(ast);
-    if (it != funcRewrites_.end())
-    {
-        const auto& info = it->second;
-        std::size_t actualIndex = 0;
-        for (std::size_t i = 0; i < info.originalParamCount; ++i)
-        {
-            if (actualIndex >= ast->parameters.size())
-                break;
-            auto& origParam = ast->parameters[actualIndex];
-            const auto& opaques = info.opaqueParamsPerOriginal[i];
-            if (!origParam->varDecls.empty() && !opaques.empty())
-            {
-                VarDecl* localVar = origParam->varDecls.front().get();
-                AliasMap m;
-                for (const auto& op : opaques)
-                    m[op.field] = AliasEntry::MakeResolved(op.param);
-                activeAliasMaps_[localVar] = std::move(m);
-            }
-            /* Advance past this original + any opaque params it spawned. */
-            actualIndex += 1 + opaques.size();
-        }
-    }
-
-    PushFunctionDecl(ast);
-    Visit(ast->codeBlock);
-    PopFunctionDecl();
-
-    /* Clear alias maps that belong to this function's parameters. */
-    if (it != funcRewrites_.end())
-    {
-        for (auto& origParam : ast->parameters)
-        {
-            if (!origParam->varDecls.empty())
-                activeAliasMaps_.erase(origParam->varDecls.front().get());
-        }
-    }
+    /* All body processing (parameter alias seeding, body walk, summary capture)
+       lives in ProcessFunction so that call sites can request a callee on demand;
+       processing is memoized, so this is a no-op for bodies already handled. */
+    ProcessFunction(ast);
 }
 
 IMPLEMENT_VISIT_PROC(CodeBlock)
@@ -658,7 +858,7 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
 
     /* For each VarDecl in this statement of opaque-bearing struct type (parameters
        handled in VisitFunctionDecl above), build an alias map from its initializer. */
-    if (auto structDecl = ResolveOpaqueStruct(ast->typeSpecifier->typeDenoter))
+    if (auto structDecl = TryGetOpaqueStructDeclaration(ast->typeSpecifier->typeDenoter))
     {
         if (!ast->flags(VarDeclStmnt::isParameter) && !InsideStructDecl())
         {
@@ -708,10 +908,16 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
                     }
                     else
                     {
-                        /* If the initializer was a copy-init from another
-                           opaque-bearing struct var (Case A) and the struct becomes
-                           empty after stripping, drop the initializer. */
-                        if (StructIsFullyOpaque(structDecl))
+                        /* Non-aggregate initializer. A copy-init from another struct
+                           variable carries no residual data if the struct is fully
+                           opaque, so it is dropped. A call initializer
+                           (`Bundle b = make();`) is always kept: the callee still
+                           returns the (possibly dummy) POD residual and may have side
+                           effects. */
+                        Expr* core = vd->initializer.get();
+                        while (auto bracket = core->As<BracketExpr>())
+                            core = bracket->expr.get();
+                        if (core->Type() != AST::Types::CallExpr && StructIsFullyOpaque(structDecl))
                             vd->initializer.reset();
                     }
                 }
@@ -774,6 +980,50 @@ IMPLEMENT_VISIT_PROC(ExprStmnt)
                             return;
                         }
                     }
+
+                    /* Case 3: whole-struct or sub-struct assignment from a call that
+                       returns an opaque-bearing struct (`dst = makeBundle();`,
+                       `dst.sub = makeBundle();`) or from a ternary over opaque-struct
+                       values. Visit the right-hand side first so the call is rewritten
+                       and its translated return aliases recorded, then adopt those
+                       aliases for the opaque leaves under destPath. The statement is
+                       kept: the emitted assignment still copies the POD residual. */
+                    Expr* rhsCore = ax->rvalueExpr.get();
+                    while (rhsCore)
+                    {
+                        if (auto bracket = rhsCore->As<BracketExpr>())
+                        {
+                            rhsCore = bracket->expr.get();
+                            continue;
+                        }
+                        break;
+                    }
+                    if (rhsCore && (rhsCore->Type() == AST::Types::CallExpr || rhsCore->Type() == AST::Types::TernaryExpr))
+                    {
+                        if (auto destStruct = TryGetOpaqueStructDeclaration(lhsObj->GetTypeDenoter()))
+                        {
+                            Visit(ax->rvalueExpr);
+
+                            AliasMap computed;
+                            if (GetOrComputeAliasMapForExpression(ax->rvalueExpr.get(), destStruct, computed))
+                                RemapAliasMap(*m, destPath, computed);
+                            else
+                            {
+                                /* Unresolvable right-hand side: poison the leaves under
+                                   destPath so any later read reports a clear error. */
+                                std::vector<std::pair<std::string, TypeDenoterPtr>> fields;
+                                CollectOpaqueFields(destStruct, fields);
+                                const std::string prefix = (destPath.empty() ? std::string() : destPath + ".");
+                                for (const auto& f : fields)
+                                    (*m)[prefix + f.first] = AliasEntry::MakeAmbiguous();
+                            }
+
+                            /* The rhs has already been visited; returning here prevents
+                               the default fall-through visit from rewriting the call's
+                               arguments a second time. */
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -821,6 +1071,35 @@ IMPLEMENT_VISIT_PROC(ObjectExpr)
             }
         }
 
+        /* A field chain rooted at a function call that returns an opaque-bearing
+           struct (e.g. `makeBundle().tex`): resolving the opaque leaf here would have
+           to discard the call itself, silently dropping its side effects. Reject with
+           a dedicated diagnostic; POD residual access (`makeBundle().tint`) and
+           swizzles on constructor calls are unaffected (their path does not name an
+           opaque leaf, or the callee does not return an opaque-bearing struct). */
+        {
+            std::string path;
+            if (auto rootCall = FindFieldChainRootCall(ast, path))
+            {
+                auto callee = rootCall->GetFunctionImpl();
+                if (!callee)
+                    callee = rootCall->GetFunctionDecl();
+                if (callee)
+                {
+                    if (auto retStruct = TryGetOpaqueStructDeclaration(callee->returnType->typeDenoter))
+                    {
+                        std::vector<std::pair<std::string, TypeDenoterPtr>> fields;
+                        CollectOpaqueFields(retStruct, fields);
+                        for (const auto& f : fields)
+                        {
+                            if (f.first == path)
+                                RuntimeErr(R_OpaqueStructCallFieldAccess(path), ast);
+                        }
+                    }
+                }
+            }
+        }
+
         /* Not an opaque field access: visit the prefix for any nested rewrites. */
         Visit(ast->prefixExpr);
     }
@@ -834,7 +1113,6 @@ IMPLEMENT_VISIT_PROC(CallExpr)
     for (auto& a : ast->arguments)
         Visit(a);
 
-    /* If the callee has a rewrite info, decompose opaque-bearing struct arguments. */
     auto funcDecl = ast->GetFunctionImpl();
     if (!funcDecl)
         funcDecl = ast->GetFunctionDecl();
@@ -842,28 +1120,74 @@ IMPLEMENT_VISIT_PROC(CallExpr)
         return;
 
     auto it = funcRewrites_.find(funcDecl);
-    if (it == funcRewrites_.end())
+    const FunctionRewriteInfo* info = (it != funcRewrites_.end() ? &it->second : nullptr);
+
+    const bool returnsOpaqueStruct = (TryGetOpaqueStructDeclaration(funcDecl->returnType->typeDenoter) != nullptr);
+
+    bool hasOpaqueOutParam = false;
+    for (const auto& param : funcDecl->parameters)
+    {
+        if (param->IsOutput() && TryGetOpaqueStructDeclaration(param->typeSpecifier->typeDenoter))
+        {
+            hasOpaqueOutParam = true;
+            break;
+        }
+    }
+
+    /* Nothing to do for calls that involve no opaque-bearing structs at all. */
+    if (!info && !returnsOpaqueStruct && !hasOpaqueOutParam)
         return;
 
-    const auto& info = it->second;
+    /* The callee's return-value / out-parameter summaries are produced while its body
+       is processed. Bodies are normally processed in program order, so force the
+       callee now (memoized: each body is still rewritten exactly once), covering
+       callees defined after their callers and forward declarations. */
+    if (returnsOpaqueStruct || hasOpaqueOutParam)
+        ProcessFunction(funcDecl);
+
+    /* Caller-context binding of each callee opaque parameter -- both the synthesized
+       opaque-field params and plain opaque-typed params (e.g. "Texture2D t") -- used
+       to translate the callee's summary targets into this call site. */
+    std::unordered_map<VarDecl*, Decl*> paramBindings;
+
+    /* Out/inout opaque-struct argument slots, for post-call alias copy-back. */
+    std::vector<std::pair<Expr*, VarDecl*>> outArgs;
+
+    static const std::vector<OpaqueParam> noOpaques;
 
     /* Build the new argument list. For each original-parameter slot, keep the original
        argument expr, then append one resolved-opaque arg per opaque field. */
     std::vector<ExprPtr> newArgs;
     newArgs.reserve(ast->arguments.size());
 
+    const std::size_t originalParamCount =
+        (info ? info->originalParamCount : funcDecl->parameters.size());
+
     /* If there are fewer args than original params, the remainder are default arguments
        (the reference analyzer attaches defaultArgumentRefs); we only decompose explicit
        arguments, so the loop below naturally stops at ast->arguments.size(). */
-    std::size_t argIdx = 0;
-    for (std::size_t i = 0; i < info.originalParamCount; ++i)
+    std::size_t argIdx         = 0;
+    std::size_t actualParamIdx = 0;
+    for (std::size_t i = 0; i < originalParamCount; ++i)
     {
         if (argIdx >= ast->arguments.size())
             break;
         ExprPtr origArg = ast->arguments[argIdx++];
         newArgs.push_back(origArg);
 
-        const auto& opaques = info.opaqueParamsPerOriginal[i];
+        auto param    = (actualParamIdx < funcDecl->parameters.size() ? funcDecl->parameters[actualParamIdx].get() : nullptr);
+        auto paramVar = (param && !param->varDecls.empty() ? param->varDecls.front().get() : nullptr);
+
+        /* Record the binding of a plain opaque-typed parameter, so callee summary
+           entries resolved to it translate back to this argument's global. */
+        if (param && paramVar && Converter::IsOpaqueTypeDenoter(param->typeSpecifier->GetTypeDenoter()))
+        {
+            if (auto target = ResolveOpaqueExprToDecl(origArg.get()))
+                paramBindings[paramVar] = target;
+        }
+
+        const auto& opaques =
+            (info && i < info->opaqueParamsPerOriginal.size() ? info->opaqueParamsPerOriginal[i] : noOpaques);
         if (!opaques.empty())
         {
             /* Resolve each opaque field of the arg via the alias map of the local
@@ -872,27 +1196,156 @@ IMPLEMENT_VISIT_PROC(CallExpr)
                within the local and the callee's field paths are looked up relative to it. */
             VarDecl* localVar = nullptr;
             std::string basePath;
-            DecomposeToVarPath(origArg.get(), localVar, basePath);
-            for (const auto& op : opaques)
+            if (DecomposeToVarPath(origArg.get(), localVar, basePath))
             {
-                const auto& fieldName = op.field;
-                const std::string key = (basePath.empty() ? fieldName : basePath + "." + fieldName);
-
-                /* Resolve through the same diagnostic path as a direct field access, so a
-                   failure reports "read before assigned" vs. "ambiguous after a branch"
-                   consistently (ResolveOpaqueFieldAccess raises the error and returns null). */
-                Decl* target = (localVar ? ResolveOpaqueFieldAccess(localVar, key, ast) : nullptr);
-                if (!target)
+                for (const auto& op : opaques)
                 {
-                    if (!localVar)
-                        RuntimeErr(R_OpaqueStructUninitialized(key), ast);
-                    return;
+                    const auto& fieldName = op.field;
+                    const std::string key = (basePath.empty() ? fieldName : basePath + "." + fieldName);
+
+                    /* Resolve through the same diagnostic path as a direct field access, so a
+                       failure reports "read before assigned" vs. "ambiguous after a branch"
+                       consistently (ResolveOpaqueFieldAccess raises the error and returns null). */
+                    Decl* target = ResolveOpaqueFieldAccess(localVar, key, ast);
+                    if (!target)
+                        return;
+
+                    paramBindings[op.param] = target;
+                    newArgs.push_back(ASTFactory::MakeObjectExpr(target));
                 }
-                newArgs.push_back(ASTFactory::MakeObjectExpr(target));
+            }
+            else
+            {
+                /* The argument is not a reference to a tracked variable: it may be a
+                   call returning an opaque-bearing struct passed straight through
+                   (`helper(makeBundle(), uv)`) or a ternary over such values. */
+                AliasMap argAliases;
+                auto paramStruct = (param ? TryGetOpaqueStructDeclaration(param->typeSpecifier->typeDenoter) : nullptr);
+                if (!paramStruct || !GetOrComputeAliasMapForExpression(origArg.get(), paramStruct, argAliases))
+                    RuntimeErr(R_OpaqueStructUninitialized(opaques.front().field), ast);
+
+                for (const auto& op : opaques)
+                {
+                    auto fIt = argAliases.find(op.field);
+                    const AliasEntry entry = (fIt != argAliases.end() ? fIt->second : AliasEntry{});
+                    if (entry.state == AliasEntry::State::Ambiguous)
+                        RuntimeErr(R_OpaqueStructAmbiguousAlias(op.field), ast);
+                    if (entry.state != AliasEntry::State::Resolved || entry.target == nullptr)
+                        RuntimeErr(R_OpaqueStructUninitialized(op.field), ast);
+
+                    paramBindings[op.param] = entry.target;
+                    newArgs.push_back(ASTFactory::MakeObjectExpr(entry.target));
+                }
             }
         }
+
+        /* Remember out/inout opaque-struct arguments; the callee's exit-state flows
+           back into the caller's alias map for this argument after the call. */
+        if (param && paramVar && param->IsOutput() && TryGetOpaqueStructDeclaration(param->typeSpecifier->typeDenoter))
+            outArgs.emplace_back(origArg.get(), paramVar);
+
+        actualParamIdx += 1 + opaques.size();
     }
-    ast->arguments = std::move(newArgs);
+    if (info)
+        ast->arguments = std::move(newArgs);
+
+    auto summaryIt = funcSummaries_.find(funcDecl);
+
+    /* Record this call's return-value aliases (translated into caller context) so the
+       consumers of the call result -- initializer, assignment, enclosing return, or a
+       direct pass-through argument -- can seed or update alias maps from them. */
+    if (returnsOpaqueStruct)
+    {
+        AliasMap translated;
+        if (summaryIt != funcSummaries_.end() && summaryIt->second.hasReturnAliases)
+            translated = RemapAliasesCalleeToCaller(summaryIt->second.returnAliases, paramBindings);
+        else
+        {
+            /* No usable summary (e.g. body unavailable): nothing can be resolved. */
+            std::vector<std::pair<std::string, TypeDenoterPtr>> fields;
+            CollectOpaqueFields(TryGetOpaqueStructDeclaration(funcDecl->returnType->typeDenoter), fields);
+            for (const auto& f : fields)
+                translated[f.first] = AliasEntry::MakeAmbiguous();
+        }
+        callReturnAliases_[ast] = std::move(translated);
+    }
+
+    /* Copy the callee's exit-state of each out/inout opaque-struct parameter back into
+       the caller's alias map for the corresponding argument variable. */
+    for (const auto& oa : outArgs)
+    {
+        AliasMap translated;
+        bool haveSummary = false;
+        if (summaryIt != funcSummaries_.end())
+        {
+            auto opIt = summaryIt->second.outParamAliases.find(oa.second);
+            if (opIt != summaryIt->second.outParamAliases.end())
+            {
+                translated  = RemapAliasesCalleeToCaller(opIt->second, paramBindings);
+                haveSummary = true;
+            }
+        }
+        if (!haveSummary)
+        {
+            /* No exit summary (e.g. body unavailable): the argument's bindings are
+               unknown after the call. */
+            std::vector<std::pair<std::string, TypeDenoterPtr>> fields;
+            CollectOpaqueFields(TryGetOpaqueStructDeclaration(oa.second->GetTypeDenoter()), fields);
+            for (const auto& f : fields)
+                translated[f.first] = AliasEntry::MakeAmbiguous();
+        }
+
+        VarDecl* destVar = nullptr;
+        std::string destPath;
+        if (!DecomposeToVarPath(oa.first, destVar, destPath))
+            RuntimeErr(R_OpaqueStructOutArgUntracked(oa.second->ident.Original()), ast);
+
+        if (auto* m = FindAliasMap(destVar))
+            RemapAliasMap(*m, destPath, translated);
+    }
+}
+
+IMPLEMENT_VISIT_PROC(ReturnStmnt)
+{
+    Visit(ast->attribs);
+    Visit(ast->expr);
+
+    auto funcDecl = ActiveFunctionDecl();
+    if (!funcDecl)
+        return;
+
+    /* If this function returns an opaque-bearing struct, record how the returned
+       value's opaque leaves resolve at this return point. Multiple return statements
+       are joined: a field bound differently on two return paths becomes ambiguous
+       (and is rejected only if a caller actually reads it). */
+    if (ast->expr)
+    {
+        if (auto retStruct = TryGetOpaqueStructDeclaration(funcDecl->returnType->typeDenoter))
+        {
+            AliasMap returned;
+            if (!GetOrComputeAliasMapForExpression(ast->expr.get(), retStruct, returned))
+            {
+                /* Unresolvable return expression (e.g. a cast): poison all leaves. */
+                std::vector<std::pair<std::string, TypeDenoterPtr>> fields;
+                CollectOpaqueFields(retStruct, fields);
+                for (const auto& f : fields)
+                    returned[f.first] = AliasEntry::MakeAmbiguous();
+            }
+
+            auto& summary = funcSummaries_[funcDecl];
+            if (!summary.hasReturnAliases)
+            {
+                summary.returnAliases    = std::move(returned);
+                summary.hasReturnAliases = true;
+            }
+            else
+                summary.returnAliases = JoinAliasMaps(summary.returnAliases, returned);
+        }
+    }
+
+    /* Every return statement is a function exit: fold the current state of out/inout
+       opaque-struct parameters into their exit summaries. */
+    AccumulateOutParamState(funcDecl);
 }
 
 IMPLEMENT_VISIT_PROC(IfStmnt)
