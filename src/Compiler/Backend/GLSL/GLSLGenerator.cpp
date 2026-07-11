@@ -10,11 +10,7 @@
 #include "GLSLConverter.h"
 #include "BackendRegistry.h"
 #ifdef XSC_ENABLE_LANGUAGE_EXT
-#   ifdef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
-#       include "OpaqueTypeLowering.h"
-#   else
-#       include "OpaqueStructResolver.h"
-#   endif
+#   include "OpaqueTypeLowering.h"
 #endif
 #include "GLSLKeywords.h"
 #include "GLSLIntrinsics.h"
@@ -1071,7 +1067,7 @@ void GLSLGenerator::PreProcessAST(const ShaderInput& inputDesc, const ShaderOutp
 {
     PreProcessStructParameterAnalyzer(inputDesc);
     PreProcessTypeConverter();
-    PreProcessOpaqueStructResolver(outputDesc);
+    PreProcessOpaqueTypeLowering(outputDesc);
     PreProcessExprConverterPrimary();
     PreProcessGLSLConverter(inputDesc, outputDesc);
     PreProcessFuncNameConverter();
@@ -1121,7 +1117,7 @@ void GLSLGenerator::PreProcessGLSLConverter(const ShaderInput& inputDesc, const 
     converter.ConvertAST(*GetProgram(), inputDesc, outputDesc);
 }
 
-void GLSLGenerator::PreProcessOpaqueStructResolver(const ShaderOutput& outputDesc)
+void GLSLGenerator::PreProcessOpaqueTypeLowering(const ShaderOutput& outputDesc)
 {
     #ifdef XSC_ENABLE_LANGUAGE_EXT
     /* This pass only does work when the OpaqueStructTypes language extension is
@@ -1130,15 +1126,9 @@ void GLSLGenerator::PreProcessOpaqueStructResolver(const ShaderOutput& outputDes
     if (!extensions_(Extensions::OpaqueStructTypes))
         return;
 
-    /* GLSL/SPIR-V disallows opaque values in several source-language positions.
-       Select the implementation at build time while retaining the same extension gate. */
-    #ifdef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
+    /* GLSL/SPIR-V disallows opaque values in several source-language positions. */
     OpaqueTypeLowering lowering;
     lowering.Run(*GetProgram(), outputDesc.nameMangling);
-    #else
-    OpaqueStructResolver resolver;
-    resolver.Resolve(*GetProgram(), outputDesc.nameMangling);
-    #endif
     #endif
 }
 

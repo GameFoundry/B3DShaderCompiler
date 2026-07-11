@@ -53,7 +53,6 @@ set(XSC_HLSL_ROUNDTRIP_CASES
     "FormattingTest1|VS|vs_5_0|vert"
     "FuncOverloadTest1|PS|ps_5_0|frag"
     "FunctionCallTest1|VS|vs_5_0|vert"
-    "ScopeTest1|VS|vs_5_0|vert"
     "SemanticTest3|VS|vs_5_0|vert"
 )
 
@@ -94,6 +93,7 @@ xsc_add_roundtrip_tests(
 # so the backend emits the struct unchanged; fxc must still accept the result.
 # These require the OpaqueStructTypes language extension to be enabled in xsc.
 set(XSC_HLSL_OPAQUE_CASES
+    "ScopeTest1|VS|vs_5_0|vert"              # local SamplerState declarations require the opaque extension
     "OpaqueStructTest1|main|ps_5_0|frag"
     "OpaqueStructTest2|main|ps_5_0|frag"
     "OpaqueStructTest3|main|ps_5_0|frag"
@@ -115,20 +115,18 @@ set(XSC_HLSL_OPAQUE_CASES
     "OpaqueStructNested7|main|ps_5_0|frag"   # nested struct returned by value; fields from a parameter
 )
 
-if(XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
-    list(APPEND XSC_HLSL_OPAQUE_CASES
-        "OpaqueTypeLocalValues|main|ps_5_0|frag"
-        "OpaqueTypeFixedArrays|main|ps_5_0|frag"
-        "OpaqueTypeAggregateArrays|main|ps_5_0|frag"
-        "OpaqueTypeNestedArrayAxes|main|ps_5_0|frag"
-        "OpaqueTypeReturnsAndOut|main|ps_5_0|frag"
-        "OpaqueTypeArrayContracts|main|ps_5_0|frag"
-        "OpaqueTypeDirectCallField|main|ps_5_0|frag"
-        # FXC itself rejects runtime sampler-array indexing and opaque-struct
-        # ternaries, so those two GLSL-lowering fixtures are intentionally not
-        # part of the HLSL backend round-trip list.
-    )
-endif()
+list(APPEND XSC_HLSL_OPAQUE_CASES
+    "OpaqueTypeLocalValues|main|ps_5_0|frag"
+    "OpaqueTypeFixedArrays|main|ps_5_0|frag"
+    "OpaqueTypeAggregateArrays|main|ps_5_0|frag"
+    "OpaqueTypeNestedArrayAxes|main|ps_5_0|frag"
+    "OpaqueTypeReturnsAndOut|main|ps_5_0|frag"
+    "OpaqueTypeArrayContracts|main|ps_5_0|frag"
+    "OpaqueTypeDirectCallField|main|ps_5_0|frag"
+    # FXC itself rejects runtime sampler-array indexing and opaque-struct
+    # ternaries, so those two GLSL-lowering fixtures are intentionally not
+    # part of the HLSL backend round-trip list.
+)
 
 xsc_add_roundtrip_tests(
     PREFIX         hlsl_roundtrip

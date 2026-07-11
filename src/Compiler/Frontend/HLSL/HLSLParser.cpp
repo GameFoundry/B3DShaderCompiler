@@ -1128,17 +1128,11 @@ StmntPtr HLSLParser::ParseStmntPrimary()
             return ParseStmntWithStructDecl();
         case Tokens::Typedef:
             return ParseAliasDeclStmnt();
-        #ifdef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
         case Tokens::Buffer:
         case Tokens::Sampler:
         case Tokens::SamplerState:
-            /* Local opaque values participate in ordinary data flow in the new pass. */
+            /* Local opaque values participate in ordinary data flow. */
             return ParseVarDeclStmnt();
-        #else
-        case Tokens::Sampler:
-        case Tokens::SamplerState:
-            return ParseSamplerDeclStmnt();
-        #endif
         case Tokens::StorageClass:
         case Tokens::InterpModifier:
         case Tokens::TypeModifier:

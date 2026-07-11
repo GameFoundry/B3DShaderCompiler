@@ -40,7 +40,7 @@ class Converter : public VisitorTracker
 
         // Returns true if the specified type denoter is an opaque (resource) type:
         // a texture/buffer (BufferTypeDenoter) or any sampler (SamplerTypeDenoter).
-        // Public so backend pre-passes (e.g. OpaqueStructResolver) can use it.
+        // Public so backend pre-passes such as opaque-type lowering can use it.
         static bool IsOpaqueTypeDenoter(const TypeDenoterPtr& typeDenoter);
 
     protected:

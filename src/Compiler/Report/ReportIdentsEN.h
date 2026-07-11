@@ -477,7 +477,6 @@ DECL_REPORT( OpaqueStructNoGlobal,              "structures containing opaque re
 DECL_REPORT( OpaqueStructNoCBuffer,             "structures containing opaque resources (textures/samplers/buffers) cannot be used as constant-buffer members[: '{0}']");
 DECL_REPORT( OpaqueStructNoEntryParam,          "structures containing opaque resources (textures/samplers/buffers) cannot be used as entry-point parameters or return types[: '{0}']");
 DECL_REPORT( OpaqueStructNoMemberFunc,          "structures containing opaque resources (textures/samplers/buffers) cannot declare member functions[: '{0}']"   );
-DECL_REPORT( OpaqueStructNoArray,               "arrays of structures containing opaque resources (textures/samplers/buffers) are not supported[: '{0}']"        );
 DECL_REPORT( OpaqueStructNoReturn,              "functions cannot return a structure containing opaque resources by value[: '{0}']"                              );
 DECL_REPORT( OpaqueStructNoRegister,            "register() bindings cannot be placed on members of an opaque-bearing struct[: '{0}']"                           );
 DECL_REPORT( OpaqueStructAmbiguousAlias,        "opaque resource '{0}' cannot be resolved to a single global; opaque-struct fields must be assigned a known global in straight-line code");
@@ -485,14 +484,11 @@ DECL_REPORT( OpaqueStructUninitialized,         "opaque field '{0}' of struct va
 DECL_REPORT( StrictHlslPreciseForbidden,        "strict-hlsl forbids the 'precise' type modifier; remove it"                                                    );
 DECL_REPORT( StrictHlslMulMatVecDimMismatch,    "strict-hlsl forbids implicit promotion in mul(matrix, vector): matrix has {0} column(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
 DECL_REPORT( StrictHlslMulVecMatDimMismatch,    "strict-hlsl forbids implicit promotion in mul(vector, matrix): matrix has {0} row(s) but vector has {1} element(s); promote vector explicitly to the matching dimension");
-DECL_REPORT( OpaqueStructNoArrayMember,         "array members of opaque type inside a struct are not supported[: '{0}']"                                         );
 DECL_REPORT( OpaqueStructNoOutInout,            "opaque-bearing struct parameters must be passed by value (no 'out'/'inout')[: '{0}']"                            );
 DECL_REPORT( OpaqueTypeUnsizedArray,            "opaque-bearing arrays require a fixed, positive compile-time extent[: '{0}']"                                   );
 DECL_REPORT( OpaqueTypeInvalidRuntimeIndex,     "runtime indexing requires one cohesive global or formal opaque resource array[: '{0}']"                         );
 DECL_REPORT( OpaqueTypeDynamicWrite,            "runtime-indexed writes to opaque values are not supported[: '{0}']"                                             );
 DECL_REPORT( OpaqueTypeDefaultArgument,         "opaque-bearing function parameters cannot use default arguments[: '{0}']"                                       );
-DECL_REPORT( OpaqueStructCallFieldAccess,       "cannot access opaque field '{0}' directly on a function-call result; assign the result to a local variable first" );
-DECL_REPORT( OpaqueStructOutArgUntracked,       "cannot track opaque fields of 'out'/'inout' argument; the argument must be a local opaque-bearing struct variable (or sub-struct)[: '{0}']" );
 DECL_REPORT( DeclTypeDiffersFromDefType,        "declaration type '{0}' differs from definition type '{1}'"                                                     );
 DECL_REPORT( ArrayTypeCanOnlyAppearInDef,       "array type can only appear in definition of static member variables[: '{0}']"                                  );
 DECL_REPORT( ExpectedStringArgInAttribute,      "expected string as argument for attribute[ '{0}']"                                                             );

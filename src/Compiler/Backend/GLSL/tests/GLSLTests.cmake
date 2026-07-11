@@ -64,24 +64,22 @@ set(XSC_GLSL_ROUNDTRIP_CASES
     "OpaqueStructNested7|main|frag" # nested struct returned by value; fields resolved from a parameter
 )
 
-if(XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
-    list(APPEND XSC_GLSL_ROUNDTRIP_CASES
-        "OpaqueTypeLocalValues|main|frag"
-        "OpaqueTypeLocalTexture|main|frag"
-        "OpaqueTypeLocalSampler|main|frag"
-        "OpaqueTypeLocalBuffer|main|frag"
-        "OpaqueTypeFixedArrays|main|frag"
-        "OpaqueTypeAggregateArrays|main|frag"
-        "OpaqueTypeNestedArrayAxes|main|frag"
-        "OpaqueTypeNativeInputs|main|frag"
-        "OpaqueTypeArrayReturn|main|frag"
-        "OpaqueTypeRuntimeArray|main|frag"
-        "OpaqueTypeReturnsAndOut|main|frag"
-        "OpaqueTypeArrayContracts|main|frag"
-        "OpaqueTypeDirectCallField|main|frag"
-        "OpaqueTypeControlFlow|main|frag"
-    )
-endif()
+list(APPEND XSC_GLSL_ROUNDTRIP_CASES
+    "OpaqueTypeLocalValues|main|frag"
+    "OpaqueTypeLocalTexture|main|frag"
+    "OpaqueTypeLocalSampler|main|frag"
+    "OpaqueTypeLocalBuffer|main|frag"
+    "OpaqueTypeFixedArrays|main|frag"
+    "OpaqueTypeAggregateArrays|main|frag"
+    "OpaqueTypeNestedArrayAxes|main|frag"
+    "OpaqueTypeNativeInputs|main|frag"
+    "OpaqueTypeArrayReturn|main|frag"
+    "OpaqueTypeRuntimeArray|main|frag"
+    "OpaqueTypeReturnsAndOut|main|frag"
+    "OpaqueTypeArrayContracts|main|frag"
+    "OpaqueTypeDirectCallField|main|frag"
+    "OpaqueTypeControlFlow|main|frag"
+)
 
 # No PROFILE_DEFINE: glslangValidator infers the stage from the file extension,
 # so these rows carry no profile field (shader|entry|stage).
@@ -125,45 +123,40 @@ add_expect_error(ReturnAmbiguous OpaqueStructRejectReturnAmbiguous main frag "ca
 # Without the extension, the struct is rejected outright (no extra flags).
 add_expect_error(ExtDisabled  OpaqueStructRejectExtDisabled  main frag "opaque-struct' language extension is enabled")
 
-if(XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
-    add_expect_error(UnrelatedRuntime OpaqueTypeRejectUnrelatedRuntime main frag "runtime indexing requires one cohesive" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-    add_expect_error(DynamicWrite     OpaqueTypeRejectDynamicWrite     main frag "runtime-indexed writes to opaque values" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-    add_expect_error(UnsizedArray     OpaqueTypeRejectUnsizedArray     main frag "require a fixed, positive compile-time extent" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-    add_expect_error(DefaultArgument  OpaqueTypeRejectDefaultArgument  main frag "cannot use default arguments" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-    add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "cannot return a structure containing opaque resources" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-    add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-    add_expect_error(LocalExtDisabled OpaqueTypeLocalTexture           main frag "opaque-struct' language extension is enabled")
+add_expect_error(UnrelatedRuntime OpaqueTypeRejectUnrelatedRuntime main frag "runtime indexing requires one cohesive" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(DynamicWrite     OpaqueTypeRejectDynamicWrite     main frag "runtime-indexed writes to opaque values" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(UnsizedArray     OpaqueTypeRejectUnsizedArray     main frag "require a fixed, positive compile-time extent" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(DefaultArgument  OpaqueTypeRejectDefaultArgument  main frag "cannot use default arguments" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "cannot return a structure containing opaque resources" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(LocalExtDisabled OpaqueTypeLocalTexture           main frag "opaque-struct' language extension is enabled")
 
-    function(add_generated_glsl_assert _name _shader _expect _reject)
-        set(_output "${_GLSL_OUT_DIR}/assert_${_name}.frag")
-        add_test(
-            NAME glsl_generated.${_name}
-            COMMAND ${CMAKE_COMMAND}
-                -DXSC=${XSC_BIN}
-                -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
-                -DENTRY=main
-                -DXSC_STAGE=frag
-                -DOUTPUT=${_output}
-                "-DEXPECT_REGEX=${_expect}"
-                "-DREJECT_REGEX=${_reject}"
-                -P ${_GLSL_TESTS_DIR}/RunGeneratedGLSLAssert.cmake
-        )
-        set_tests_properties(glsl_generated.${_name} PROPERTIES LABELS "glsl-roundtrip;opaque-type;generated")
-    endfunction()
+function(add_generated_glsl_assert _name _shader _expect _reject)
+    set(_output "${_GLSL_OUT_DIR}/assert_${_name}.frag")
+    add_test(
+        NAME glsl_generated.${_name}
+        COMMAND ${CMAKE_COMMAND}
+            -DXSC=${XSC_BIN}
+            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
+            -DENTRY=main
+            -DXSC_STAGE=frag
+            -DOUTPUT=${_output}
+            "-DEXPECT_REGEX=${_expect}"
+            "-DREJECT_REGEX=${_reject}"
+            -P ${_GLSL_TESTS_DIR}/RunGeneratedGLSLAssert.cmake
+    )
+    set_tests_properties(glsl_generated.${_name} PROPERTIES LABELS "glsl-roundtrip;opaque-type;generated")
+endfunction()
 
-    add_generated_glsl_assert(runtime_array OpaqueTypeRuntimeArray
-        "texture2D bundles_opaque_array_.*\\[2\\]"
-        "struct Bundle")
-    add_generated_glsl_assert(residual_return OpaqueTypeReturnsAndOut
-        "void makeBundle\\(vec4 tint, out Bundle"
-        "struct OpaqueOnly")
-    add_generated_glsl_assert(plain_locals OpaqueTypeLocalValues
-        "texelFetch\\(g_data, 0\\)"
-        "localTex|localData|localSampler")
-    add_generated_glsl_assert(no_dummy OpaqueTypeArrayContracts
-        "void makeSet\\(out BundleSet"
-        "dummy|struct Bundle[ \\t\\r\\n]*\\{")
-else()
-    # The legacy resolver deliberately rejects direct access through a call result.
-    add_expect_error(CallFieldAccess OpaqueStructRejectCallFieldAccess main frag "assign the result to a local variable" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-endif()
+add_generated_glsl_assert(runtime_array OpaqueTypeRuntimeArray
+    "texture2D bundles_opaque_array_.*\\[2\\]"
+    "struct Bundle")
+add_generated_glsl_assert(residual_return OpaqueTypeReturnsAndOut
+    "void makeBundle\\(vec4 tint, out Bundle"
+    "struct OpaqueOnly")
+add_generated_glsl_assert(plain_locals OpaqueTypeLocalValues
+    "texelFetch\\(g_data, 0\\)"
+    "localTex|localData|localSampler")
+add_generated_glsl_assert(no_dummy OpaqueTypeArrayContracts
+    "void makeSet\\(out BundleSet"
+    "dummy|struct Bundle[ \\t\\r\\n]*\\{")

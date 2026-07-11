@@ -38,7 +38,6 @@ option(XSC_BUILD_WRAPPER_CSHARP "Build C# wrapper" OFF)
 option(XSC_ENABLE_EASTER_EGGS "Enables little easter eggs" OFF)
 option(XSC_ENABLE_POST_VALIDATION "Enables the post validation in presettings with 'glslangValidator'" OFF)
 option(XSC_ENABLE_LANGUAGE_EXT "Enables a few language extensions (e.g. 'space' attribute for stronger type system)" ON)
-option(XSC_USE_NEW_OPAQUE_TYPE_LOWERING "Use the new opaque type analysis and lowering pipeline" ON)
 option(XSC_ENABLE_SPIRV "Enables all SPIR-V related features (experimental; requires submodule in 'external/SPIR-V')" OFF)
 
 #set(XSC_REPORT_LANGUAGE "EN" CACHE STRING "Language of the report output (supported values: 'EN')")
@@ -179,10 +178,6 @@ endif()
 
 set_target_properties(xsc_core PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_features(xsc_core PRIVATE cxx_range_for)
-
-if(XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
-	target_compile_definitions(xsc_core PRIVATE XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
-endif()
 
 # Dynamic loader, for Xsc::LoadBackend (BackendLoader.cpp). Empty on Windows, '-ldl' on Unix.
 target_link_libraries(xsc_core ${CMAKE_DL_LIBS})
