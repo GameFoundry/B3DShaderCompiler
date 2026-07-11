@@ -404,9 +404,16 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
 
     #ifndef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
 
-    /* The legacy resolver cannot propagate resources across a return boundary. */
-    if (auto returnStruct = ResolveOpaqueBearingStructDecl(ast->returnType->typeDenoter))
-        Error(R_OpaqueStructNoReturn(returnStruct->ToString()), ast->returnType.get());
+    /* Returning an opaque-bearing struct by value is supported (the GLSL backend's
+       OpaqueStructResolver propagates the callee's opaque-field aliases to the caller
+       across the call boundary), but ARRAYS of such structs cannot be returned: the
+       resolver only tracks scalar struct values. */
+    if (TypeDenoterIsArray(ast->returnType->typeDenoter))
+    {
+        if (auto returnStruct = ResolveOpaqueBearingStructDecl(ast->returnType->typeDenoter))
+            Error(R_OpaqueStructNoArray(returnStruct->ToString()), ast->returnType.get());
+    }
+
     #endif // XSC_USE_NEW_OPAQUE_TYPE_LOWERING
 
     /* Analyze parameter type denoters (required before function can be registered in symbol table) */
@@ -427,19 +434,15 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
 
     #ifndef XSC_USE_NEW_OPAQUE_TYPE_LOWERING
 
-    /* Preserve the legacy resolver's parameter restrictions in fallback builds. */
+    /* Disallow arrays of opaque-bearing struct in function parameters. 'out'/'inout'
+       opaque-bearing struct parameters are supported: the GLSL backend's
+       OpaqueStructResolver flows the callee's exit-state bindings back to the caller. */
     for (auto& param : ast->parameters)
     {
         if (TypeDenoterIsArray(param->typeSpecifier->typeDenoter))
         {
             if (auto sd = ResolveOpaqueBearingStructDecl(param->typeSpecifier->typeDenoter))
                 Error(R_OpaqueStructNoArray(sd->ToString()), param.get());
-        }
-
-        if (auto sd = ResolveOpaqueBearingStructDecl(param->typeSpecifier->typeDenoter))
-        {
-            if (param->typeSpecifier->isOutput)
-                Error(R_OpaqueStructNoOutInout(sd->ToString()), param.get());
         }
     }
 

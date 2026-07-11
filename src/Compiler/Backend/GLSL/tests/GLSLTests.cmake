@@ -58,6 +58,10 @@ set(XSC_GLSL_ROUNDTRIP_CASES
     "OpaqueStructNested4|main|frag" # nested fully-opaque bundle, copy-init propagates dotted alias map
     "OpaqueStructNested5|main|frag" # sub-struct as copy source (TexBundle b = m.albedo)
     "OpaqueStructNested6|main|frag" # sub-struct as copy destination (m.albedo = src)
+    "OpaqueStructTest10|main|frag"  # function returns opaque-bearing struct; aliases flow to caller local
+    "OpaqueStructTest11|main|frag"  # pure 'out' parameter fills the caller's struct
+    "OpaqueStructTest12|main|frag"  # 'inout' parameter rebinds a field inside the callee
+    "OpaqueStructNested7|main|frag" # nested struct returned by value; fields resolved from a parameter
 )
 
 if(XSC_USE_NEW_OPAQUE_TYPE_LOWERING)
@@ -117,6 +121,8 @@ add_expect_error(Entry        OpaqueStructRejectEntry        main frag "entry-po
 add_expect_error(CBuffer      OpaqueStructRejectCBuffer      main frag "constant-buffer members"               "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(CondReassign OpaqueStructRejectCondReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(LoopReassign OpaqueStructRejectLoopReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(ReturnAmbiguous OpaqueStructRejectReturnAmbiguous main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(CallFieldAccess OpaqueStructRejectCallFieldAccess main frag "assign the result to a local variable"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 # Without the extension, the struct is rejected outright (no extra flags).
 add_expect_error(ExtDisabled  OpaqueStructRejectExtDisabled  main frag "opaque-struct' language extension is enabled")
 
