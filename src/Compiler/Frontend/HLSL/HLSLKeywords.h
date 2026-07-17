@@ -33,6 +33,9 @@ DataType HLSLKeywordExtCgToDataType(const std::string& keyword);
 // Returns the primitive type for the specified HLSL keyword or throws an std::runtime_error on failure.
 PrimitiveType HLSLKeywordToPrimitiveType(const std::string& keyword);
 
+// Returns the HLSL keyword spelling for the specified primitive type, or null if unknown.
+const std::string* PrimitiveTypeToHLSLKeyword(const PrimitiveType t);
+
 // Returns the storage class for the specified HLSL keyword or throws an std::runtime_error on failure.
 StorageClass HLSLKeywordToStorageClass(const std::string& keyword);
 

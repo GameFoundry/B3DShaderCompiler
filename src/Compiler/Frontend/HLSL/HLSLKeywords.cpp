@@ -700,10 +700,16 @@ static Dictionary<PrimitiveType> GeneratePrimitiveTypeDict()
     };
 }
 
+static const auto g_primitiveTypeDictHLSL = GeneratePrimitiveTypeDict();
+
 PrimitiveType HLSLKeywordToPrimitiveType(const std::string& keyword)
 {
-    static const auto typeDict = GeneratePrimitiveTypeDict();
-    return MapKeywordToType(typeDict, keyword, R_PrimitiveType);
+    return MapKeywordToType(g_primitiveTypeDictHLSL, keyword, R_PrimitiveType);
+}
+
+const std::string* PrimitiveTypeToHLSLKeyword(const PrimitiveType t)
+{
+    return g_primitiveTypeDictHLSL.EnumToString(t);
 }
 
 

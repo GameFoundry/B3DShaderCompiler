@@ -33,6 +33,38 @@ namespace
     {
         bool inEndWithSemicolon;
     };
+
+    /* HLSL5 spellings for the warp-scope barrier extension intrinsics. Plain HLSL5
+       (FXC) has no warp/wave-scope barriers, so each degrades to its group-scoped
+       counterpart -- a stronger barrier, therefore always correct. These are the 
+       only calls the HLSL backend rewrites: everything else the frontend accepts 
+       is valid HLSL already.
+
+       Keyed by the emitted identifier, NOT the Intrinsic enum: derived dialect
+       backends rename intrinsic calls by mutating callExpr->ident before
+       delegating here, while callExpr->intrinsic keeps its resolved value -- an
+       enum-keyed lookup would clobber such a rename. The extension spelling in the
+       ident therefore also tells us no derived backend has handled the call yet. */
+    const std::string* WarpBarrierIntrinsicToHLSLKeyword(const CallExpr& callExpr)
+    {
+        static const std::map<std::string, std::string> mapping
+        {
+            { "WarpGroupMemoryBarrier",               "GroupMemoryBarrier"                },
+            { "WarpGroupMemoryBarrierWithWarpSync",   "GroupMemoryBarrierWithGroupSync"   },
+            { "WarpDeviceMemoryBarrier",              "DeviceMemoryBarrier"               },
+            { "WarpDeviceMemoryBarrierWithWarpSync",  "DeviceMemoryBarrierWithGroupSync"  },
+            { "WarpAllMemoryBarrier",                 "AllMemoryBarrier"                  },
+            { "WarpAllMemoryBarrierWithWarpSync",     "AllMemoryBarrierWithGroupSync"     },
+        };
+
+        /* Only rewrite calls the analyzer resolved as intrinsics (a user function
+           merely sharing the name keeps its own spelling). */
+        if (callExpr.intrinsic == Intrinsic::Undefined)
+            return nullptr;
+
+        const auto it = mapping.find(callExpr.ident);
+        return (it != mapping.end() ? &it->second : nullptr);
+    }
 } // namespace
 
 
@@ -816,7 +848,9 @@ IMPLEMENT_VISIT_PROC(PostUnaryExpr)
 
 IMPLEMENT_VISIT_PROC(CallExpr)
 {
-    /* HLSL backend: no intrinsic rewriting. Emit the original function call as-is. */
+    /* HLSL backend: no intrinsic rewriting, except the warp-barrier extension
+       intrinsics (no HLSL5 spelling exists -- see WarpBarrierIntrinsicToHLSLKeyword).
+       Emit the original function call as-is. */
 
     /* Prefix expression (for member function or texture method call: foo.bar(...)) */
     if (ast->prefixExpr)
@@ -830,6 +864,10 @@ IMPLEMENT_VISIT_PROC(CallExpr)
     {
         if (ast->typeDenoter)
             WriteTypeDenoter(*ast->typeDenoter, ast);
+    }
+    else if (auto loweredBarrierName = WarpBarrierIntrinsicToHLSLKeyword(*ast))
+    {
+        Write(*loweredBarrierName);
     }
     else
     {
@@ -1138,6 +1176,16 @@ void HLSLGenerator::WriteArrayDims(const std::vector<ArrayDimensionPtr>& arrayDi
 
 void HLSLGenerator::WriteParameter(VarDeclStmnt* paramStmnt)
 {
+    /* Geometry-shader entry input primitive specifier (e.g. "triangle" on "void gsmain(triangle Vertex inputs[3], ...)")  */
+    if (paramStmnt->typeSpecifier->primitiveType != PrimitiveType::Undefined)
+    {
+        if (auto primitiveKeyword = PrimitiveTypeToHLSLKeyword(paramStmnt->typeSpecifier->primitiveType))
+        {
+            Write(*primitiveKeyword);
+            Write(" ");
+        }
+    }
+
     /* Attributes are uncommon on parameters; emit if present */
     /* Interp modifiers and storage classes */
     WriteInterpModifiers(paramStmnt->typeSpecifier->interpModifiers);
