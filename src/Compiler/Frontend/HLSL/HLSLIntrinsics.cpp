@@ -203,7 +203,6 @@ static HLSLIntrinsicsMap GenerateIntrinsicMap()
 
 /* ----- IntrinsicSignature class ----- */
 
-//TODO: add "FloatGenericSize0", "Float2GenericSize0" etc. to get specific return type but with variadic vector dimension
 enum class IntrinsicReturnType
 {
     Void,               // Fixed void type
@@ -227,6 +226,13 @@ enum class IntrinsicReturnType
     GenericArg1,        // Get return type from second argument (index 1)
     GenericArg2,        // Get return type from thrid argument (index 2)
 
+    /*
+    The "<BaseType>GenericArg0" entries keep the dimension (scalar/vector/matrix) of the first
+    argument, but replace its base type. Used by intrinsics whose result type is fixed by the
+    intrinsic itself rather than by the argument, e.g. "asint(float3)" returns "int3".
+    */
+    IntGenericArg0,     // Get dimension of int type from first argument (index 0)
+    UIntGenericArg0,    // Get dimension of uint type from first argument (index 0)
     FloatGenericArg0,   // Get dimension of float type from first argument (index 0)
     BoolGenericArg0,    // Get dimension of bool type from first argument (index 0)
 };
@@ -262,6 +268,46 @@ static std::size_t IntrinsicReturnTypeToArgIndex(const IntrinsicReturnType t)
         case IntrinsicReturnType::GenericArg2:  return 2;
         default:                                return ~0;
     }
+}
+
+// Returns the base data type of the "<BaseType>GenericArg0" return types, or DataType::Undefined for all others.
+static DataType IntrinsicReturnTypeToGenericBaseDataType(const IntrinsicReturnType t)
+{
+    switch (t)
+    {
+        case IntrinsicReturnType::IntGenericArg0:   return DataType::Int;
+        case IntrinsicReturnType::UIntGenericArg0:  return DataType::UInt;
+        case IntrinsicReturnType::FloatGenericArg0: return DataType::Float;
+        case IntrinsicReturnType::BoolGenericArg0:  return DataType::Bool;
+        default:                                    return DataType::Undefined;
+    }
+}
+
+/*
+Returns a type denoter with the specified base data type, but with the dimension (scalar, vector, or
+matrix) taken from the specified argument, e.g. base type "int" and argument "float3" yields "int3".
+*/
+static TypeDenoterPtr DeriveTypeDenoterWithBaseType(const DataType baseDataType, std::size_t argIndex, const std::vector<ExprPtr>& args)
+{
+    if (argIndex >= args.size())
+        return nullptr;
+
+    const auto& argTypeDen = args[argIndex]->GetTypeDenoter()->GetAliased();
+
+    if (auto argBaseTypeDen = argTypeDen.As<BaseTypeDenoter>())
+    {
+        const auto argDataType = argBaseTypeDen->dataType;
+
+        if (IsMatrixType(argDataType))
+        {
+            const auto dim = MatrixTypeDim(argDataType);
+            return std::make_shared<BaseTypeDenoter>(MatrixDataType(baseDataType, dim.first, dim.second));
+        }
+
+        return std::make_shared<BaseTypeDenoter>(VectorDataType(baseDataType, VectorTypeDim(argDataType)));
+    }
+
+    return nullptr;
 }
 
 static TypeDenoterPtr DeriveCommonTypeDenoter(std::size_t majorArgIndex, const std::vector<ExprPtr>& args, bool useMinDimension = false)
@@ -347,6 +393,14 @@ TypeDenoterPtr IntrinsicSignature::GetTypeDenoterWithArgs(const std::vector<Expr
         if (returnTypeFixed != DataType::Undefined)
             return std::make_shared<BaseTypeDenoter>(returnTypeFixed);
 
+        /* Take only the dimension from the first argument, with a base type fixed by the intrinsic */
+        const auto returnTypeGenericBase = IntrinsicReturnTypeToGenericBaseDataType(returnType);
+        if (returnTypeGenericBase != DataType::Undefined)
+        {
+            if (auto typeDenoter = DeriveTypeDenoterWithBaseType(returnTypeGenericBase, 0, args))
+                return typeDenoter;
+        }
+
         /* Take type denoter from argument */
         const auto returnTypeByArgIndex = IntrinsicReturnTypeToArgIndex(returnType);
         if (returnTypeByArgIndex < args.size())
@@ -372,10 +426,11 @@ static std::map<Intrinsic, IntrinsicSignature> GenerateIntrinsicSignatureMap()
         { T::AllMemoryBarrierWithGroupSync,    {                        } },
         { T::Any,                              { Ret::Bool,        1    } },
         { T::AsDouble,                         { Ret::Double,      2    } },
-        { T::AsFloat,                          { Ret::GenericArg0, 1    } },
+        // The bit-cast intrinsics keep the argument's dimension, but their base type is fixed by the intrinsic
+        { T::AsFloat,                          { Ret::FloatGenericArg0, 1 } },
         { T::ASin,                             { Ret::GenericArg0, 1    } },
-        { T::AsInt,                            { Ret::GenericArg0, 1    } },
-        { T::AsUInt_1,                         { Ret::GenericArg0, 1    } },
+        { T::AsInt,                            { Ret::IntGenericArg0,   1 } },
+        { T::AsUInt_1,                         { Ret::UIntGenericArg0,  1 } },
         { T::AsUInt_3,                         {                   3    } },
         { T::ATan,                             { Ret::GenericArg0, 1    } },
         { T::ATan2,                            { Ret::GenericArg1, 2    } },

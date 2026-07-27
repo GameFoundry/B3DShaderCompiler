@@ -1406,6 +1406,7 @@ void LanguageExtensionCommand::Run(CommandLine& cmdLine, ShellState& state)
             { "srt",           Extensions::SrtSignature      },
             { "opaque-struct", Extensions::OpaqueStructTypes },
             { "strict-hlsl",   Extensions::StrictHLSL        },
+            { "hlsl-templates", Extensions::HLSLTemplates     },
         },
         R_InvalidExtensionType(type)
     );

@@ -12,7 +12,9 @@
 #include "SLParser.h"
 #include "HLSLScanner.h"
 #include "SymbolTable.h"
+#include "Flags.h"
 #include <map>
+#include <set>
 
 
 namespace Xsc
@@ -32,7 +34,8 @@ class HLSLParser : public SLParser
             const NameMangling& nameMangling,
             const InputShaderVersion versionIn,
             bool rowMajorAlignment = false,
-            bool enableWarnings = false
+            bool enableWarnings = false,
+            const Flags& extensions = {}
         );
 
     private:
@@ -116,6 +119,7 @@ class HLSLParser : public SLParser
 
         StmntPtr                        ParseGlobalStmnt();
         StmntPtr                        ParseGlobalStmntPrimary();
+        StmntPtr                        ParseTemplateDeclStmnt();
         StmntPtr                        ParseGlobalStmntWithTypeSpecifier();
         StmntPtr                        ParseGlobalStmntWithSamplerTypeDenoter();
         StmntPtr                        ParseGlobalStmntWithBufferTypeDenoter();
@@ -158,6 +162,8 @@ class HLSLParser : public SLParser
         std::vector<SamplerDeclPtr>     ParseSamplerDeclList(SamplerDeclStmnt* declStmntRef, const TokenPtr& identTkn = nullptr);
         std::vector<SamplerValuePtr>    ParseSamplerValueList();
         std::vector<AliasDeclPtr>       ParseAliasDeclList(TypeDenoterPtr typeDenoter);
+        std::vector<std::string>        ParseTemplateParameterList();
+        std::vector<TypeDenoterPtr>     ParseTemplateArgumentList();
 
         std::string                     ParseIdentWithNamespaceOpt(ObjectExprPtr& namespaceExpr, TokenPtr identTkn = nullptr, SourceArea* area = nullptr);
 
@@ -172,7 +178,7 @@ class HLSLParser : public SLParser
         SamplerTypeDenoterPtr           ParseSamplerTypeDenoter();
         StructTypeDenoterPtr            ParseStructTypeDenoter();
         StructTypeDenoterPtr            ParseStructTypeDenoterWithStructDeclOpt(StructDeclPtr& structDecl);
-        AliasTypeDenoterPtr             ParseAliasTypeDenoter(std::string ident = "");
+        TypeDenoterPtr                  ParseAliasTypeDenoter(std::string ident = "");
 
         void                            ParseAndIgnoreTechniquesAndNullStmnts();
         void                            ParseAndIgnoreTechnique();
@@ -209,6 +215,10 @@ class HLSLParser : public SLParser
 
         // True, if matrix packing is globally set to row major.
         bool                rowMajorAlignment_      = false;
+
+        Flags               extensions_;
+        std::set<std::string> structTemplateNames_;
+        std::set<std::string> functionTemplateNames_;
 
 };
 

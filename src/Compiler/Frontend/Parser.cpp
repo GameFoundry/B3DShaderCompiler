@@ -192,6 +192,21 @@ TokenPtr Parser::Accept(const Tokens type, const std::string& spell)
     return AcceptIt();
 }
 
+TokenPtr Parser::AcceptTemplateRightBracket()
+{
+    if (Is(Tokens::BinaryOp, ">"))
+        return AcceptIt();
+
+    if (Is(Tokens::BinaryOp, ">>"))
+    {
+        auto consumed = std::make_shared<Token>(Tkn()->Pos(), Tokens::BinaryOp, ">");
+        tkn_ = std::make_shared<Token>(Tkn()->Pos(), Tokens::BinaryOp, ">");
+        return consumed;
+    }
+
+    return Accept(Tokens::BinaryOp, ">");
+}
+
 TokenPtr Parser::AcceptIt()
 {
     /* Check if end-of-stream has already reached */

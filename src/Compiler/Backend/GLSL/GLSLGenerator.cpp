@@ -972,6 +972,12 @@ IMPLEMENT_VISIT_PROC(CallExpr)
         WriteCallExprIntrinsicMul(ast);
     else if (ast->intrinsic == Intrinsic::Rcp)
         WriteCallExprIntrinsicRcp(ast);
+    else if (ast->intrinsic == Intrinsic::AsInt)
+        WriteCallExprIntrinsicBitCast(ast, DataType::Int);
+    else if (ast->intrinsic == Intrinsic::AsUInt_1)
+        WriteCallExprIntrinsicBitCast(ast, DataType::UInt);
+    else if (ast->intrinsic == Intrinsic::AsFloat)
+        WriteCallExprIntrinsicBitCast(ast, DataType::Float);
     else if (ast->intrinsic == Intrinsic::Clip && ast->flags(CallExpr::canInlineIntrinsicWrapper))
         WriteCallExprIntrinsicClip(ast);
     else if (ast->intrinsic == Intrinsic::InterlockedCompareExchange)
@@ -2613,6 +2619,75 @@ void GLSLGenerator::WriteCallExprIntrinsicRcp(CallExpr* funcCall)
     }
     else
         Error(R_InvalidIntrinsicArgType("rcp"), expr.get());
+}
+
+/*
+Writes one of the HLSL bit-cast intrinsics ("asint", "asuint", "asfloat").
+These reinterpret the argument's bit pattern, so the GLSL function to write depends on the type of
+the *argument*, not just on the intrinsic. GLSL only provides the conversions between a real type and
+an integral type ("floatBitsToInt", "intBitsToFloat", ...); reinterpreting between "int" and "uint",
+or between a type and itself, is a no-op that is written as a plain constructor cast instead.
+Writing a fixed GLSL function per intrinsic silently produces garbage, because GLSL then applies an
+implicit *value* conversion to the argument, e.g. "floatBitsToInt(someUint)" first converts the uint
+to a float (losing the bit pattern) and only then reinterprets it.
+*/
+void GLSLGenerator::WriteCallExprIntrinsicBitCast(CallExpr* funcCall, const DataType destBaseDataType)
+{
+    AssertIntrinsicNumArgs(funcCall, 1, 1);
+
+    /* Get type denoter of argument expression */
+    auto& expr = funcCall->arguments.front();
+    const auto& typeDen = expr->GetTypeDenoter()->GetAliased();
+
+    auto baseTypeDen = typeDen.As<BaseTypeDenoter>();
+    if (!baseTypeDen)
+    {
+        Error(R_InvalidIntrinsicArgType(funcCall->ident), expr.get());
+        return;
+    }
+
+    const auto srcDataType = baseTypeDen->dataType;
+
+    /* Determine the GLSL bit-cast function required to get from the source to the destination type */
+    const char* intrinsicKeyword = nullptr;
+
+    if (IsRealType(srcDataType))
+    {
+        if (destBaseDataType == DataType::Int)
+            intrinsicKeyword = "floatBitsToInt";
+        else if (destBaseDataType == DataType::UInt)
+            intrinsicKeyword = "floatBitsToUint";
+    }
+    else if (destBaseDataType == DataType::Float && IsIntegralType(srcDataType))
+    {
+        /* Pick the function matching the source's signedness, as GLSL has no implicit int/uint conversion in all versions */
+        intrinsicKeyword = (IsIntType(srcDataType) ? "intBitsToFloat" : "uintBitsToFloat");
+    }
+
+    if (intrinsicKeyword != nullptr)
+        Write(intrinsicKeyword);
+    else
+    {
+        /*
+        No reinterpretation is needed: int <-> uint casts and casts to the same type keep the bit
+        pattern in GLSL, so write the destination type's constructor with the argument's dimension.
+        */
+        auto destDataType = DataType::Undefined;
+
+        if (IsMatrixType(srcDataType))
+        {
+            const auto dim = MatrixTypeDim(srcDataType);
+            destDataType = MatrixDataType(destBaseDataType, dim.first, dim.second);
+        }
+        else
+            destDataType = VectorDataType(destBaseDataType, VectorTypeDim(srcDataType));
+
+        WriteTypeDenoter(BaseTypeDenoter{ destDataType }, false, funcCall);
+    }
+
+    Write("(");
+    Visit(expr);
+    Write(")");
 }
 
 void GLSLGenerator::WriteCallExprIntrinsicClip(CallExpr* funcCall)

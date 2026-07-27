@@ -67,6 +67,20 @@ xsc_add_roundtrip_tests(
     CASES          ${XSC_HLSL_ROUNDTRIP_CASES}
 )
 
+# HLSL 2021-style templates are specialized by the front end, so the HLSL5
+# round-trip remains valid for FXC as well as DX12 consumers.
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;hlsl-templates"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -Xhlsl-templates@ON
+    CASES          "TemplateTest1|VS|vs_5_0|vert"
+)
+
 # --- Auto-binding case ---
 # Driven with -AB: unregistered resources must receive sequential per-space
 # slots, an explicit slot must be reserved against the counter, and the

@@ -227,7 +227,7 @@ FunctionDecl* ASTSymbolOverload::FetchFunctionDecl(bool throwOnFailure) const
     return nullptr;
 }
 
-FunctionDecl* ASTSymbolOverload::FetchFunctionDecl(const std::vector<TypeDenoterPtr>& argTypeDenoters) const
+FunctionDecl* ASTSymbolOverload::FetchFunctionDecl(const std::vector<TypeDenoterPtr>& argTypeDenoters, bool throwOnFailure, bool allowImplicitConversions) const
 {
     if (refs_.empty())
         RuntimeErr(R_UndefinedSymbol(ident_));
@@ -247,7 +247,7 @@ FunctionDecl* ASTSymbolOverload::FetchFunctionDecl(const std::vector<TypeDenoter
     }
 
     /* Fetch function declaration from list */
-    return FunctionDecl::FetchFunctionDeclFromList(funcDeclList, ident_, argTypeDenoters);
+    return FunctionDecl::FetchFunctionDeclFromList(funcDeclList, ident_, argTypeDenoters, throwOnFailure, allowImplicitConversions);
 }
 
 

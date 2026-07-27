@@ -94,6 +94,30 @@ xsc_add_roundtrip_tests(
     CASES       ${XSC_GLSL_ROUNDTRIP_CASES}
 )
 
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;hlsl-templates"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    EXTRA_FLAGS -Xhlsl-templates@ON
+    CASES       "TemplateTest1|VS|vert"
+)
+
+# Intrinsics whose translation depends on the argument's type. The bit-cast case guards against the
+# result of 'asint'/'asuint'/'asfloat' being typed as its argument instead of as the intrinsic's own
+# type, which turns the surrounding integer operations into invalid float ones (rejected here).
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;intrinsics"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    CASES       "BitCastIntrinsics|main|frag"
+)
+
 # --- Negative (expect-error) cases -----------------------------------------
 # Each registers a shader that must be rejected, pinned to its diagnostic.
 # Helper: add_expect_error(<name> <shader> <entry> <stage> <regex> <extra flags...>)
@@ -131,7 +155,27 @@ add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "ca
 add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(LocalExtDisabled OpaqueTypeLocalTexture           main frag "opaque-struct' language extension is enabled")
 
+add_test(
+    NAME glsl_reject.TemplateExtensionDisabled
+    COMMAND ${CMAKE_COMMAND}
+        -DXSC=${XSC_BIN}
+        -DSHADER=${PROJECT_SOURCE_DIR}/test/TemplateTest1.hlsl
+        -DENTRY=VS
+        -DXSC_STAGE=vert
+        -DOUT_DIR=${_GLSL_OUT_DIR}
+        "-DEXPECT_REGEX=hlsl-templates' language extension"
+        -P ${_GLSL_TESTS_DIR}/RunXscExpectError.cmake
+)
+set_tests_properties(glsl_reject.TemplateExtensionDisabled
+    PROPERTIES LABELS "glsl-roundtrip;hlsl-templates;negative")
+
+# add_generated_glsl_assert(<name> <shader> <expect regex> <reject regex> [<labels>])
 function(add_generated_glsl_assert _name _shader _expect _reject)
+    set(_labels "glsl-roundtrip;opaque-type;generated")
+    if(ARGN)
+        set(_labels "${ARGN}")
+    endif()
+
     set(_output "${_GLSL_OUT_DIR}/assert_${_name}.frag")
     add_test(
         NAME glsl_generated.${_name}
@@ -145,7 +189,7 @@ function(add_generated_glsl_assert _name _shader _expect _reject)
             "-DREJECT_REGEX=${_reject}"
             -P ${_GLSL_TESTS_DIR}/RunGeneratedGLSLAssert.cmake
     )
-    set_tests_properties(glsl_generated.${_name} PROPERTIES LABELS "glsl-roundtrip;opaque-type;generated")
+    set_tests_properties(glsl_generated.${_name} PROPERTIES LABELS "${_labels}")
 endfunction()
 
 add_generated_glsl_assert(runtime_array OpaqueTypeRuntimeArray
@@ -160,3 +204,30 @@ add_generated_glsl_assert(plain_locals OpaqueTypeLocalValues
 add_generated_glsl_assert(no_dummy OpaqueTypeArrayContracts
     "void makeSet\\(out BundleSet"
     "dummy|struct Bundle[ \\t\\r\\n]*\\{")
+
+# 'asint'/'asuint'/'asfloat' reinterpret the bit pattern of their argument, so the GLSL function they
+# map to has to be chosen from that argument's type: GLSL only converts between a real and an integral
+# type, and reinterpreting between int and uint is a plain constructor cast. Writing the wrong one
+# still produces *valid* GLSL -- it just makes GLSL insert an implicit value conversion on the
+# argument, silently destroying the bit pattern -- so the round-trip test cannot catch it and these
+# assertions pin the emitted function per source type instead.
+set(_BITCAST_LABELS "glsl-roundtrip;intrinsics;generated")
+
+add_generated_glsl_assert(bitcast_from_float BitCastIntrinsics
+    "int f2i = floatBitsToInt\\(fVal\\.x\\)"
+    "[fu]intBitsToFloat\\(fVal" ${_BITCAST_LABELS})
+add_generated_glsl_assert(bitcast_from_uint BitCastIntrinsics
+    "float u2f = uintBitsToFloat\\(uVal\\.y\\)"
+    "floatBitsTo(Int|Uint)\\(uVal" ${_BITCAST_LABELS})
+add_generated_glsl_assert(bitcast_from_int BitCastIntrinsics
+    "float i2f = intBitsToFloat\\(iVal\\.y\\)"
+    "floatBitsTo(Int|Uint)\\(iVal" ${_BITCAST_LABELS})
+# int <-> uint must stay a constructor cast; this is the case that decoded packed data incorrectly
+add_generated_glsl_assert(bitcast_int_uint BitCastIntrinsics
+    "int u2i = int\\(uVal\\.x\\)"
+    "uintBitsToFloat\\(iVal" ${_BITCAST_LABELS})
+# The result must carry the intrinsic's type, not the argument's, or the surrounding integer
+# operations degrade into float ones (e.g. a shift by '16.f')
+add_generated_glsl_assert(bitcast_result_type BitCastIntrinsics
+    "uint shifted = floatBitsToUint\\(fVal\\.w\\) >> 16"
+    "16\\.f|255\\.f" ${_BITCAST_LABELS})

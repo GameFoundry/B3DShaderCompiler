@@ -45,6 +45,12 @@ class HLSLAnalyzer : public Analyzer
             StructDecl* outPrefixBaseStruct;
         };
 
+        struct GeneratedTemplate
+        {
+            const AST*  primary = nullptr;
+            StmntPtr    statement;
+        };
+
         /* === Functions === */
 
         void DecorateASTPrimary(
@@ -103,6 +109,14 @@ class HLSLAnalyzer : public Analyzer
         void AnalyzeVarDecl(VarDecl* varDecl);
         void AnalyzeVarDeclLocal(VarDecl* varDecl, bool registerVarIdent = true);
         void AnalyzeVarDeclStaticMember(VarDecl* varDecl);
+
+        /* ----- Templates ----- */
+
+        void CollectTemplateDeclarations(Program& program);
+        void RebuildProgramWithTemplateSpecializations(Program& program);
+        void AnalyzeTemplateType(TypeDenoterPtr& typeDenoter, const AST* ast);
+        StructDeclPtr InstantiateStructTemplate(StructTypeDenoter& typeDenoter, const AST* ast);
+        bool InstantiateFunctionTemplate(CallExpr* callExpr);
         
         /* ----- Call expressions ----- */
 
@@ -246,6 +260,14 @@ class HLSLAnalyzer : public Analyzer
         bool                preferWrappers_             = false;
 
         std::set<VarDecl*>  varDeclSM3Semantics_;
+
+        std::map<std::string, StructDeclPtr>                 structTemplates_;
+        std::map<std::string, std::vector<StructDeclPtr>>    structTemplateSpecializations_;
+        std::map<std::string, std::vector<FunctionDeclPtr>>  functionTemplates_;
+        std::map<std::string, StructDeclPtr>                 generatedStructTemplates_;
+        std::map<std::string, FunctionDeclPtr>               generatedFunctionTemplates_;
+        std::vector<GeneratedTemplate>                       generatedTemplates_;
+        std::size_t                                           nextTemplateId_ = 0;
 
         #ifdef XSC_ENABLE_LANGUAGE_EXT
         

@@ -8,9 +8,12 @@
 #include "HLSLAnalyzer.h"
 #include "HLSLIntrinsics.h"
 #include "HLSLKeywords.h"
+#include "ASTCloner.h"
 #include "Exception.h"
 #include "Helper.h"
 #include "ReportIdents.h"
+#include <algorithm>
+#include <sstream>
 
 namespace Xsc
 {
@@ -55,6 +58,131 @@ static StructDecl* ResolveOpaqueBearingStructDecl(const TypeDenoterPtr& typeDen)
     }
 
     return nullptr;
+}
+
+using TemplateBindings = std::map<std::string, TypeDenoterPtr>;
+
+class TemplateASTCloner final : public ASTCloner
+{
+
+    public:
+
+        explicit TemplateASTCloner(const TemplateBindings& bindings) :
+            bindings_ { bindings }
+        {
+        }
+
+    protected:
+
+        TypeDenoterPtr CloneTypeDenoter(const TypeDenoterPtr& source) override
+        {
+            if (!source)
+                return nullptr;
+
+            if (auto aliasType = source->As<AliasTypeDenoter>())
+            {
+                auto binding = bindings_.find(aliasType->ident);
+                if (binding != bindings_.end())
+                    return (binding->second ? binding->second->Copy() : nullptr);
+            }
+
+            return ASTCloner::CloneTypeDenoter(source);
+        }
+
+    private:
+
+        const TemplateBindings& bindings_;
+
+};
+
+static std::string TemplateTypeKey(const TypeDenoterPtr& type)
+{
+    if (!type)
+        return "<null>";
+    try
+    {
+        return type->GetAliased().ToString();
+    }
+    catch (...)
+    {
+        return type->ToString();
+    }
+}
+
+static std::string TemplateArgumentsKey(const std::vector<TypeDenoterPtr>& args)
+{
+    std::string key;
+    for (const auto& arg : args)
+    {
+        key += "|";
+        key += TemplateTypeKey(arg);
+    }
+    return key;
+}
+
+static bool DeduceTemplateType(const TypeDenoterPtr& pattern, const TypeDenoterPtr& actual, const std::set<std::string>& templateParams, TemplateBindings& bindings)
+{
+    if (!pattern || !actual)
+        return false;
+
+    if (auto aliasPattern = pattern->As<AliasTypeDenoter>())
+    {
+        if (templateParams.find(aliasPattern->ident) != templateParams.end())
+        {
+            auto it = bindings.find(aliasPattern->ident);
+            if (it == bindings.end())
+                bindings[aliasPattern->ident] = actual->Copy();
+            else if (!it->second->Equals(*actual))
+                return false;
+            return true;
+        }
+    }
+
+    if (auto arrayPattern = pattern->As<ArrayTypeDenoter>())
+    {
+        auto arrayActual = actual->GetAliased().As<ArrayTypeDenoter>();
+        return (
+            arrayActual &&
+            arrayPattern->arrayDims.size() == arrayActual->arrayDims.size() &&
+            DeduceTemplateType(arrayPattern->subTypeDenoter, arrayActual->subTypeDenoter, templateParams, bindings)
+        );
+    }
+
+    if (auto bufferPattern = pattern->As<BufferTypeDenoter>())
+    {
+        auto bufferActual = actual->GetAliased().As<BufferTypeDenoter>();
+        return (
+            bufferActual &&
+            bufferPattern->bufferType == bufferActual->bufferType &&
+            DeduceTemplateType(bufferPattern->genericTypeDenoter, bufferActual->genericTypeDenoter, templateParams, bindings)
+        );
+    }
+
+    if (auto structPattern = pattern->As<StructTypeDenoter>())
+    {
+        auto structActual = actual->GetAliased().As<StructTypeDenoter>();
+        if (!structActual)
+            return false;
+
+        const auto actualDecl = structActual->structDeclRef;
+        const auto actualName =
+            (actualDecl && !actualDecl->templateSourceIdent.empty() ? actualDecl->templateSourceIdent : structActual->ident);
+        if (structPattern->ident != actualName)
+            return false;
+
+        const auto& actualArgs =
+            (actualDecl && !actualDecl->templateArguments.empty() ? actualDecl->templateArguments : structActual->templateArguments);
+        if (structPattern->templateArguments.size() != actualArgs.size())
+            return false;
+        for (std::size_t i = 0; i < actualArgs.size(); ++i)
+        {
+            if (!DeduceTemplateType(structPattern->templateArguments[i], actualArgs[i], templateParams, bindings))
+                return false;
+        }
+        return true;
+    }
+
+    return pattern->GetAliased().Equals(actual->GetAliased());
 }
 
 /*
@@ -110,6 +238,332 @@ bool HLSLAnalyzer::IsD3D9ShaderModel() const
     return (versionIn_ <= InputShaderVersion::HLSL3);
 }
 
+void HLSLAnalyzer::CollectTemplateDeclarations(Program& program)
+{
+    structTemplates_.clear();
+    structTemplateSpecializations_.clear();
+    functionTemplates_.clear();
+    generatedStructTemplates_.clear();
+    generatedFunctionTemplates_.clear();
+    generatedTemplates_.clear();
+    nextTemplateId_ = 0;
+
+    for (const auto& stmnt : program.globalStmnts)
+    {
+        auto basicDecl = stmnt->As<BasicDeclStmnt>();
+        if (!basicDecl || !basicDecl->declObject)
+            continue;
+
+        if (auto structDecl = basicDecl->declObject->As<StructDecl>())
+        {
+            if (!structDecl->isTemplate)
+                continue;
+
+            const auto ident = structDecl->ident.Original();
+            if (structDecl->templateParams.empty())
+                structTemplateSpecializations_[ident].push_back(std::static_pointer_cast<StructDecl>(basicDecl->declObject));
+            else
+                structTemplates_[ident] = std::static_pointer_cast<StructDecl>(basicDecl->declObject);
+        }
+        else if (auto funcDecl = basicDecl->declObject->As<FunctionDecl>())
+        {
+            if (!funcDecl->isTemplate)
+                continue;
+
+            if (funcDecl->templateParams.empty())
+            {
+                /* A full function specialization is already a concrete overload. */
+                funcDecl->isTemplate = false;
+            }
+            else
+            {
+                functionTemplates_[funcDecl->ident.Original()].push_back(std::static_pointer_cast<FunctionDecl>(basicDecl->declObject)
+                );
+            }
+        }
+    }
+}
+
+void HLSLAnalyzer::RebuildProgramWithTemplateSpecializations(Program& program)
+{
+    std::vector<StmntPtr> output;
+
+    for (const auto& stmnt : program.globalStmnts)
+    {
+        const AST* primary = nullptr;
+        bool suppress = false;
+
+        if (auto basicDecl = stmnt->As<BasicDeclStmnt>())
+        {
+            if (auto structDecl = basicDecl->declObject->As<StructDecl>())
+            {
+                if (structDecl->isTemplate)
+                {
+                    suppress = true;
+                    if (!structDecl->templateParams.empty())
+                        primary = structDecl;
+                }
+            }
+            else if (auto funcDecl = basicDecl->declObject->As<FunctionDecl>())
+            {
+                if (funcDecl->isTemplate)
+                {
+                    suppress = true;
+                    if (!funcDecl->templateParams.empty())
+                        primary = funcDecl;
+                }
+            }
+        }
+
+        if (primary)
+        {
+            for (const auto& generated : generatedTemplates_)
+            {
+                if (generated.primary == primary)
+                    output.push_back(generated.statement);
+            }
+        }
+
+        if (!suppress)
+            output.push_back(stmnt);
+    }
+
+    program.globalStmnts = std::move(output);
+}
+
+void HLSLAnalyzer::AnalyzeTemplateType(TypeDenoterPtr& typeDenoter, const AST* ast)
+{
+    if (!typeDenoter)
+        return;
+
+    if (auto arrayType = typeDenoter->As<ArrayTypeDenoter>())
+        AnalyzeTemplateType(arrayType->subTypeDenoter, ast);
+    else if (auto bufferType = typeDenoter->As<BufferTypeDenoter>())
+        AnalyzeTemplateType(bufferType->genericTypeDenoter, ast);
+    else if (auto structType = typeDenoter->As<StructTypeDenoter>())
+    {
+        for (auto& arg : structType->templateArguments)
+        {
+            AnalyzeTemplateType(arg, ast);
+            Analyzer::AnalyzeTypeDenoter(arg, ast);
+        }
+
+        if (!structType->templateArguments.empty())
+        {
+            if (auto generated = InstantiateStructTemplate(*structType, ast))
+            {
+                typeDenoter = std::make_shared<StructTypeDenoter>(generated.get());
+            }
+        }
+    }
+}
+
+StructDeclPtr HLSLAnalyzer::InstantiateStructTemplate(StructTypeDenoter& typeDenoter, const AST* ast)
+{
+    auto primaryIt = structTemplates_.find(typeDenoter.ident);
+    if (primaryIt == structTemplates_.end())
+        return nullptr;
+
+    auto primary = primaryIt->second;
+    const auto& args = typeDenoter.templateArguments;
+    if (args.size() != primary->templateParams.size())
+    {
+        Error(
+            R_HLSLTemplateArgumentCount(
+                typeDenoter.ident,
+                primary->templateParams.size(),
+                args.size()
+            ),
+            ast
+        );
+        return nullptr;
+    }
+
+    const auto cacheKey = typeDenoter.ident + TemplateArgumentsKey(args);
+    auto generatedIt = generatedStructTemplates_.find(cacheKey);
+    if (generatedIt != generatedStructTemplates_.end())
+    {
+        auto generated = generatedIt->second;
+        if (!FetchFromCurrentScopeOrNull(generated->ident))
+            Register(generated->ident, generated.get());
+        return generated;
+    }
+
+    StructDeclPtr source = primary;
+    const auto specializationIt = structTemplateSpecializations_.find(typeDenoter.ident);
+    if (specializationIt != structTemplateSpecializations_.end())
+    {
+        const auto argsKey = TemplateArgumentsKey(args);
+        for (const auto& specialization : specializationIt->second)
+        {
+            if (TemplateArgumentsKey(specialization->templateArguments) == argsKey)
+            {
+                source = specialization;
+                break;
+            }
+        }
+    }
+
+    TemplateBindings bindings;
+    for (std::size_t i = 0; i < args.size(); ++i)
+        bindings[primary->templateParams[i]] = args[i];
+
+    TemplateASTCloner cloner { bindings };
+    auto generated = cloner.Clone(source);
+    generated->ident = "xsc_template_" + typeDenoter.ident + "_" + std::to_string(nextTemplateId_++);
+    generated->isTemplate = false;
+    generated->templateParams.clear();
+    generated->templateArguments.clear();
+    for (const auto& arg : args)
+        generated->templateArguments.push_back(arg->Copy());
+    generated->templateSourceIdent = typeDenoter.ident;
+
+    generated->localStmnts.erase(
+        std::remove_if(
+            generated->localStmnts.begin(),
+            generated->localStmnts.end(),
+            [](const StmntPtr& local)
+            {
+                if (auto basicDecl = local->As<BasicDeclStmnt>())
+                    return (basicDecl->declObject && basicDecl->declObject->Type() == AST::Types::FunctionDecl);
+                return false;
+            }
+        ),
+        generated->localStmnts.end()
+    );
+    generated->funcMembers.clear();
+
+    auto statement = std::make_shared<BasicDeclStmnt>(source->declStmntRef->area);
+    statement->area = source->declStmntRef->area;
+    statement->comment = source->declStmntRef->comment;
+    statement->attribs = cloner.Clone(source->declStmntRef->attribs);
+    statement->declObject = generated;
+    generated->declStmntRef = statement.get();
+
+    /* Cache before visiting so recursive references reuse this specialization. */
+    generatedStructTemplates_[cacheKey] = generated;
+    generatedTemplates_.push_back({ primary.get(), statement });
+    Visit(statement.get());
+
+    return generated;
+}
+
+bool HLSLAnalyzer::InstantiateFunctionTemplate(CallExpr* callExpr)
+{
+    auto templatesIt = functionTemplates_.find(callExpr->ident);
+    if (templatesIt == functionTemplates_.end())
+        return false;
+
+    struct Candidate
+    {
+        FunctionDeclPtr             primary;
+        TemplateBindings            bindings;
+        std::vector<TypeDenoterPtr> arguments;
+    };
+    std::vector<Candidate> candidates;
+
+    for (const auto& primary : templatesIt->second)
+    {
+        if (callExpr->explicitTemplateArgs.size() > primary->templateParams.size())
+            continue;
+
+        Candidate candidate;
+        candidate.primary = primary;
+
+        bool valid = true;
+        for (std::size_t i = 0; i < callExpr->explicitTemplateArgs.size(); ++i)
+        {
+            auto arg = callExpr->explicitTemplateArgs[i];
+            AnalyzeTemplateType(arg, callExpr);
+            Analyzer::AnalyzeTypeDenoter(arg, callExpr);
+            candidate.bindings[primary->templateParams[i]] = arg;
+        }
+
+        const std::set<std::string> paramSet(primary->templateParams.begin(), primary->templateParams.end());
+        const auto numArgs = std::min(primary->parameters.size(), callExpr->arguments.size());
+        for (std::size_t i = 0; i < numArgs && valid; ++i)
+        {
+            auto pattern = primary->parameters[i]->typeSpecifier->typeDenoter;
+            if (!primary->parameters[i]->varDecls.empty() && !primary->parameters[i]->varDecls.front()->arrayDims.empty())
+            {
+                pattern = std::make_shared<ArrayTypeDenoter>(
+                    pattern,
+                    primary->parameters[i]->varDecls.front()->arrayDims
+                );
+            }
+            valid = DeduceTemplateType(
+                pattern,
+                callExpr->arguments[i]->GetTypeDenoter(),
+                paramSet,
+                candidate.bindings
+            );
+        }
+
+        for (const auto& param : primary->templateParams)
+        {
+            auto bindingIt = candidate.bindings.find(param);
+            if (bindingIt == candidate.bindings.end())
+            {
+                valid = false;
+                break;
+            }
+            candidate.arguments.push_back(bindingIt->second);
+        }
+
+        if (valid)
+            candidates.push_back(std::move(candidate));
+    }
+
+    if (candidates.empty())
+    {
+        Error(R_HLSLTemplateCannotDeduce(callExpr->ident), callExpr);
+        return false;
+    }
+    if (candidates.size() > 1)
+    {
+        Error(R_HLSLTemplateAmbiguous(callExpr->ident), callExpr);
+        return false;
+    }
+
+    auto& candidate = candidates.front();
+    std::ostringstream cacheKeyStream;
+    cacheKeyStream << candidate.primary.get() << TemplateArgumentsKey(candidate.arguments);
+    const auto cacheKey = cacheKeyStream.str();
+
+    auto generatedIt = generatedFunctionTemplates_.find(cacheKey);
+    if (generatedIt != generatedFunctionTemplates_.end())
+    {
+        auto generated = generatedIt->second;
+        if (!FetchFromCurrentScopeOrNull(generated->ident))
+            Register(generated->ident, generated.get());
+        callExpr->ident = generated->ident;
+        callExpr->explicitTemplateArgs.clear();
+        return true;
+    }
+
+    TemplateASTCloner cloner { candidate.bindings };
+    auto statement = std::make_shared<BasicDeclStmnt>(candidate.primary->declStmntRef->area);
+    auto generated = cloner.Clone(candidate.primary);
+    generated->ident = "xsc_template_" + candidate.primary->ident.Original() + "_" + std::to_string(nextTemplateId_++);
+    generated->isTemplate = false;
+    generated->templateParams.clear();
+    generated->declStmntRef = statement.get();
+
+    statement->area = candidate.primary->declStmntRef->area;
+    statement->comment = candidate.primary->declStmntRef->comment;
+    statement->attribs = cloner.Clone(candidate.primary->declStmntRef->attribs);
+    statement->declObject = generated;
+
+    /* Cache before visiting so recursive calls resolve to this specialization. */
+    generatedFunctionTemplates_[cacheKey] = generated;
+    generatedTemplates_.push_back({ candidate.primary.get(), statement });
+    Visit(statement.get());
+
+    callExpr->ident = generated->ident;
+    callExpr->explicitTemplateArgs.clear();
+    return true;
+}
+
 /* ------- Visit functions ------- */
 
 #define IMPLEMENT_VISIT_PROC(AST_NAME) \
@@ -117,10 +571,26 @@ bool HLSLAnalyzer::IsD3D9ShaderModel() const
 
 IMPLEMENT_VISIT_PROC(Program)
 {
+    CollectTemplateDeclarations(*ast);
+
     /* Analyze context of the entire program */
     for (auto it = ast->globalStmnts.begin(); it != ast->globalStmnts.end(); ++it)
     {
         auto stmnt = it->get();
+
+        if (auto basicDecl = stmnt->As<BasicDeclStmnt>())
+        {
+            if (auto structDecl = basicDecl->declObject->As<StructDecl>())
+            {
+                if (structDecl->isTemplate)
+                    continue;
+            }
+            else if (auto funcDecl = basicDecl->declObject->As<FunctionDecl>())
+            {
+                if (funcDecl->isTemplate)
+                    continue;
+            }
+        }
         
         /* Visit current global statement */
         Visit(stmnt);
@@ -147,6 +617,8 @@ IMPLEMENT_VISIT_PROC(Program)
     /* Check if fragment shader uses a slightly different screen space (VPOS vs. SV_Position) */
     if (shaderTarget_ == ShaderTarget::FragmentShader && IsD3D9ShaderModel())
         program_->layoutFragment.pixelCenterInteger = true;
+
+    RebuildProgramWithTemplateSpecializations(*ast);
 }
 
 IMPLEMENT_VISIT_PROC(CodeBlock)
@@ -199,6 +671,7 @@ IMPLEMENT_VISIT_PROC(ArrayDimension)
 
 IMPLEMENT_VISIT_PROC(TypeSpecifier)
 {
+    AnalyzeTemplateType(ast->typeDenoter, ast);
     AnalyzeTypeSpecifier(ast);
 
     /* Strict-HLSL: reject the 'precise' type modifier. No portable cross-target
@@ -334,6 +807,7 @@ IMPLEMENT_VISIT_PROC(StructDecl)
 
 IMPLEMENT_VISIT_PROC(AliasDecl)
 {
+    AnalyzeTemplateType(ast->typeDenoter, ast);
     AnalyzeTypeDenoter(ast->typeDenoter, ast);
 
     /* Register type-alias identifier in symbol table */
@@ -368,7 +842,10 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
 
     /* Analyze parameter type denoters (required before function can be registered in symbol table) */
     for (auto& param : ast->parameters)
+    {
+        AnalyzeTemplateType(param->typeSpecifier->typeDenoter, param->typeSpecifier.get());
         AnalyzeTypeDenoter(param->typeSpecifier->typeDenoter, param->typeSpecifier.get());
+    }
 
     /* Disallow opaque-bearing structs in entry-point I/O (in any form). */
     if (isEntryPoint || isSecondaryEntryPoint)
@@ -430,6 +907,7 @@ IMPLEMENT_VISIT_PROC(SamplerDeclStmnt)
 IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
 {
     /* Analyze generic type */
+    AnalyzeTemplateType(ast->typeDenoter->genericTypeDenoter, ast);
     AnalyzeTypeDenoter(ast->typeDenoter->genericTypeDenoter, ast);
 
     /* Analyze buffer declarations */
@@ -1079,6 +1557,15 @@ void HLSLAnalyzer::AnalyzeCallExprPrimary(CallExpr* callExpr, const TypeDenoter*
     {
         /* Analyze function arguments first */
         Visit(callExpr->arguments);
+
+        if (!prefixTypeDenoter)
+        {
+            const bool hasExplicitTemplateArgs = !callExpr->explicitTemplateArgs.empty();
+            const bool hasConcreteOverload =
+                (!hasExplicitTemplateArgs && FetchFunctionDeclOrNull(callExpr->ident, callExpr->arguments, false) != nullptr);
+            if (hasExplicitTemplateArgs || !hasConcreteOverload)
+                InstantiateFunctionTemplate(callExpr);
+        }
 
         /* Then analyze function name */
         if (!callExpr->ident.empty())

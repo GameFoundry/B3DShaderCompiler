@@ -269,6 +269,29 @@ FunctionDecl* Analyzer::FetchFunctionDecl(const std::string& ident, const std::v
     return nullptr;
 }
 
+FunctionDecl* Analyzer::FetchFunctionDeclOrNull(const std::string& ident, const std::vector<ExprPtr>& args, bool allowImplicitConversions)
+{
+    try
+    {
+        std::vector<TypeDenoterPtr> argTypeDens;
+        if (!CollectArgumentTypeDenoters(args, argTypeDens))
+            return nullptr;
+
+        if (auto structDecl = ActiveFunctionStructDecl())
+        {
+            if (auto funcDecl = structDecl->FetchFunctionDecl(ident, argTypeDens))
+                return funcDecl;
+        }
+
+        if (auto symbol = symTable_.Fetch(ident))
+            return symbol->FetchFunctionDecl(argTypeDens, false, allowImplicitConversions);
+    }
+    catch (...)
+    {
+    }
+    return nullptr;
+}
+
 FunctionDecl* Analyzer::FetchFunctionDecl(const std::string& ident, const AST* ast)
 {
     try

@@ -84,6 +84,8 @@ class Parser
 
         TokenPtr Accept(const Tokens type);
         TokenPtr Accept(const Tokens type, const std::string& spell);
+        // Accepts one template-closing '>' and splits a scanned '>>' token when templates are nested.
+        TokenPtr AcceptTemplateRightBracket();
         virtual TokenPtr AcceptIt();
 
         // Pushes the specified token string onto the stack where further tokens will be parsed from the top of the stack.

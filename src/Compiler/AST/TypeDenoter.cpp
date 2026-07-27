@@ -865,7 +865,22 @@ TypeDenoter::Types StructTypeDenoter::Type() const
 
 std::string StructTypeDenoter::ToString() const
 {
-    return (structDeclRef ? structDeclRef->ToString() : "struct " + R_Undefined);
+    if (structDeclRef)
+        return structDeclRef->ToString();
+
+    std::string s = "struct " + (ident.empty() ? R_Undefined : ident);
+    if (!templateArguments.empty())
+    {
+        s += "<";
+        for (std::size_t i = 0; i < templateArguments.size(); ++i)
+        {
+            if (i > 0)
+                s += ", ";
+            s += (templateArguments[i] ? templateArguments[i]->ToString() : R_Undefined);
+        }
+        s += ">";
+    }
+    return s;
 }
 
 TypeDenoterPtr StructTypeDenoter::Copy() const
@@ -874,6 +889,8 @@ TypeDenoterPtr StructTypeDenoter::Copy() const
     {
         copy->ident         = ident;
         copy->structDeclRef = structDeclRef;
+        for (const auto& arg : templateArguments)
+            copy->templateArguments.push_back(arg ? arg->Copy() : nullptr);
     }
     return copy;
 }

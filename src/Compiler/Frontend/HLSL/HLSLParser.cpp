@@ -41,12 +41,15 @@ HLSLParser::HLSLParser(Log* log) :
 }
 
 ProgramPtr HLSLParser::ParseSource(
-    const SourceCodePtr& source, const NameMangling& nameMangling, const InputShaderVersion versionIn, bool rowMajorAlignment, bool enableWarnings)
+    const SourceCodePtr& source, const NameMangling& nameMangling, const InputShaderVersion versionIn, bool rowMajorAlignment, bool enableWarnings, const Flags& extensions)
 {
     /* Copy parameters */
     useD3D10Semantics_  = (versionIn >= InputShaderVersion::HLSL4);
     enableCgKeywords_   = (versionIn == InputShaderVersion::Cg);
     rowMajorAlignment_  = rowMajorAlignment;
+    extensions_         = extensions;
+    structTemplateNames_.clear();
+    functionTemplateNames_.clear();
 
     EnableWarnings(enableWarnings);
 
@@ -639,6 +642,9 @@ StructDeclPtr HLSLParser::ParseStructDecl(bool parseStructTkn, const TokenPtr& i
         ast->ident = (identTkn ? identTkn->Spell() : ParseIdent());
         UpdateSourceArea(ast);
 
+        if (Is(Tokens::BinaryOp, "<"))
+            ast->templateArguments = ParseTemplateArgumentList();
+
         /* Register type name in symbol table */
         RegisterTypeName(ast->ident);
 
@@ -839,6 +845,9 @@ StmntPtr HLSLParser::ParseGlobalStmnt()
 
 StmntPtr HLSLParser::ParseGlobalStmntPrimary()
 {
+    if (Is(Tokens::Reserved, "template"))
+        return ParseTemplateDeclStmnt();
+
     switch (TknType())
     {
         case Tokens::Sampler:
@@ -856,6 +865,46 @@ StmntPtr HLSLParser::ParseGlobalStmntPrimary()
         default:
             return ParseGlobalStmntWithTypeSpecifier();
     }
+}
+
+StmntPtr HLSLParser::ParseTemplateDeclStmnt()
+{
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    if (!extensions_(Extensions::HLSLTemplates))
+    #endif
+        Error(R_HLSLTemplatesExtDisabled, Tkn().get());
+
+    auto templateParams = ParseTemplateParameterList();
+
+    OpenScope();
+    for (const auto& param : templateParams)
+        RegisterTypeName(param);
+
+    auto ast = ParseGlobalStmntPrimary();
+
+    CloseScope();
+
+    auto basicDeclStmnt = ast->As<BasicDeclStmnt>();
+    if (!basicDeclStmnt || !basicDeclStmnt->declObject)
+        Error(R_HLSLTemplateExpectedDeclaration, ast->area);
+
+    if (auto structDecl = basicDeclStmnt->declObject->As<StructDecl>())
+    {
+        structDecl->isTemplate = true;
+        structDecl->templateParams = std::move(templateParams);
+        structTemplateNames_.insert(structDecl->ident);
+        RegisterTypeName(structDecl->ident);
+    }
+    else if (auto funcDecl = basicDeclStmnt->declObject->As<FunctionDecl>())
+    {
+        funcDecl->isTemplate = true;
+        funcDecl->templateParams = std::move(templateParams);
+        functionTemplateNames_.insert(funcDecl->ident);
+    }
+    else
+        Error(R_HLSLTemplateExpectedDeclaration, ast->area);
+
+    return ast;
 }
 
 StmntPtr HLSLParser::ParseGlobalStmntWithTypeSpecifier()
@@ -1183,10 +1232,14 @@ StmntPtr HLSLParser::ParseStmntWithStructDecl()
 
 StmntPtr HLSLParser::ParseStmntWithIdent()
 {
-    /* Parse the identifier as object expression (can be converted later) */
-    auto objectExpr = ParseObjectExpr();
+    if (structTemplateNames_.find(Tkn()->Spell()) != structTemplateNames_.end())
+        return ParseVarDeclStmnt();
 
-    auto expr = ParseExprWithSuffixOpt(objectExpr);
+    /* Parse the identifier as object expression (can be converted later) */
+    auto primaryExpr = ParseObjectOrCallExpr();
+    auto objectExpr = primaryExpr->As<ObjectExpr>();
+
+    auto expr = ParseExprWithSuffixOpt(primaryExpr);
 
     if (Is(Tokens::LBracket) || Is(Tokens::UnaryOp) || Is(Tokens::BinaryOp) || Is(Tokens::TernaryOp))
     {
@@ -1204,7 +1257,7 @@ StmntPtr HLSLParser::ParseStmntWithIdent()
         /* Parse sequence expression */
         return ParseExprStmnt(ParseSequenceExpr(expr));
     }
-    else if (expr == objectExpr)
+    else if (objectExpr && expr == primaryExpr)
     {
         /* Convert variable identifier to alias type denoter */
         auto ast = Make<VarDeclStmnt>();
@@ -1212,12 +1265,12 @@ StmntPtr HLSLParser::ParseStmntWithIdent()
         ast->typeSpecifier              = MakeTypeSpecifierWithPackAlignment();
         ast->typeSpecifier->typeDenoter = ParseTypeDenoterWithArrayOpt(ParseAliasTypeDenoter(objectExpr->ident));
 
-        UpdateSourceArea(ast->typeSpecifier, objectExpr.get());
+        UpdateSourceArea(ast->typeSpecifier, objectExpr);
 
         ast->varDecls = ParseVarDeclList(ast.get());
         Semi();
 
-        return UpdateSourceArea(ast, objectExpr.get());
+        return UpdateSourceArea(ast, objectExpr);
     }
     else
         return ParseExprStmnt(expr);
@@ -1248,8 +1301,14 @@ ExprPtr HLSLParser::ParsePrimaryExprPrefix()
         {
             /* Parse call expression or return pre-parsed object expression */
             auto objectExpr = std::static_pointer_cast<ObjectExpr>(preParsedAST);
-            if (Is(Tokens::LBracket))
-                return ParseCallExpr(objectExpr);
+            if (Is(Tokens::LBracket) ||
+                (Is(Tokens::BinaryOp, "<") && functionTemplateNames_.find(objectExpr->ident) != functionTemplateNames_.end()))
+            {
+                auto explicitTemplateArgs = (Is(Tokens::BinaryOp, "<") ? ParseTemplateArgumentList() : std::vector<TypeDenoterPtr>{});
+                auto callExpr = ParseCallExpr(objectExpr);
+                callExpr->explicitTemplateArgs = std::move(explicitTemplateArgs);
+                return callExpr;
+            }
             else
                 return objectExpr;
         }
@@ -1520,8 +1579,14 @@ ExprPtr HLSLParser::ParseObjectOrCallExpr(const ExprPtr& expr)
     /* Parse variable identifier first (for variables and functions) */
     auto objectExpr = ParseObjectExpr(expr);
     
-    if (Is(Tokens::LBracket))
-        return ParseCallExpr(objectExpr);
+    if (Is(Tokens::LBracket) ||
+        (!expr && Is(Tokens::BinaryOp, "<") && functionTemplateNames_.find(objectExpr->ident) != functionTemplateNames_.end()))
+    {
+        auto explicitTemplateArgs = (Is(Tokens::BinaryOp, "<") ? ParseTemplateArgumentList() : std::vector<TypeDenoterPtr>{});
+        auto callExpr = ParseCallExpr(objectExpr);
+        callExpr->explicitTemplateArgs = std::move(explicitTemplateArgs);
+        return callExpr;
+    }
 
     return objectExpr;
 }
@@ -1726,6 +1791,57 @@ std::vector<AliasDeclPtr> HLSLParser::ParseAliasDeclList(TypeDenoterPtr typeDeno
     return aliasDecls;
 }
 
+std::vector<std::string> HLSLParser::ParseTemplateParameterList()
+{
+    std::vector<std::string> params;
+
+    Accept(Tokens::Reserved, "template");
+    PushParsingState({ true });
+    {
+        Accept(Tokens::BinaryOp, "<");
+
+        while (!Is(Tokens::BinaryOp, ">"))
+        {
+            if (Is(Tokens::Reserved, "typename") || Is(Tokens::Class))
+                AcceptIt();
+            else
+                Error(R_HLSLTemplateExpectedTypeParam, Tkn().get());
+
+            params.push_back(ParseIdent());
+
+            if (!Is(Tokens::Comma))
+                break;
+            AcceptIt();
+        }
+
+        AcceptTemplateRightBracket();
+    }
+    PopParsingState();
+
+    return params;
+}
+
+std::vector<TypeDenoterPtr> HLSLParser::ParseTemplateArgumentList()
+{
+    std::vector<TypeDenoterPtr> args;
+
+    PushParsingState({ true });
+    {
+        Accept(Tokens::BinaryOp, "<");
+        while (!Is(Tokens::BinaryOp, ">"))
+        {
+            args.push_back(ParseTypeDenoter(false));
+            if (!Is(Tokens::Comma))
+                break;
+            AcceptIt();
+        }
+        AcceptTemplateRightBracket();
+    }
+    PopParsingState();
+
+    return args;
+}
+
 /* --- Others --- */
 
 std::string HLSLParser::ParseIdentWithNamespaceOpt(ObjectExprPtr& namespaceExpr, TokenPtr identTkn, SourceArea* area)
@@ -1864,7 +1980,7 @@ BaseTypeDenoterPtr HLSLParser::ParseBaseVectorTypeDenoter()
         }
         PopParsingState();
 
-        Accept(Tokens::BinaryOp, ">");
+        AcceptTemplateRightBracket();
     }
     else
         vectorType = "float4";
@@ -1987,6 +2103,8 @@ StructTypeDenoterPtr HLSLParser::ParseStructTypeDenoter()
 
     /* Make struct type denoter */
     auto typeDenoter = std::make_shared<StructTypeDenoter>(ident);
+    if (Is(Tokens::BinaryOp, "<"))
+        typeDenoter->templateArguments = ParseTemplateArgumentList();
 
     return typeDenoter;
 }
@@ -2017,12 +2135,16 @@ StructTypeDenoterPtr HLSLParser::ParseStructTypeDenoterWithStructDeclOpt(StructD
     {
         /* Parse struct ident token */
         auto structIdentTkn = Accept(Tokens::Ident);
+        std::vector<TypeDenoterPtr> templateArguments;
+        if (Is(Tokens::BinaryOp, "<"))
+            templateArguments = ParseTemplateArgumentList();
 
         if (Is(Tokens::LCurly) || Is(Tokens::Colon))
         {
             /* Parse struct-decl */
             structDecl = ParseStructDecl(false, structIdentTkn);
             structDecl->isClass = isClass;
+            structDecl->templateArguments = std::move(templateArguments);
 
             /* Make struct type denoter with reference to the structure of this alias decl */
             return std::make_shared<StructTypeDenoter>(structDecl.get());
@@ -2030,16 +2152,25 @@ StructTypeDenoterPtr HLSLParser::ParseStructTypeDenoterWithStructDeclOpt(StructD
         else
         {
             /* Make struct type denoter without struct decl */
-            return std::make_shared<StructTypeDenoter>(structIdentTkn->Spell());
+            auto typeDenoter = std::make_shared<StructTypeDenoter>(structIdentTkn->Spell());
+            typeDenoter->templateArguments = std::move(templateArguments);
+            return typeDenoter;
         }
     }
 }
 
-AliasTypeDenoterPtr HLSLParser::ParseAliasTypeDenoter(std::string ident)
+TypeDenoterPtr HLSLParser::ParseAliasTypeDenoter(std::string ident)
 {
     /* Parse identifier */
     if (ident.empty())
         ident = ParseIdent();
+
+    if (Is(Tokens::BinaryOp, "<"))
+    {
+        auto typeDenoter = std::make_shared<StructTypeDenoter>(ident);
+        typeDenoter->templateArguments = ParseTemplateArgumentList();
+        return typeDenoter;
+    }
 
     /* Make alias type denoter per default (change this to a struct type later) */
     return std::make_shared<AliasTypeDenoter>(ident);

@@ -52,6 +52,7 @@ enum XscExtensions
     XscExtSrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
     XscExtOpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
     XscExtStrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
+    XscExtHLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
 
     XscExtAll               = (~0u)     //!< All extensions.
 };

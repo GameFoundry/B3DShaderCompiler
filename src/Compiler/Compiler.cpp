@@ -207,7 +207,8 @@ bool Compiler::CompileShaderPrimary(
             outputDesc.nameMangling,
             inputDesc.shaderVersion,
             outputDesc.options.rowMajorAlignment,
-            ((inputDesc.warnings & Warnings::Syntax) != 0)
+            ((inputDesc.warnings & Warnings::Syntax) != 0),
+            inputDesc.extensions
         );
     }
 

@@ -740,6 +740,10 @@ struct StructDecl : public Decl
     VarDecl* IndexToMemberVar(std::size_t idx, bool includeBaseStructs = true) const;
 
     bool                            isClass                 = false;    // This struct was declared as 'class'.
+    bool                            isTemplate              = false;    // This is a primary template or a full specialization.
+    std::vector<std::string>        templateParams;                     // Type parameters of a primary template.
+    std::vector<TypeDenoterPtr>     templateArguments;                  // Explicit arguments of a full or generated specialization.
+    std::string                     templateSourceIdent;                // Primary-template name for generated specializations.
     std::string                     baseStructName;                     // May be empty (if no inheritance is used).
     std::vector<StmntPtr>           localStmnts;                        // Local declaration statements.
 
@@ -846,10 +850,12 @@ struct FunctionDecl : public Decl
     static FunctionDecl* FetchFunctionDeclFromList(
         const std::vector<FunctionDecl*>& funcDeclList,
         const std::string& ident, const std::vector<TypeDenoterPtr>& argTypeDenoters,
-        bool throwErrorIfNoMatch = true
+        bool throwErrorIfNoMatch = true, bool allowImplicitConversions = true
     );
 
     TypeSpecifierPtr                returnType;                                 // Function return type (TypeSpecifier).
+    bool                            isTemplate          = false;                 // This is a primary template or a full specialization.
+    std::vector<std::string>        templateParams;                             // Type parameters of a primary template.
     std::vector<VarDeclStmntPtr>    parameters;                                 // Function parameter list.
     IndexedSemantic                 semantic            = Semantic::Undefined;  // Function return semantic; may be undefined.
     std::vector<VarDeclStmntPtr>    annotations;                                // Annotations can be ignored by analyzers and generators.
@@ -1264,6 +1270,7 @@ struct CallExpr : public Expr
     bool                    isStatic            = false;                // Specifies whether this function is a static member.
     std::string             ident;                                      // Function name identifier. Empty for type constructors.
     TypeDenoterPtr          typeDenoter;                                // Null, if the function call is NOT a type constructor (e.g. "float2(0, 0)").
+    std::vector<TypeDenoterPtr> explicitTemplateArgs;                   // Explicit HLSL template arguments (e.g. "cast<uint>(x)").
     std::vector<ExprPtr>    arguments;                                  // Argument expression list.
 
     FunctionDecl*           funcDeclRef         = nullptr;              // Reference to the function declaration. May be null.

@@ -186,7 +186,14 @@ TokenPtr HLSLScanner::ScanIdentifier()
     if (it != HLSLKeywords().end())
     {
         if (it->second == Token::Types::Reserved)
+        {
+            /* HLSL 2021 template syntax is extension-gated by the parser. Keep
+               these two words distinguishable instead of reporting the legacy
+               "reserved for future use" scanner error first. */
+            if (spell == "template" || spell == "typename")
+                return Make(it->second, spell);
             Error(R_KeywordReservedForFutureUse(spell));
+        }
         else if (it->second == Token::Types::Unsupported)
             Error(R_KeywordNotSupportedYet(spell));
         else

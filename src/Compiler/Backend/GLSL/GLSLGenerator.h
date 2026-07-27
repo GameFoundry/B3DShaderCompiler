@@ -262,6 +262,7 @@ class GLSLGenerator : public Generator
         void WriteCallExprStandard(CallExpr* callExpr);
         void WriteCallExprIntrinsicMul(CallExpr* callExpr);
         void WriteCallExprIntrinsicRcp(CallExpr* callExpr);
+        void WriteCallExprIntrinsicBitCast(CallExpr* callExpr, const DataType destBaseDataType);
         void WriteCallExprIntrinsicClip(CallExpr* callExpr);
         void WriteCallExprIntrinsicAtomic(CallExpr* callExpr);
         void WriteCallExprIntrinsicAtomicCompSwap(CallExpr* callExpr);

@@ -423,9 +423,10 @@ struct StructTypeDenoter : public TypeDenoter
 
     StructDecl* GetStructDeclOrThrow(const AST* ast = nullptr) const;
 
-    std::string     ident;                      // Type identifier
+    std::string                     ident;              // Type identifier
+    std::vector<TypeDenoterPtr>     templateArguments;  // Explicit HLSL struct-template arguments before specialization.
 
-    StructDecl*     structDeclRef = nullptr;    // Reference to the StructDecl AST node
+    StructDecl*                     structDeclRef = nullptr; // Reference to the StructDecl AST node
 };
 
 // Alias type denoter.

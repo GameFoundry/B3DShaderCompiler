@@ -194,6 +194,7 @@ public ref class XscCompiler
             SrtSignature      = (1 << 2), //!< Enables emission of a shader resource table (SRT) signature for backends that support it.
             OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
             StrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
+            HLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
 
             All               = (~0u)     //!< All extensions.
         };

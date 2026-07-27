@@ -101,6 +101,9 @@ class Analyzer : protected VisitorTracker
         // Tries to fetch a 'FunctionDecl' with the specified identifier and arguments from the symbol table and reports an error on failure.
         FunctionDecl* FetchFunctionDecl(const std::string& ident, const std::vector<ExprPtr>& args, const AST* ast = nullptr);
 
+        // Tries to fetch a matching function without reporting an error.
+        FunctionDecl* FetchFunctionDeclOrNull(const std::string& ident, const std::vector<ExprPtr>& args, bool allowImplicitConversions = true);
+
         // Tries to fetch a 'FunctionDecl' with the specified identifier from the symbol table and reports an error on failure (used for patch-constant-function).
         FunctionDecl* FetchFunctionDecl(const std::string& ident, const AST* ast = nullptr);
 

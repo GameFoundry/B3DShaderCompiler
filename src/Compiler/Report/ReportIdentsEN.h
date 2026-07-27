@@ -473,6 +473,12 @@ DECL_REPORT( StaticMembersCantBeDefinedInGlob,  "static members can only be defi
 DECL_REPORT( StaticMemberVarRedef,              "redefinition of static member variable[ '{0}']"                                                                );
 DECL_REPORT( MemberVarsCantHaveDefaultValues,   "member variables can not have default values[: '{0}']"                                                         );
 DECL_REPORT( OpaqueStructExtDisabled,           "opaque resources (textures/samplers/buffers) cannot be used as struct members unless the 'opaque-struct' language extension is enabled[: '{0}']");
+DECL_REPORT( HLSLTemplatesExtDisabled,          "HLSL struct and function templates require the 'hlsl-templates' language extension");
+DECL_REPORT( HLSLTemplateExpectedTypeParam,     "expected 'typename' or 'class' in template parameter list");
+DECL_REPORT( HLSLTemplateExpectedDeclaration,   "expected a struct or function declaration after template parameter list");
+DECL_REPORT( HLSLTemplateArgumentCount,         "template '{0}' expects {1} type argument(s), but {2} were provided or deduced");
+DECL_REPORT( HLSLTemplateCannotDeduce,          "could not deduce all type arguments for function template '{0}'");
+DECL_REPORT( HLSLTemplateAmbiguous,             "call to function template '{0}' is ambiguous");
 DECL_REPORT( OpaqueStructNoGlobal,              "structures containing opaque resources (textures/samplers/buffers) cannot be declared as globals[: '{0}']"      );
 DECL_REPORT( OpaqueStructNoCBuffer,             "structures containing opaque resources (textures/samplers/buffers) cannot be used as constant-buffer members[: '{0}']");
 DECL_REPORT( OpaqueStructNoEntryParam,          "structures containing opaque resources (textures/samplers/buffers) cannot be used as entry-point parameters or return types[: '{0}']");

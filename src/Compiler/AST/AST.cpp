@@ -1273,7 +1273,7 @@ static void ListAllFuncCandidates(const std::vector<FunctionDecl*>& candidates)
 
 FunctionDecl* FunctionDecl::FetchFunctionDeclFromList(
     const std::vector<FunctionDecl*>& funcDeclList, const std::string& ident,
-    const std::vector<TypeDenoterPtr>& argTypeDenoters, bool throwErrorIfNoMatch)
+    const std::vector<TypeDenoterPtr>& argTypeDenoters, bool throwErrorIfNoMatch, bool allowImplicitConversions)
 {
     if (funcDeclList.empty())
     {
@@ -1313,7 +1313,7 @@ FunctionDecl* FunctionDecl::FetchFunctionDeclFromList(
     }
 
     /* Nothing found? -> find first fit with implicit argument types */
-    if (funcDeclCandidates.empty())
+    if (funcDeclCandidates.empty() && allowImplicitConversions)
     {
         for (auto funcDecl : funcDeclList)
         {
