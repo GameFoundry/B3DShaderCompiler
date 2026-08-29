@@ -262,6 +262,24 @@ public ref class XscCompiler
 
         };
 
+        ref class PushConstantMember
+        {
+            public:
+
+                property String^ Ident;
+                property int     Offset;
+                property int     Size;
+        };
+
+        ref class PushConstantBuffer
+        {
+            public:
+
+                property String^                                           Ident;
+                property int                                               Size;
+                property Collections::Generic::List<PushConstantMember^>^ Members;
+        };
+
         //! Number of threads within each work group of a compute shader.
         ref class ComputeThreads
         {
@@ -310,6 +328,9 @@ public ref class XscCompiler
 
                 //! Constant buffer bindings.
                 property Collections::Generic::List<BindingSlot^>^                  ConstantBuffers;
+
+                //! BSL push-constant blocks.
+                property Collections::Generic::List<PushConstantBuffer^>^           PushConstantBuffers;
 
                 //! Shader input attributes.
                 property Collections::Generic::List<BindingSlot^>^                  InputAttributes;
@@ -376,6 +397,9 @@ public ref class XscCompiler
                     AllowExtensions         = false;
                     AutoBinding             = false;
                     AutoBindingStartSlot    = 0;
+                    MaxPushConstantSize     = Xsc::PushConstants::DefaultSizeLimit;
+                    PushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
+                    PushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
                     ExplicitBinding         = false;
                     Obfuscate               = false;
                     Optimize                = false;
@@ -402,6 +426,15 @@ public ref class XscCompiler
 
                 //! Index to start generating binding slots from. Only relevant if 'AutoBinding' is enabled. By default 0.
                 property int    AutoBindingStartSlot;
+
+                //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. By default 16.
+                property System::UInt32 MaxPushConstantSize;
+
+                //! HLSL constant-buffer register used to carry the push-constant marker into bytecode reflection.
+                property int PushConstantHLSLRegister;
+
+                //! HLSL register space used to distinguish push constants from ordinary buffers.
+                property int PushConstantHLSLRegisterSpace;
 
                 //! If true, explicit binding slots are enabled. By default false.
                 property bool   ExplicitBinding;
@@ -1071,6 +1104,9 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
     out.options.allowExtensions         = outputDesc->Options->AllowExtensions;
     out.options.autoBinding             = outputDesc->Options->AutoBinding;
     out.options.autoBindingStartSlot    = outputDesc->Options->AutoBindingStartSlot;
+    out.options.maxPushConstantSize     = outputDesc->Options->MaxPushConstantSize;
+    out.options.pushConstantHLSLRegister = outputDesc->Options->PushConstantHLSLRegister;
+    out.options.pushConstantHLSLRegisterSpace = outputDesc->Options->PushConstantHLSLRegisterSpace;
     out.options.explicitBinding         = outputDesc->Options->ExplicitBinding;
     out.options.obfuscate               = outputDesc->Options->Obfuscate;
     out.options.optimize                = outputDesc->Options->Optimize;
@@ -1144,6 +1180,25 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
             dst->Textures           = ToManagedList(src.textures);
             dst->StorageBuffers     = ToManagedList(src.storageBuffers);
             dst->ConstantBuffers    = ToManagedList(src.constantBuffers);
+            dst->PushConstantBuffers = gcnew Collections::Generic::List<PushConstantBuffer^>();
+            for (const auto& srcBuffer : src.pushConstantBuffers)
+            {
+                auto dstBuffer = gcnew PushConstantBuffer();
+                dstBuffer->Ident = gcnew String(srcBuffer.ident.c_str());
+                dstBuffer->Size = srcBuffer.size;
+                dstBuffer->Members = gcnew Collections::Generic::List<PushConstantMember^>();
+
+                for (const auto& srcMember : srcBuffer.members)
+                {
+                    auto dstMember = gcnew PushConstantMember();
+                    dstMember->Ident = gcnew String(srcMember.ident.c_str());
+                    dstMember->Offset = srcMember.offset;
+                    dstMember->Size = srcMember.size;
+                    dstBuffer->Members->Add(dstMember);
+                }
+
+                dst->PushConstantBuffers->Add(dstBuffer);
+            }
             dst->InputAttributes    = ToManagedList(src.inputAttributes);
             dst->OutputAttributes   = ToManagedList(src.outputAttributes);
 

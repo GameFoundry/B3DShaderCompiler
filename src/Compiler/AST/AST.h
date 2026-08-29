@@ -601,6 +601,8 @@ struct VarDecl : public Decl
 
     // BEGIN BANSHEE CHANGES
     DefaultValue                    defaultValue;
+    int                             pushConstantOffset = -1;     // Byte offset when this is a push-constant member.
+    int                             pushConstantSize   = 0;      // Byte size when this is a push-constant member.
     // END BANSHEE CHANGES
 };
 
@@ -757,6 +759,11 @@ struct StructDecl : public Decl
     std::map<std::string, VarDecl*> systemValuesRef;                    // List of members with system value semantic (SV_...).
     std::set<StructDecl*>           parentStructDeclRefs;               // References to all structures that have a member variable with this structure type.
     std::set<VarDecl*>              shaderOutputVarDeclRefs;            // References to all variables from this structure that are used as entry point outputs.
+
+    // BEGIN BANSHEE CHANGES
+    bool                            isPushConstantType       = false;    // True if this structure participates in the portable push-constant layout.
+    int                             pushConstantSize         = 0;        // Portable packed size in bytes when 'isPushConstantType' is true.
+    // END BANSHEE CHANGES
 };
 
 // Type alias declaration.
@@ -894,7 +901,9 @@ struct UniformBufferDecl : public Decl
     BasicDeclStmnt*                 declStmntRef        = nullptr;                      // Reference to its declaration statement (parent node). Must not be null.
 	
     // BEGIN BANSHEE CHANGES
-    int             extModifiers = 0;
+    int             extModifiers      = 0;
+    bool            isPushConstant    = false;
+    int             pushConstantSize  = 0; // Logical occupied byte range, rounded to the four-byte transport granularity.
     // END BANSHEE CHANGES
 };
 

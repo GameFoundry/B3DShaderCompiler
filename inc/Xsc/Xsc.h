@@ -119,6 +119,19 @@ struct Extensions
     };
 };
 
+//! Portable push-constant ABI used by the BSL language extension.
+struct PushConstants
+{
+    //! Default maximum push-constant buffer size in bytes.
+    static constexpr unsigned int DefaultSizeLimit = 16;
+
+    //! Default HLSL constant-buffer register used to carry the marker into bytecode reflection.
+    static constexpr int HLSLRegister = 0;
+
+    //! Default HLSL register space used to distinguish push constants from ordinary buffers.
+    static constexpr int HLSLRegisterSpace = 0xFFFF;
+};
+
 //! Formatting descriptor structure for the output shader.
 struct Formatting
 {
@@ -158,6 +171,18 @@ struct Options
 
     //! Index to start generating binding slots from. Only relevant if 'autoBinding' is enabled. By default 0.
     int     autoBindingStartSlot    = 0;
+
+    /**
+    \brief Maximum push constant buffer size in bytes. By default 16.
+    \remarks The value must be a non-zero multiple of four. Individual members may be supported scalar, vector, matrix, or structure types.
+    */
+    unsigned int maxPushConstantSize = PushConstants::DefaultSizeLimit;
+
+    //! Non-negative HLSL constant-buffer register used to carry the push-constant marker into bytecode reflection. By default 0.
+    int     pushConstantHLSLRegister = PushConstants::HLSLRegister;
+
+    //! Non-negative HLSL register space used to distinguish push constants from ordinary buffers. By default 65535.
+    int     pushConstantHLSLRegisterSpace = PushConstants::HLSLRegisterSpace;
 
     //! If true, explicit binding slots are enabled. By default false.
     bool    explicitBinding         = false;

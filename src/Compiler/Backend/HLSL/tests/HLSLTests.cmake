@@ -102,6 +102,72 @@ xsc_add_roundtrip_tests(
     CASES          ${XSC_HLSL_AUTOBIND_CASES}
 )
 
+# Push constants use a reserved SM5.1 register space and explicit packoffset
+# annotations so HLSL bytecode reflection retains both identity and layout.
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;push-constants"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -Xall@-push-constant-register@3@-push-constant-space@7
+    CASES          "PushConstantLayoutTest|main|vs_5_1|vert"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;push-constants"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -Xall@--max-push-constant-buffer-size@4
+    CASES          "PushConstantScalarRange|main|vs_5_1|vert"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;push-constants;aggregates"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -Xall@--max-push-constant-buffer-size@64
+    CASES          "PushConstantAggregateLayout|main|vs_5_1|vert"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;push-constants;auto-binding"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -Xall@-AB@-push-constant-register@0@-push-constant-space@0
+    CASES          "PushConstantAutoBinding|main|vs_5_1|vert"
+)
+
+add_test(
+    NAME hlsl_reject.PushConstantBindingCollision
+    COMMAND ${CMAKE_COMMAND}
+        -DXSC=${XSC_BIN}
+        -DSHADER=${PROJECT_SOURCE_DIR}/test/PushConstantBindingCollision.hlsl
+        -DENTRY=main
+        -DXSC_STAGE=vert
+        -DOUT_DIR=${_HLSL_OUT_DIR}
+        -DXSC_VOUT=HLSL5
+        "-DEXPECT_REGEX=push-constant HLSL binding b3, space7 conflicts"
+        "-DXSC_EXTRA_FLAGS=-Xall;-push-constant-register;3;-push-constant-space;7"
+        -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests/RunXscExpectError.cmake
+)
+set_tests_properties(hlsl_reject.PushConstantBindingCollision
+    PROPERTIES LABELS "hlsl-roundtrip;push-constants;negative")
+
 # --- Opaque-struct pass-through cases ---
 # HLSL natively supports opaque types inside structs (the FXAA bundle pattern),
 # so the backend emits the struct unchanged; fxc must still accept the result.

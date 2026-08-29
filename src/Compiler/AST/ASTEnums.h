@@ -663,7 +663,8 @@ enum class AttributeType
     SpriteUV,
     HideInInspector,
     Name,
-    HDR
+    HDR,
+    PushConstant
     // END BANSHEE CHANGES
 
     #endif

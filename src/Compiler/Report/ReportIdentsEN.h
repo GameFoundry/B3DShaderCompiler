@@ -410,6 +410,17 @@ DECL_REPORT( NestedStructsMustBeAnonymous,      "nested structures must be anony
 DECL_REPORT( TypeHasNoMemberVariables,          "'{0}' has no member variables"                                                                                 );
 DECL_REPORT( BufferCanOnlyHaveOneSlot,          "buffers can only be bound to one slot"                                                                         );
 DECL_REPORT( UserCBuffersCantBeTargetSpecific,  "user-defined constant buffer slots can not be target specific"                                                 );
+DECL_REPORT( PushConstantOnlyOnCBuffer,         "'pushConstant' attribute is only valid on a cbuffer declaration"                                                );
+DECL_REPORT( OnlyOnePushConstantBuffer,         "only one push-constant buffer is allowed per shader"                                                           );
+DECL_REPORT( PushConstantRegisterNotAllowed,    "push-constant buffers cannot have a register annotation"                                                       );
+DECL_REPORT( PushConstantBufferEmpty,           "push-constant buffer cannot be empty"                                                                          );
+DECL_REPORT( PushConstantMembersOnly,           "push-constant buffers can only contain variable declarations"                                                  );
+DECL_REPORT( InvalidPushConstantMember,         "push-constant member '{0}' must be a non-array scalar, vector, matrix, or structure composed only of 32-bit float, int, or uint values; initializers, semantics, unsupported qualifiers, packoffset, and row-major matrices nested in structures are not allowed" );
+DECL_REPORT( PushConstantSizeExceeded,          "push-constant buffer uses {0} bytes, exceeding the configured maximum of {1} bytes"                             );
+DECL_REPORT( InvalidPushConstantSizeLimit,      "maximum push-constant buffer size must be a non-zero multiple of four bytes"                                     );
+DECL_REPORT( InvalidPushConstantHLSLRegister,   "push-constant HLSL register must be non-negative"                                                             );
+DECL_REPORT( InvalidPushConstantHLSLRegisterSpace, "push-constant HLSL register space must be non-negative"                                                    );
+DECL_REPORT( PushConstantHLSLBindingCollision,  "push-constant HLSL binding b{0}, space{1} conflicts with constant buffer '{2}'"                                 );
 DECL_REPORT( DeclShadowsPreviousLocal,          "declaration of '{0}' shadows a previous local at ({1})"                                                        );
 DECL_REPORT( DeclShadowsMemberOfBase,           "declaration of '{0}' shadows member of base '{1}'"                                                             );
 DECL_REPORT( ReturnOutsideFuncDecl,             "return statement outside function declaration"                                                                 );
@@ -588,6 +599,9 @@ DECL_REPORT( CmdHelpValidate,                   "Enables/disables to only valida
 DECL_REPORT( CmdHelpBinding,                    "Enables/disables explicit binding slots; default={0}"                                                          );
 DECL_REPORT( CmdHelpAutoBinding,                "Enables/disables automatic binding slot generation (implies -EB); default={0}"                                 );
 DECL_REPORT( CmdHelpAutoBindingStartSlot,       "Sets the start slot index for automatic binding slot generation; default=0"                                    );
+DECL_REPORT( CmdHelpPushConstantSize,           "Sets the maximum logical byte range occupied by the entire BSL '[pushConstant]' cbuffer; default=16"            );
+DECL_REPORT( CmdHelpPushConstantRegister,       "Sets the HLSL constant-buffer register used for the push-constant marker; default=0"                            );
+DECL_REPORT( CmdHelpPushConstantSpace,          "Sets the HLSL register space used for the push-constant marker; default=65535"                                  );
 DECL_REPORT( CmdHelpComment,                    "Enables/disables commentary preservation; default={0}"                                                         );
 DECL_REPORT( CmdHelpWrapper,                    "Enables/disables the preference for intrinsic wrappers; default={0}"                                           );
 DECL_REPORT( CmdHelpUnrollInitializer,          "Enables/disables unrolling of array initializers; default={0}"                                                 );

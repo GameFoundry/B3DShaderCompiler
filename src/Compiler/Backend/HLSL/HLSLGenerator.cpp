@@ -65,6 +65,22 @@ namespace
         const auto it = mapping.find(callExpr.ident);
         return (it != mapping.end() ? &it->second : nullptr);
     }
+
+    bool HasPushConstantBuffer(Program& program)
+    {
+        for (const auto& stmnt : program.globalStmnts)
+        {
+            if (auto basicDecl = stmnt->As<BasicDeclStmnt>())
+            {
+                if (auto bufferDecl = basicDecl->declObject->As<UniformBufferDecl>())
+                {
+                    if (bufferDecl->isPushConstant)
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
 } // namespace
 
 
@@ -80,9 +96,11 @@ class HLSLAutoBindingVisitor final : public Visitor
 
     public:
 
-        HLSLAutoBindingVisitor(int startSlot) :
+        HLSLAutoBindingVisitor(int startSlot, bool reservePushConstantBinding, int pushConstantRegister, int pushConstantSpace) :
             startSlot_ { startSlot }
         {
+            if (reservePushConstantBinding)
+                usedSlots_[pushConstantSpace].insert(pushConstantRegister);
         }
 
         // Walks the program and assigns the missing registers. Returns true if any
@@ -169,7 +187,8 @@ void HLSLAutoBindingVisitor::VisitSamplerDecl(SamplerDecl* ast, void* args)
 
 void HLSLAutoBindingVisitor::VisitUniformBufferDecl(UniformBufferDecl* ast, void* args)
 {
-    AssignRegister(ast->slotRegisters, RegisterType::ConstantBuffer);
+    if (!ast->isPushConstant)
+        AssignRegister(ast->slotRegisters, RegisterType::ConstantBuffer);
     VISIT_DEFAULT(UniformBufferDecl);
 }
 
@@ -322,11 +341,22 @@ void HLSLGenerator::GenerateCodePrimary(
 {
     try
     {
+        pushConstantHLSLRegister_ = outputDesc.options.pushConstantHLSLRegister;
+        pushConstantHLSLRegisterSpace_ = outputDesc.options.pushConstantHLSLRegisterSpace;
+        emitPushConstantHLSLBinding_ =
+        (
+            outputDesc.targetLanguage == TargetLanguage::HLSL5 ||
+            outputDesc.targetLanguage == TargetLanguage::HLSL
+        );
+
         /* Auto-assign registers before emission when requested: hosts that rely on
            auto-binding declare resources without registers. */
         hasBindableResources_ = false;
         if (outputDesc.options.autoBinding)
             hasBindableResources_ = AssignAutoBindings(program, outputDesc);
+
+        if (emitPushConstantHLSLBinding_)
+            ValidatePushConstantHLSLBinding(program);
 
         WriteFileHeader(inputDesc);
 
@@ -349,8 +379,52 @@ void HLSLGenerator::GenerateCodePrimary(
 
 bool HLSLGenerator::AssignAutoBindings(Program& program, const ShaderOutput& outputDesc)
 {
-    HLSLAutoBindingVisitor visitor { outputDesc.options.autoBindingStartSlot };
+    HLSLAutoBindingVisitor visitor
+    {
+        outputDesc.options.autoBindingStartSlot,
+        (emitPushConstantHLSLBinding_ && HasPushConstantBuffer(program)),
+        outputDesc.options.pushConstantHLSLRegister,
+        outputDesc.options.pushConstantHLSLRegisterSpace
+    };
     return visitor.Run(program);
+}
+
+void HLSLGenerator::ValidatePushConstantHLSLBinding(Program& program)
+{
+    if (!HasPushConstantBuffer(program))
+        return;
+
+    for (const auto& stmnt : program.globalStmnts)
+    {
+        auto basicDecl = stmnt->As<BasicDeclStmnt>();
+        if (basicDecl == nullptr)
+            continue;
+
+        auto bufferDecl = basicDecl->declObject->As<UniformBufferDecl>();
+        if
+        (
+            bufferDecl == nullptr ||
+            bufferDecl->bufferType != UniformBufferType::ConstantBuffer ||
+            bufferDecl->isPushConstant ||
+            bufferDecl->slotRegisters.empty()
+        )
+            continue;
+
+        const auto& binding = bufferDecl->slotRegisters.front();
+        const int space = (binding->space >= 0 ? binding->space : 0);
+
+        if (binding->slot == pushConstantHLSLRegister_ && space == pushConstantHLSLRegisterSpace_)
+        {
+            Error(
+                R_PushConstantHLSLBindingCollision(
+                    std::to_string(pushConstantHLSLRegister_),
+                    std::to_string(pushConstantHLSLRegisterSpace_),
+                    bufferDecl->ident
+                ),
+                bufferDecl
+            );
+        }
+    }
 }
 
 void HLSLGenerator::WriteFileHeader(const ShaderInput& inputDesc)
@@ -428,6 +502,25 @@ IMPLEMENT_VISIT_PROC(VarDecl)
     /* Semantic (e.g. " : SV_Position") */
     WriteSemantic(ast->semantic);
 
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    const auto& uniformBufferStack = GetUniformBufferDeclStack();
+    if
+    (
+        !uniformBufferStack.empty() &&
+        uniformBufferStack.back()->isPushConstant &&
+        ast->pushConstantOffset >= 0
+    )
+    {
+        static const char componentNames[] = { 'x', 'y', 'z', 'w' };
+        const int dwordOffset = ast->pushConstantOffset / 4;
+        Write(" : packoffset(c");
+        Write(std::to_string(dwordOffset / 4));
+        Write(".");
+        Write(std::string(1, componentNames[dwordOffset % 4]));
+        Write(")");
+    }
+    #endif
+
     /* Initializer */
     if (ast->initializer)
     {
@@ -478,7 +571,16 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
     Write(ast->ident);
 
     /* Register annotation (e.g. " : register(b0)") */
-    WriteRegisters(ast->slotRegisters);
+    if (ast->isPushConstant)
+    {
+        Write(" : register(b");
+        Write(std::to_string(pushConstantHLSLRegister_));
+        Write(", space");
+        Write(std::to_string(pushConstantHLSLRegisterSpace_));
+        Write(")");
+    }
+    else
+        WriteRegisters(ast->slotRegisters);
 
     EndLn();
 
@@ -1278,7 +1380,10 @@ void HLSLGenerator::WriteStructDecl(StructDecl* structDecl, bool endWithSemicolo
 
     WriteScopeOpen(false, endWithSemicolon);
     {
-        Visit(structDecl->varMembers);
+        if (structDecl->isPushConstantType)
+            WritePushConstantStructMembers(structDecl);
+        else
+            Visit(structDecl->varMembers);
 
         /* Member functions */
         if (!structDecl->funcMembers.empty())
@@ -1296,6 +1401,39 @@ void HLSLGenerator::WriteStructDecl(StructDecl* structDecl, bool endWithSemicolo
 
     if (!InsideVarDeclStmnt())
         Blank();
+}
+
+void HLSLGenerator::WritePushConstantStructMembers(StructDecl* structDecl)
+{
+    int nextOffset = 0;
+    int paddingIndex = 0;
+
+    for (const auto& varDeclStmnt : structDecl->varMembers)
+    {
+        for (const auto& varDecl : varDeclStmnt->varDecls)
+        {
+            while (nextOffset < varDecl->pushConstantOffset)
+            {
+                BeginLn();
+                Write("uint xsc_reserved_push_constant_padding_" + std::to_string(paddingIndex++) + ";");
+                EndLn();
+                nextOffset += 4;
+            }
+
+            WriteAttributes(varDeclStmnt->attribs);
+            BeginLn();
+            WriteInterpModifiers(varDeclStmnt->typeSpecifier->interpModifiers);
+            WriteStorageClasses(varDeclStmnt->typeSpecifier->storageClasses);
+            WriteTypeModifiers(varDeclStmnt->typeSpecifier->typeModifiers);
+            Visit(varDeclStmnt->typeSpecifier);
+            Write(" ");
+            Visit(varDecl);
+            Write(";");
+            EndLn();
+
+            nextOffset = varDecl->pushConstantOffset + varDecl->pushConstantSize;
+        }
+    }
 }
 
 char HLSLGenerator::RegisterTypeChar(RegisterType type) const

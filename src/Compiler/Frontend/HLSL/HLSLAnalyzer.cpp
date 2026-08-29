@@ -207,6 +207,8 @@ void HLSLAnalyzer::DecorateASTPrimary(
 
     #ifdef XSC_ENABLE_LANGUAGE_EXT
     extensions_             = inputDesc.extensions;
+    pushConstantBuffer_     = nullptr;
+    maxPushConstantSize_    = outputDesc.options.maxPushConstantSize;
     #endif // XSC_ENABLE_LANGUAGE_EXT
 
     /* Decorate program AST */
@@ -944,6 +946,8 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
             ast->extModifiers |= ExtModifiers::Internal;
         else if(attrib->attributeType == AttributeType::HideInInspector)
             ast->extModifiers |= ExtModifiers::HideInInspector;
+        else if (attrib->attributeType == AttributeType::PushConstant)
+            AnalyzePushConstantBuffer(ast, attrib.get());
     }
 #endif
     // END BANSHEE CHANGES
@@ -1050,8 +1054,24 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
 
 IMPLEMENT_VISIT_PROC(BasicDeclStmnt)
 {
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    if (ast->declObject->As<UniformBufferDecl>() == nullptr)
+    {
+        for (const auto& attrib : ast->attribs)
+        {
+            if (attrib->attributeType == AttributeType::PushConstant)
+                Error(R_PushConstantOnlyOnCBuffer, attrib.get());
+        }
+    }
+    #endif
+
     /* Only visit declaration object (not attributes here) */
     Visit(ast->declObject);
+}
+
+static int AlignPushConstantOffset(int offset, int alignment)
+{
+    return ((offset + alignment - 1) / alignment) * alignment;
 }
 
 /* --- Statements --- */
@@ -3152,6 +3172,9 @@ void HLSLAnalyzer::AnalyzeExtAttributes(std::vector<AttributePtr>& attribs, cons
             case AttributeType::Name:
                 AnalyzeAttributeName(attrib.get(), typeDen);
             break;
+            case AttributeType::PushConstant:
+                Error(R_PushConstantOnlyOnCBuffer, attrib.get());
+            break;
             // END BANSHEE CHANGES
 
             default:
@@ -3295,6 +3318,216 @@ void HLSLAnalyzer::AnalyzeVectorSpaceAssign(
 }
 
 // BEGIN BANSHEE CHANGES
+
+bool HLSLAnalyzer::AnalyzePushConstantStruct(StructDecl* structDecl, PushConstantTypeLayout& layout, std::set<StructDecl*>& activeStructs)
+{
+    if
+    (
+        structDecl == nullptr ||
+        structDecl->isClass ||
+        structDecl->baseStructRef != nullptr ||
+        structDecl->varMembers.empty() ||
+        !structDecl->funcMembers.empty() ||
+        activeStructs.find(structDecl) != activeStructs.end()
+    )
+    {
+        return false;
+    }
+
+    activeStructs.insert(structDecl);
+
+    int nextOffset = 0;
+    int maxAlignment = 16;
+    bool valid = true;
+
+    for (const auto& varDeclStmnt : structDecl->varMembers)
+    {
+        if (varDeclStmnt == nullptr || varDeclStmnt->typeSpecifier == nullptr)
+        {
+            valid = false;
+            continue;
+        }
+
+        for (const auto& varDecl : varDeclStmnt->varDecls)
+        {
+            PushConstantTypeLayout memberLayout;
+            if (!AnalyzePushConstantType(varDeclStmnt->typeSpecifier.get(), varDecl.get(), memberLayout, activeStructs))
+            {
+                valid = false;
+                continue;
+            }
+
+            nextOffset = AlignPushConstantOffset(nextOffset, memberLayout.alignment);
+            varDecl->pushConstantOffset = nextOffset;
+            varDecl->pushConstantSize = memberLayout.size;
+            nextOffset += memberLayout.size;
+            maxAlignment = std::max(maxAlignment, memberLayout.alignment);
+        }
+    }
+
+    activeStructs.erase(structDecl);
+
+    if (!valid)
+        return false;
+
+    layout.alignment = AlignPushConstantOffset(maxAlignment, 16);
+    layout.size = AlignPushConstantOffset(nextOffset, layout.alignment);
+
+    structDecl->isPushConstantType = true;
+    structDecl->pushConstantSize = layout.size;
+    return true;
+}
+
+bool HLSLAnalyzer::AnalyzePushConstantType(TypeSpecifier* typeSpecifier, VarDecl* varDecl, PushConstantTypeLayout& layout, std::set<StructDecl*>& activeStructs)
+{
+    if (typeSpecifier == nullptr || typeSpecifier->typeDenoter == nullptr || varDecl == nullptr)
+        return false;
+
+    varDecl->pushConstantOffset = -1;
+    varDecl->pushConstantSize = 0;
+
+    if
+    (
+        !typeSpecifier->storageClasses.empty() ||
+        !typeSpecifier->interpModifiers.empty() ||
+        !varDecl->arrayDims.empty() ||
+        varDecl->initializer != nullptr ||
+        varDecl->packOffset != nullptr ||
+        varDecl->semantic.IsValid()
+    )
+    {
+        return false;
+    }
+
+    for (const auto modifier : typeSpecifier->typeModifiers)
+    {
+        if (modifier != TypeModifier::RowMajor && modifier != TypeModifier::ColumnMajor)
+            return false;
+    }
+
+    const auto& aliasedType = typeSpecifier->typeDenoter->GetAliased();
+
+    if (const auto* baseTypeDen = aliasedType.As<BaseTypeDenoter>())
+    {
+        const auto baseType = BaseDataType(baseTypeDen->dataType);
+        if (baseType != DataType::Int && baseType != DataType::UInt && baseType != DataType::Float)
+            return false;
+
+        if (baseTypeDen->IsScalar() || baseTypeDen->IsVector())
+        {
+            if (!typeSpecifier->typeModifiers.empty())
+                return false;
+
+            const int componentCount = VectorTypeDim(baseTypeDen->dataType);
+            if (componentCount < 1 || componentCount > 4)
+                return false;
+
+            layout.alignment = (componentCount >= 3 ? 16 : componentCount * 4);
+            layout.size = componentCount * 4;
+            return true;
+        }
+
+        if (baseTypeDen->IsMatrix())
+        {
+            const auto dimensions = MatrixTypeDim(baseTypeDen->dataType);
+            const bool rowMajor =
+                (typeSpecifier->typeModifiers.find(TypeModifier::RowMajor) != typeSpecifier->typeModifiers.end());
+
+            /* GLSL matrix-order qualifiers cannot be attached to fields inside a
+               structure definition. Column-major HLSL storage maps to the block's
+               row-major GLSL default; nested row-major storage has no direct portable
+               representation without changing the structure's shader-visible type. */
+            if (rowMajor && !activeStructs.empty())
+                return false;
+
+            const int majorVectorCount = (rowMajor ? dimensions.first : dimensions.second);
+
+            layout.alignment = 16;
+            layout.size = majorVectorCount * 16;
+            return true;
+        }
+
+        return false;
+    }
+
+    if (const auto* structTypeDen = aliasedType.As<StructTypeDenoter>())
+    {
+        if (!typeSpecifier->typeModifiers.empty())
+            return false;
+        return AnalyzePushConstantStruct(structTypeDen->structDeclRef, layout, activeStructs);
+    }
+
+    return false;
+}
+
+void HLSLAnalyzer::AnalyzePushConstantBuffer(UniformBufferDecl* bufferDecl, Attribute* attrib)
+{
+    if (!AnalyzeNumArgsAttribute(attrib, 0, true))
+        return;
+
+    if (bufferDecl->bufferType != UniformBufferType::ConstantBuffer)
+        Error(R_PushConstantOnlyOnCBuffer, attrib);
+
+    if (pushConstantBuffer_ != nullptr && pushConstantBuffer_ != bufferDecl)
+        Error(R_OnlyOnePushConstantBuffer, attrib);
+    else
+        pushConstantBuffer_ = bufferDecl;
+
+    bufferDecl->isPushConstant = true;
+
+    if (!bufferDecl->slotRegisters.empty())
+        Error(R_PushConstantRegisterNotAllowed, bufferDecl->slotRegisters.front().get());
+
+    for (const auto& stmnt : bufferDecl->localStmnts)
+    {
+        if (stmnt->As<VarDeclStmnt>() == nullptr)
+            Error(R_PushConstantMembersOnly, stmnt.get());
+    }
+
+    int nextOffset = 0;
+    int memberCount = 0;
+    std::set<StructDecl*> activeStructs;
+
+    for (const auto& varDeclStmnt : bufferDecl->varMembers)
+    {
+        for (const auto& varDecl : varDeclStmnt->varDecls)
+        {
+            ++memberCount;
+
+            PushConstantTypeLayout memberLayout;
+            if (!AnalyzePushConstantType(varDeclStmnt->typeSpecifier.get(), varDecl.get(), memberLayout, activeStructs))
+            {
+                Error(R_InvalidPushConstantMember(varDecl->ident), varDecl.get());
+                continue;
+            }
+
+            /* Use a canonical std140-compatible layout across all backends. */
+            nextOffset = AlignPushConstantOffset(nextOffset, memberLayout.alignment);
+            varDecl->pushConstantOffset = nextOffset;
+            varDecl->pushConstantSize = memberLayout.size;
+            nextOffset += memberLayout.size;
+        }
+    }
+
+    if (memberCount == 0)
+        Error(R_PushConstantBufferEmpty, bufferDecl);
+
+    /* API transports update push constants in four-byte units. HLSL may expose a larger
+       16-byte cbuffer carrier through bytecode reflection, but that is not part of the
+       logical push-constant range. */
+    bufferDecl->pushConstantSize = AlignPushConstantOffset(nextOffset, 4);
+
+    if (static_cast<unsigned int>(bufferDecl->pushConstantSize) > maxPushConstantSize_)
+    {
+        Error(
+            R_PushConstantSizeExceeded(
+                std::to_string(bufferDecl->pushConstantSize),
+                std::to_string(maxPushConstantSize_)
+            ),
+            bufferDecl
+        );
+    }
+}
 
 void HLSLAnalyzer::AnalyzeAttributeModifier(Attribute* attrib, const TypeDenoterPtr& typeDen)
 {

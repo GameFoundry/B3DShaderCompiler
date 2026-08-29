@@ -118,6 +118,39 @@ xsc_add_roundtrip_tests(
     CASES       "BitCastIntrinsics|main|frag"
 )
 
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;push-constants"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    EXTRA_FLAGS -Xall
+    CASES       "PushConstantLayoutTest|main|vert"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;push-constants"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    EXTRA_FLAGS -Xall@--max-push-constant-buffer-size@4
+    CASES       "PushConstantScalarRange|main|vert"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;push-constants;aggregates"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    EXTRA_FLAGS -Xall@--max-push-constant-buffer-size@64
+    CASES       "PushConstantAggregateLayout|main|vert"
+)
+
 # --- Negative (expect-error) cases -----------------------------------------
 # Each registers a shader that must be rejected, pinned to its diagnostic.
 # Helper: add_expect_error(<name> <shader> <entry> <stage> <regex> <extra flags...>)
@@ -154,6 +187,11 @@ add_expect_error(DefaultArgument  OpaqueTypeRejectDefaultArgument  main frag "ca
 add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "cannot return a structure containing opaque resources" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
 add_expect_error(LocalExtDisabled OpaqueTypeLocalTexture           main frag "opaque-struct' language extension is enabled")
+
+add_expect_error(PushConstantType      PushConstantInvalidType main vert "must be a non-array scalar" "-DXSC_EXTRA_FLAGS=-Xall")
+add_expect_error(PushConstantArray     PushConstantInvalidArray main vert "must be a non-array scalar" "-DXSC_EXTRA_FLAGS=-Xall")
+add_expect_error(PushConstantSize      PushConstantInvalidSize main vert "exceeding the configured maximum of 16 bytes" "-DXSC_EXTRA_FLAGS=-Xall")
+add_expect_error(PushConstantDuplicate PushConstantDuplicate   main vert "only one push-constant buffer" "-DXSC_EXTRA_FLAGS=-Xall")
 
 add_test(
     NAME glsl_reject.TemplateExtensionDisabled

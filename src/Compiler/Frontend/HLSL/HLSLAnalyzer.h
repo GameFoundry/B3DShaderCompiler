@@ -51,6 +51,12 @@ class HLSLAnalyzer : public Analyzer
             StmntPtr    statement;
         };
 
+        struct PushConstantTypeLayout
+        {
+            int alignment = 0;
+            int size      = 0;
+        };
+
         /* === Functions === */
 
         void DecorateASTPrimary(
@@ -236,6 +242,9 @@ class HLSLAnalyzer : public Analyzer
         void AnalyzeAttributeSpriteUV(Attribute* attrib, const TypeDenoterPtr& typeDen);
         void AnalyzeAttributeName(Attribute* attrib, const TypeDenoterPtr& typeDen);
         void AnalyzeExtAttributes(std::vector<AttributePtr>& attribs, const std::vector<SamplerDeclPtr>& samplerDecls);
+        void AnalyzePushConstantBuffer(UniformBufferDecl* bufferDecl, Attribute* attrib);
+        bool AnalyzePushConstantType(TypeSpecifier* typeSpecifier, VarDecl* varDecl, PushConstantTypeLayout& layout, std::set<StructDecl*>& activeStructs);
+        bool AnalyzePushConstantStruct(StructDecl* structDecl, PushConstantTypeLayout& layout, std::set<StructDecl*>& activeStructs);
         // END BANSHEE CHANGES
 
         #endif
@@ -272,6 +281,9 @@ class HLSLAnalyzer : public Analyzer
         #ifdef XSC_ENABLE_LANGUAGE_EXT
         
         Flags               extensions_;
+
+        UniformBufferDecl*  pushConstantBuffer_        = nullptr;
+        unsigned int        maxPushConstantSize_        = PushConstants::DefaultSizeLimit;
 
         #endif
 

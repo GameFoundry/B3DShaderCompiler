@@ -25,13 +25,17 @@ if(NOT DEFINED XSC_EXTRA_FLAGS)
     set(XSC_EXTRA_FLAGS "")
 endif()
 
+if(NOT DEFINED XSC_VOUT)
+    set(XSC_VOUT VKSL450)
+endif()
+
 file(MAKE_DIRECTORY "${OUT_DIR}")
 
 get_filename_component(SHADER_NAME "${SHADER}" NAME_WE)
 set(XSC_OUTPUT "${OUT_DIR}/${SHADER_NAME}.${ENTRY}.out")
 
 execute_process(
-    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vout VKSL450
+    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vout "${XSC_VOUT}"
             -E "${ENTRY}" -T "${XSC_STAGE}" ${XSC_EXTRA_FLAGS} "${SHADER}"
     RESULT_VARIABLE XSC_RESULT
     OUTPUT_VARIABLE XSC_OUT

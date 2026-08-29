@@ -139,6 +139,9 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // Writes a struct declaration (without enclosing statement).
         virtual void WriteStructDecl(StructDecl* structDecl, bool endWithSemicolon);
 
+        // Writes a portable push-constant structure with explicit padding for HLSL's cbuffer layout.
+        void WritePushConstantStructMembers(StructDecl* structDecl);
+
         // Returns the HLSL register-type character ('b', 't', 's', 'u', 'c').
         virtual char RegisterTypeChar(RegisterType type) const;
 
@@ -151,10 +154,17 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // Returns true if any bindable resource declaration was seen (registered or not).
         bool AssignAutoBindings(Program& program, const ShaderOutput& outputDesc);
 
+        // Rejects an ordinary constant buffer that explicitly occupies the configured push-constant marker binding.
+        void ValidatePushConstantHLSLBinding(Program& program);
+
         // True when AssignAutoBindings ran and saw at least one bindable resource
         // declaration. Lets derived backends make binding-related emission decisions
         // (e.g. an entry-point attribute) before any resource declaration was visited.
         bool hasBindableResources_ = false;
+
+        int pushConstantHLSLRegister_      = PushConstants::HLSLRegister;
+        int pushConstantHLSLRegisterSpace_ = PushConstants::HLSLRegisterSpace;
+        bool emitPushConstantHLSLBinding_  = false;
 
         /* --- Visit procs derived backends override --- */
 

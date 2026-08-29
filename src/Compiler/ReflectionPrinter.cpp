@@ -28,6 +28,7 @@ void ReflectionPrinter::PrintReflection(const Reflection::ReflectionData& reflec
         PrintReflectionObjects  ( reflectionData.textures,         "Textures"          );
         PrintReflectionObjects  ( reflectionData.storageBuffers,   "Storage Buffers"   );
         PrintReflectionObjects  ( reflectionData.constantBuffers,  "Constant Buffers"  );
+        PrintReflectionObjects  ( reflectionData.pushConstantBuffers, "Push Constants" );
         PrintReflectionObjects  ( reflectionData.inputAttributes,  "Input Attributes"  );
         PrintReflectionObjects  ( reflectionData.outputAttributes, "Output Attributes" );
         PrintReflectionObjects  ( reflectionData.samplerStates,    "Sampler States"    );
@@ -77,6 +78,28 @@ void ReflectionPrinter::PrintReflectionObjects(const std::vector<Reflection::Bin
     }
     else
         IndentOut() << "< none >" << std::endl;
+}
+
+void ReflectionPrinter::PrintReflectionObjects(const std::vector<Reflection::PushConstantBuffer>& objects, const std::string& title)
+{
+    IndentOut() << title << ':' << std::endl;
+    ScopedIndent indent(indentHandler_);
+
+    if (objects.empty())
+    {
+        IndentOut() << "< none >" << std::endl;
+        return;
+    }
+
+    for (const auto& buffer : objects)
+    {
+        IndentOut() << buffer.ident << " (" << buffer.size << " bytes)" << std::endl;
+        ScopedIndent memberIndent(indentHandler_);
+        for (const auto& member : buffer.members)
+        {
+            IndentOut() << member.ident << ": offset " << member.offset << ", size " << member.size << std::endl;
+        }
+    }
 }
 
 void ReflectionPrinter::PrintReflectionObjects(const std::vector<std::string>& idents, const std::string& title)

@@ -7,6 +7,7 @@
 
 #include <XscC/XscC.h>
 #include <stdio.h>
+#include <string.h>
 
 
 #define PRINT_FUNC                              \
@@ -92,6 +93,53 @@ void TestCompile()
         puts("*** COMPILATION FAILED ***");
 }
 
+int TestPushConstants()
+{
+    PRINT_FUNC;
+
+    struct XscShaderInput in;
+    struct XscShaderOutput out;
+    XscInitialize(&in, &out);
+
+    const char* outputCode = NULL;
+    in.filename = "push-constant-test.hlsl";
+    in.entryPoint = "main";
+    in.shaderTarget = XscETargetVertexShader;
+    in.extensions = XscExtAll;
+    in.sourceCode =
+    (
+        "[pushConstant]\n"
+        "cbuffer DrawConstants { float scalarValue; float2 vectorValue; };\n"
+        "float4 main(uint id : SV_VertexID) : SV_Position {\n"
+        "    return float4(vectorValue, scalarValue, float(id));\n"
+        "}\n"
+    );
+
+    out.targetLanguage = XscTargetGLSL450;
+    out.sourceCode = &outputCode;
+    out.options.pushConstantHLSLRegister = 3;
+    out.options.pushConstantHLSLRegisterSpace = 7;
+
+    struct XscReflectionData reflect;
+    if (!XscCompileShader(&in, &out, XSC_DEFAULT_LOG, &reflect))
+        return 1;
+
+    if (reflect.pushConstantBuffersCount != 1)
+        return 2;
+
+    const struct XscPushConstantBuffer* buffer = &reflect.pushConstantBuffers[0];
+    if (strcmp(buffer->ident, "DrawConstants") != 0 || buffer->size != 16 || buffer->membersCount != 2)
+        return 3;
+
+    if (buffer->members[0].offset != 0 || buffer->members[0].size != 4 ||
+        buffer->members[1].offset != 8 || buffer->members[1].size != 8)
+    {
+        return 4;
+    }
+
+    return 0;
+}
+
 int main()
 {
     puts("XscTest1");
@@ -100,7 +148,7 @@ int main()
     TestShaderTarget();
     TestCompile();
 
-    return 0;
+    return TestPushConstants();
 }
 
 

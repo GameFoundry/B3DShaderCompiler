@@ -97,6 +97,15 @@ struct XscOptions
     //! Index to start generating binding slots from. Only relevant if 'autoBinding' is enabled. By default 0.
     int     autoBindingStartSlot;
 
+    //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. Must be a non-zero multiple of four. By default 16.
+    unsigned int maxPushConstantSize;
+
+    //! Non-negative HLSL constant-buffer register used to carry the push-constant marker into bytecode reflection. By default 0.
+    int     pushConstantHLSLRegister;
+
+    //! Non-negative HLSL register space used to distinguish push constants from ordinary buffers. By default 65535.
+    int     pushConstantHLSLRegisterSpace;
+
     //! If true, explicit binding slots are enabled. By default false.
     bool    explicitBinding;
 

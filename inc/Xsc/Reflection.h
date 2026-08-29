@@ -460,6 +460,32 @@ struct NumThreads
     int z = 0;
 };
 
+//! Reflected member of a BSL push-constant block.
+struct PushConstantMember
+{
+    //! Source identifier of the member.
+    std::string ident;
+
+    //! Byte offset in the portable std140-compatible layout.
+    int         offset = 0;
+
+    //! Byte size of the member.
+    int         size = 0;
+};
+
+//! Reflected BSL push-constant block.
+struct PushConstantBuffer
+{
+    //! Source identifier of the block.
+    std::string                     ident;
+
+    //! Byte size of the block, rounded to four-bytes.
+    int                             size = 0;
+
+    //! Members in source declaration order.
+    std::vector<PushConstantMember> members;
+};
+
 //! Structure for shader output statistics (e.g. texture/buffer binding points).
 struct ReflectionData
 {
@@ -474,6 +500,9 @@ struct ReflectionData
 
     //! Constant buffer bindings.
     std::vector<BindingSlot>            constantBuffers;
+
+    //! Push-constant blocks. The BSL portable contract currently allows at most one.
+    std::vector<PushConstantBuffer>     pushConstantBuffers;
 
     //! Shader input attributes.
     std::vector<BindingSlot>            inputAttributes;

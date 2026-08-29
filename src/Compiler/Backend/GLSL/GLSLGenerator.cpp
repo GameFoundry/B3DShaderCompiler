@@ -545,7 +545,16 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
         WriteLineMark(ast);
 
         /* Write uniform buffer declaration */
-        ast->DeriveCommonStorageLayout();
+        if (ast->isPushConstant)
+        {
+            /* HLSL matrix dimensions map to transposed GLSL matrix dimensions. The
+               converter swaps direct matrix qualifiers accordingly; using row-major
+               as the block default also preserves column-major matrices nested in
+               structures, where GLSL cannot write a per-member layout qualifier. */
+            ast->commonStorageLayout = TypeModifier::RowMajor;
+        }
+        else
+            ast->DeriveCommonStorageLayout();
 
         BeginLn();
 
@@ -554,10 +563,19 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
                 [&]() { Write("std140"); },
                 [&]()
                 {
+                    if (ast->isPushConstant && IsVKSL())
+                        Write("push_constant");
+                },
+                [&]()
+                {
                     if (ast->commonStorageLayout == TypeModifier::RowMajor)
                         Write("row_major");
                 },
-                [&]() { WriteLayoutBinding(ast->slotRegisters); },
+                [&]()
+                {
+                    if (!ast->isPushConstant)
+                        WriteLayoutBinding(ast->slotRegisters);
+                },
             }
         );
 

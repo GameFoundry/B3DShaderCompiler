@@ -55,6 +55,8 @@ struct CompilerContext
     std::vector<XscBindingSlot>     inputAttributes;
     std::vector<XscBindingSlot>     outputAttributes;
     std::vector<XscSamplerState>    samplerStates;
+    std::vector<std::vector<XscPushConstantMember>> pushConstantMembers;
+    std::vector<XscPushConstantBuffer>              pushConstantBuffers;
 };
 
 static struct CompilerContext g_compilerContext;
@@ -80,6 +82,9 @@ static void InitializeOptions(struct XscOptions* s)
     s->allowExtensions          = false;
     s->autoBinding              = false;
     s->autoBindingStartSlot     = 0;
+    s->maxPushConstantSize      = Xsc::PushConstants::DefaultSizeLimit;
+    s->pushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
+    s->pushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
     s->explicitBinding          = false;
     s->obfuscate                = false;
     s->optimize                 = false;
@@ -159,6 +164,9 @@ static bool ValidateShaderOutput(const struct XscShaderOutput* s)
 
 static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct XscReflectionData* dst)
 {
+    g_compilerContext.pushConstantMembers.clear();
+    g_compilerContext.pushConstantBuffers.clear();
+
     /* Fill context buffers */
     for (const auto& s : src.macros)
         g_compilerContext.macros.push_back(s.c_str());
@@ -177,6 +185,20 @@ static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct Xs
 
     for (const auto& s : src.textures)
         g_compilerContext.outputAttributes.push_back({ s.ident.c_str(), s.location });
+
+    for (const auto& srcBuffer : src.pushConstantBuffers)
+    {
+        g_compilerContext.pushConstantMembers.emplace_back();
+        auto& dstMembers = g_compilerContext.pushConstantMembers.back();
+        dstMembers.reserve(srcBuffer.members.size());
+
+        for (const auto& srcMember : srcBuffer.members)
+            dstMembers.push_back({ srcMember.ident.c_str(), srcMember.offset, srcMember.size });
+
+        g_compilerContext.pushConstantBuffers.push_back(
+            { srcBuffer.ident.c_str(), srcBuffer.size, dstMembers.data(), dstMembers.size() }
+        );
+    }
 
     for (const auto& s : src.samplerStates)
     {
@@ -214,6 +236,9 @@ static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct Xs
             
     dst->constantBuffers        = g_compilerContext.constantBuffers.data();
     dst->constantBufferCounts   = g_compilerContext.constantBuffers.size();
+
+    dst->pushConstantBuffers      = g_compilerContext.pushConstantBuffers.data();
+    dst->pushConstantBuffersCount = g_compilerContext.pushConstantBuffers.size();
             
     dst->inputAttributes        = g_compilerContext.inputAttributes.data();
     dst->inputAttributesCount   = g_compilerContext.inputAttributes.size();
@@ -378,6 +403,9 @@ XSCC_EXPORT bool XscCompileShader(
     out.options.explicitBinding         = outputDesc->options.explicitBinding;
     out.options.autoBinding             = outputDesc->options.autoBinding;
     out.options.autoBindingStartSlot    = outputDesc->options.autoBindingStartSlot;
+    out.options.maxPushConstantSize     = outputDesc->options.maxPushConstantSize;
+    out.options.pushConstantHLSLRegister = outputDesc->options.pushConstantHLSLRegister;
+    out.options.pushConstantHLSLRegisterSpace = outputDesc->options.pushConstantHLSLRegisterSpace;
     out.options.preserveComments        = outputDesc->options.preserveComments;
     out.options.preferWrappers          = outputDesc->options.preferWrappers;
     out.options.unrollArrayInitializers = outputDesc->options.unrollArrayInitializers;

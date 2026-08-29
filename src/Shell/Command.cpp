@@ -1039,6 +1039,75 @@ void AutoBindingStartSlotCommand::Run(CommandLine& cmdLine, ShellState& state)
 }
 
 /*
+ * PushConstantSizeCommand class
+ */
+
+std::vector<Command::Identifier> PushConstantSizeCommand::Idents() const
+{
+    return { { "--max-push-constant-buffer-size" } };
+}
+
+HelpDescriptor PushConstantSizeCommand::Help() const
+{
+    return
+    {
+        "--max-push-constant-buffer-size BYTES",
+        R_CmdHelpPushConstantSize
+    };
+}
+
+void PushConstantSizeCommand::Run(CommandLine& cmdLine, ShellState& state)
+{
+    state.outputDesc.options.maxPushConstantSize = static_cast<unsigned int>(std::stoul(cmdLine.Accept()));
+}
+
+/*
+ * PushConstantRegisterCommand class
+ */
+
+std::vector<Command::Identifier> PushConstantRegisterCommand::Idents() const
+{
+    return { { "-push-constant-register" } };
+}
+
+HelpDescriptor PushConstantRegisterCommand::Help() const
+{
+    return
+    {
+        "-push-constant-register REGISTER",
+        R_CmdHelpPushConstantRegister
+    };
+}
+
+void PushConstantRegisterCommand::Run(CommandLine& cmdLine, ShellState& state)
+{
+    state.outputDesc.options.pushConstantHLSLRegister = std::stoi(cmdLine.Accept());
+}
+
+/*
+ * PushConstantSpaceCommand class
+ */
+
+std::vector<Command::Identifier> PushConstantSpaceCommand::Idents() const
+{
+    return { { "-push-constant-space" } };
+}
+
+HelpDescriptor PushConstantSpaceCommand::Help() const
+{
+    return
+    {
+        "-push-constant-space SPACE",
+        R_CmdHelpPushConstantSpace
+    };
+}
+
+void PushConstantSpaceCommand::Run(CommandLine& cmdLine, ShellState& state)
+{
+    state.outputDesc.options.pushConstantHLSLRegisterSpace = std::stoi(cmdLine.Accept());
+}
+
+/*
  * CommentCommand class
  */
 

@@ -483,6 +483,28 @@ IMPLEMENT_VISIT_PROC(StructDecl)
 
 IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 {
+    if (ast->isPushConstant)
+    {
+        Reflection::PushConstantBuffer buffer;
+        buffer.ident = ast->ident;
+        buffer.size = ast->pushConstantSize;
+
+        for (const auto& varDeclStmnt : ast->varMembers)
+        {
+            for (const auto& varDecl : varDeclStmnt->varDecls)
+            {
+                if (varDecl->pushConstantOffset >= 0)
+                {
+                    buffer.members.push_back({ varDecl->ident, varDecl->pushConstantOffset, varDecl->pushConstantSize }
+                    );
+                }
+            }
+        }
+
+        data_->pushConstantBuffers.push_back(std::move(buffer));
+        return;
+    }
+
     // BEGIN BANSHEE CHANGES
     //if (ast->flags(AST::isReachable))
     // END BANSHEE CHANGES

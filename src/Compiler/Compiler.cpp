@@ -94,6 +94,15 @@ void Compiler::ValidateArguments(const ShaderInput& inputDesc, const ShaderOutpu
     if (!outputDesc.sourceCode)
         throw std::invalid_argument(R_OutputStreamCantBeNull);
 
+    if (outputDesc.options.maxPushConstantSize == 0 || (outputDesc.options.maxPushConstantSize % 4) != 0)
+        throw std::invalid_argument(R_InvalidPushConstantSizeLimit);
+
+    if (outputDesc.options.pushConstantHLSLRegister < 0)
+        throw std::invalid_argument(R_InvalidPushConstantHLSLRegister);
+
+    if (outputDesc.options.pushConstantHLSLRegisterSpace < 0)
+        throw std::invalid_argument(R_InvalidPushConstantHLSLRegisterSpace);
+
     const auto& nameMngl = outputDesc.nameMangling;
     
     if (nameMngl.reservedWordPrefix.empty())

@@ -113,6 +113,23 @@ struct XscBindingSlot
     int         location;
 };
 
+//! Reflected member of a BSL push-constant block.
+struct XscPushConstantMember
+{
+    const char* ident;
+    int         offset;
+    int         size;
+};
+
+//! Reflected BSL push-constant block.
+struct XscPushConstantBuffer
+{
+    const char*                         ident;
+    int                                 size;
+    const struct XscPushConstantMember* members;
+    size_t                              membersCount;
+};
+
 //! Number of threads within each work group of a compute shader.
 struct XscNumThreads
 {
@@ -147,6 +164,12 @@ struct XscReflectionData
 
     //! Number of elements in 'constantBuffers'.
     size_t                          constantBufferCounts;
+
+    //! Push-constant blocks. The BSL portable contract currently allows at most one.
+    const struct XscPushConstantBuffer* pushConstantBuffers;
+
+    //! Number of elements in 'pushConstantBuffers'.
+    size_t                              pushConstantBuffersCount;
 
     //! Shader input attributes.
     const struct XscBindingSlot*    inputAttributes;

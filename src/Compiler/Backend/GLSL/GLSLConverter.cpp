@@ -357,7 +357,8 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 {
     PushUniformBufferDecl(ast);
     {
-        ConvertSlotRegisters(ast->slotRegisters);
+        if (!ast->isPushConstant)
+            ConvertSlotRegisters(ast->slotRegisters);
         VisitScopedStmntList(ast->localStmnts);
 
         /* Moved nested struct declarations out of the uniform buffer declaration */

@@ -967,6 +967,7 @@ static Dictionary<AttributeType> GenerateAttributeTypeDict()
         { "spriteuv",                  T::SpriteUV                  },
         { "name",                      T::Name                      },
         { "hdr",                       T::HDR                       },
+        { "pushConstant",              T::PushConstant              },
 
         // END BANSHEE CHANGES
         #endif
