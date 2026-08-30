@@ -99,7 +99,11 @@ DECL_EXTENSION( GL_GOOGLE_include_directive                     );
 
 // KHR
 DECL_EXTENSION( GL_KHR_blend_equation_advanced                  );
+DECL_EXTENSION( GL_KHR_shader_subgroup_arithmetic               );
+DECL_EXTENSION( GL_KHR_shader_subgroup_ballot                   );
 DECL_EXTENSION( GL_KHR_shader_subgroup_basic                    );
+DECL_EXTENSION( GL_KHR_shader_subgroup_quad                     );
+DECL_EXTENSION( GL_KHR_shader_subgroup_vote                     );
 
 // NV
 DECL_EXTENSION( GL_NV_geometry_shader_passthrough               );

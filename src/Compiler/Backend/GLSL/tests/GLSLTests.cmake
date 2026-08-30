@@ -123,6 +123,17 @@ xsc_add_roundtrip_tests(
     DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
     SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
     OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;wave-intrinsics"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE} -DGLSLANG_TARGET_ENV=vulkan1.1
+    EXTRA_FLAGS -Vin@HLSL6
+    CASES       "WaveIntrinsics|main|comp"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
     LABELS      "glsl-roundtrip;push-constants"
     DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
     EXTRA_FLAGS -Xall

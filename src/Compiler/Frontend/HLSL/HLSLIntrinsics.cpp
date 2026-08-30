@@ -197,6 +197,31 @@ static HLSLIntrinsicsMap GenerateIntrinsicMap()
         { "WarpDeviceMemoryBarrierWithWarpSync",    { T::WarpDeviceMemoryBarrierWithWarpSync,   5, 0 } },
         { "WarpAllMemoryBarrier",                   { T::WarpAllMemoryBarrier,                  5, 0 } },
         { "WarpAllMemoryBarrierWithWarpSync",       { T::WarpAllMemoryBarrierWithWarpSync,      5, 0 } },
+
+        { "WaveIsFirstLane",                        { T::WaveIsFirstLane,                       6, 0 } },
+        { "WaveGetLaneIndex",                       { T::WaveGetLaneIndex,                      6, 0 } },
+        { "WaveGetLaneCount",                       { T::WaveGetLaneCount,                      6, 0 } },
+        { "WaveActiveAnyTrue",                      { T::WaveActiveAnyTrue,                     6, 0 } },
+        { "WaveActiveAllTrue",                      { T::WaveActiveAllTrue,                     6, 0 } },
+        { "WaveActiveAllEqual",                     { T::WaveActiveAllEqual,                    6, 0 } },
+        { "WaveActiveBallot",                       { T::WaveActiveBallot,                      6, 0 } },
+        { "WaveReadLaneAt",                         { T::WaveReadLaneAt,                        6, 0 } },
+        { "WaveReadLaneFirst",                      { T::WaveReadLaneFirst,                     6, 0 } },
+        { "WaveActiveCountBits",                    { T::WaveActiveCountBits,                   6, 0 } },
+        { "WaveActiveSum",                          { T::WaveActiveSum,                         6, 0 } },
+        { "WaveActiveProduct",                      { T::WaveActiveProduct,                     6, 0 } },
+        { "WaveActiveBitAnd",                       { T::WaveActiveBitAnd,                      6, 0 } },
+        { "WaveActiveBitOr",                        { T::WaveActiveBitOr,                       6, 0 } },
+        { "WaveActiveBitXor",                       { T::WaveActiveBitXor,                      6, 0 } },
+        { "WaveActiveMin",                          { T::WaveActiveMin,                         6, 0 } },
+        { "WaveActiveMax",                          { T::WaveActiveMax,                         6, 0 } },
+        { "WavePrefixCountBits",                    { T::WavePrefixCountBits,                   6, 0 } },
+        { "WavePrefixSum",                          { T::WavePrefixSum,                         6, 0 } },
+        { "WavePrefixProduct",                      { T::WavePrefixProduct,                     6, 0 } },
+        { "QuadReadLaneAt",                         { T::QuadReadLaneAt,                        6, 0 } },
+        { "QuadReadAcrossX",                        { T::QuadReadAcrossX,                       6, 0 } },
+        { "QuadReadAcrossY",                        { T::QuadReadAcrossY,                       6, 0 } },
+        { "QuadReadAcrossDiagonal",                 { T::QuadReadAcrossDiagonal,                6, 0 } },
     };
 }
 
@@ -295,17 +320,7 @@ static TypeDenoterPtr DeriveTypeDenoterWithBaseType(const DataType baseDataType,
     const auto& argTypeDen = args[argIndex]->GetTypeDenoter()->GetAliased();
 
     if (auto argBaseTypeDen = argTypeDen.As<BaseTypeDenoter>())
-    {
-        const auto argDataType = argBaseTypeDen->dataType;
-
-        if (IsMatrixType(argDataType))
-        {
-            const auto dim = MatrixTypeDim(argDataType);
-            return std::make_shared<BaseTypeDenoter>(MatrixDataType(baseDataType, dim.first, dim.second));
-        }
-
-        return std::make_shared<BaseTypeDenoter>(VectorDataType(baseDataType, VectorTypeDim(argDataType)));
-    }
+        return std::make_shared<BaseTypeDenoter>(DataTypeWithShapeOf(baseDataType, argBaseTypeDen->dataType));
 
     return nullptr;
 }
@@ -666,6 +681,31 @@ static std::map<Intrinsic, IntrinsicSignature> GenerateIntrinsicSignatureMap()
         { T::WarpDeviceMemoryBarrierWithWarpSync,   {                        } },
         { T::WarpAllMemoryBarrier,                  {                        } },
         { T::WarpAllMemoryBarrierWithWarpSync,      {                        } },
+
+        { T::WaveIsFirstLane,                       { Ret::Bool,            0 } },
+        { T::WaveGetLaneIndex,                      { Ret::UInt,            0 } },
+        { T::WaveGetLaneCount,                      { Ret::UInt,            0 } },
+        { T::WaveActiveAnyTrue,                     { Ret::Bool,            1 } },
+        { T::WaveActiveAllTrue,                     { Ret::Bool,            1 } },
+        { T::WaveActiveAllEqual,                    { Ret::BoolGenericArg0, 1 } },
+        { T::WaveActiveBallot,                      { Ret::UInt4,           1 } },
+        { T::WaveReadLaneAt,                        { Ret::GenericArg0,     2 } },
+        { T::WaveReadLaneFirst,                     { Ret::GenericArg0,     1 } },
+        { T::WaveActiveCountBits,                   { Ret::UInt,            1 } },
+        { T::WaveActiveSum,                         { Ret::GenericArg0,     1 } },
+        { T::WaveActiveProduct,                     { Ret::GenericArg0,     1 } },
+        { T::WaveActiveBitAnd,                      { Ret::GenericArg0,     1 } },
+        { T::WaveActiveBitOr,                       { Ret::GenericArg0,     1 } },
+        { T::WaveActiveBitXor,                      { Ret::GenericArg0,     1 } },
+        { T::WaveActiveMin,                         { Ret::GenericArg0,     1 } },
+        { T::WaveActiveMax,                         { Ret::GenericArg0,     1 } },
+        { T::WavePrefixCountBits,                   { Ret::UInt,            1 } },
+        { T::WavePrefixSum,                         { Ret::GenericArg0,     1 } },
+        { T::WavePrefixProduct,                     { Ret::GenericArg0,     1 } },
+        { T::QuadReadLaneAt,                        { Ret::GenericArg0,     2 } },
+        { T::QuadReadAcrossX,                       { Ret::GenericArg0,     1 } },
+        { T::QuadReadAcrossY,                       { Ret::GenericArg0,     1 } },
+        { T::QuadReadAcrossDiagonal,                { Ret::GenericArg0,     1 } },
     };
 }
 
@@ -745,6 +785,22 @@ std::vector<TypeDenoterPtr> HLSLIntrinsicAdept::GetIntrinsicParameterTypes(const
         case Intrinsic::FirstBitHigh:
         case Intrinsic::FirstBitLow:
             DeriveParameterTypesFirstBit(paramTypeDenoters, args, intrinsic);
+            break;
+        case Intrinsic::WaveActiveAnyTrue:
+        case Intrinsic::WaveActiveAllTrue:
+        case Intrinsic::WaveActiveBallot:
+        case Intrinsic::WaveActiveCountBits:
+        case Intrinsic::WavePrefixCountBits:
+            if (args.size() == 1)
+                paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(DataType::Bool));
+            break;
+        case Intrinsic::WaveReadLaneAt:
+        case Intrinsic::QuadReadLaneAt:
+            if (args.size() == 2)
+            {
+                paramTypeDenoters.push_back(args[0]->GetTypeDenoter()->GetSub());
+                paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(DataType::UInt));
+            }
             break;
         default:
             DeriveParameterTypes(paramTypeDenoters, intrinsic, args);

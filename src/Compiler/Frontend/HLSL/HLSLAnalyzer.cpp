@@ -1794,6 +1794,27 @@ void HLSLAnalyzer::AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrin
             Error(R_InvalidClassIntrinsic(callExpr->ident), callExpr);
         }
     }
+
+    if
+    (
+        intrinsic >= Intrinsic::QuadReadLaneAt &&
+        intrinsic <= Intrinsic::QuadReadAcrossDiagonal &&
+        shaderTarget_ != ShaderTarget::FragmentShader &&
+        shaderTarget_ != ShaderTarget::ComputeShader
+    )
+    {
+        Error("quad wave intrinsic '" + callExpr->ident + "' is only available in fragment and compute shaders", callExpr);
+    }
+
+    if
+    (
+        program_ != nullptr &&
+        intrinsic >= Intrinsic::WaveIsFirstLane &&
+        intrinsic <= Intrinsic::QuadReadAcrossDiagonal
+    )
+    {
+        program_->RegisterIntrinsicUsage(intrinsic, callExpr->arguments);
+    }
 }
 
 void HLSLAnalyzer::AnalyzeCallExprIntrinsicPrimary(CallExpr* callExpr, const HLSLIntrinsicEntry& intr)

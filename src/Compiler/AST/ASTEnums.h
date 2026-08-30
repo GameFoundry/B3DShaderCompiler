@@ -305,6 +305,9 @@ DataType VectorDataType(const DataType baseDataType, int vectorSize);
 // Returns the matrix data type for the specified type, rows, and columns.
 DataType MatrixDataType(const DataType baseDataType, int rows, int columns);
 
+// Returns the specified base type with the scalar, vector, or matrix shape of another type.
+XSC_EXPORT DataType DataTypeWithShapeOf(const DataType baseDataType, const DataType shapeDataType);
+
 // Returns the data type for the specified swizzle operator or throws and std::invalid_argument on failure.
 DataType SubscriptDataType(const DataType dataType, const std::string& subscript, std::vector<std::pair<int, int>>* indices = nullptr);
 
@@ -847,6 +850,30 @@ enum class Intrinsic
     WarpDeviceMemoryBarrierWithWarpSync,
     WarpAllMemoryBarrier,
     WarpAllMemoryBarrierWithWarpSync,
+    WaveIsFirstLane,
+    WaveGetLaneIndex,
+    WaveGetLaneCount,
+    WaveActiveAnyTrue,
+    WaveActiveAllTrue,
+    WaveActiveAllEqual,
+    WaveActiveBallot,
+    WaveReadLaneAt,
+    WaveReadLaneFirst,
+    WaveActiveCountBits,
+    WaveActiveSum,
+    WaveActiveProduct,
+    WaveActiveBitAnd,
+    WaveActiveBitOr,
+    WaveActiveBitXor,
+    WaveActiveMin,
+    WaveActiveMax,
+    WavePrefixCountBits,
+    WavePrefixSum,
+    WavePrefixProduct,
+    QuadReadLaneAt,
+    QuadReadAcrossX,
+    QuadReadAcrossY,
+    QuadReadAcrossDiagonal,
     Saturate,
     Sign,
     Sin,
@@ -1000,6 +1027,15 @@ struct IntrinsicUsage
     // Set of all argument lists that where used for an intrinsic.
     std::set<ArgumentList> argLists;
 };
+
+// Returns the canonical HLSL name of the specified wave intrinsic, or null if it is not a wave intrinsic.
+XSC_EXPORT const char* GetWaveIntrinsicName(const Intrinsic t);
+
+// Returns true if the specified wave intrinsic takes a predicate argument.
+XSC_EXPORT bool WaveIntrinsicHasPredicate(const Intrinsic t);
+
+// Returns the wave intrinsics that require generated compatibility wrappers.
+XSC_EXPORT const std::vector<Intrinsic>& GetWrappedWaveIntrinsics();
 
 // Returns true if the specified intrinsic is a global intrinsic.
 bool IsGlobalIntrinsic(const Intrinsic t);

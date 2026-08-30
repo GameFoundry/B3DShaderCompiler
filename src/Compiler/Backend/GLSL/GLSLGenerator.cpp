@@ -48,7 +48,6 @@ struct StructDeclArgs
     bool inEndWithSemicolon;
 };
 
-
 /*
  * GLSLGenerator class
  */
@@ -157,7 +156,30 @@ bool GLSLGenerator::IsWrappedIntrinsic(const Intrinsic intrinsic) const
         Intrinsic::WarpGroupMemoryBarrierWithWarpSync,
         Intrinsic::WarpDeviceMemoryBarrier,
         Intrinsic::WarpDeviceMemoryBarrierWithWarpSync,
-        Intrinsic::WarpAllMemoryBarrierWithWarpSync
+        Intrinsic::WarpAllMemoryBarrierWithWarpSync,
+        Intrinsic::WaveIsFirstLane,
+        Intrinsic::WaveGetLaneIndex,
+        Intrinsic::WaveGetLaneCount,
+        Intrinsic::WaveActiveAnyTrue,
+        Intrinsic::WaveActiveAllTrue,
+        Intrinsic::WaveActiveAllEqual,
+        Intrinsic::WaveActiveBallot,
+        Intrinsic::WaveReadLaneFirst,
+        Intrinsic::WaveActiveCountBits,
+        Intrinsic::WaveActiveSum,
+        Intrinsic::WaveActiveProduct,
+        Intrinsic::WaveActiveBitAnd,
+        Intrinsic::WaveActiveBitOr,
+        Intrinsic::WaveActiveBitXor,
+        Intrinsic::WaveActiveMin,
+        Intrinsic::WaveActiveMax,
+        Intrinsic::WavePrefixCountBits,
+        Intrinsic::WavePrefixSum,
+        Intrinsic::WavePrefixProduct,
+        Intrinsic::QuadReadLaneAt,
+        Intrinsic::QuadReadAcrossX,
+        Intrinsic::QuadReadAcrossY,
+        Intrinsic::QuadReadAcrossDiagonal
     };
     return (wrappedIntrinsics.find(intrinsic) != wrappedIntrinsics.end());
 }
@@ -2946,6 +2968,12 @@ void GLSLGenerator::WriteWrapperIntrinsics()
     if (program->FetchIntrinsicUsage(Intrinsic::F16toF32) != nullptr)
         WriteWrapperIntrinsicsF16toF32();
 
+    for (const auto intrinsic : GetWrappedWaveIntrinsics())
+    {
+        if (const auto usage = program->FetchIntrinsicUsage(intrinsic))
+            WriteWrapperIntrinsicWave(intrinsic, *usage);
+    }
+
     /* Write matrix subscript wrappers */
     for (const auto& usage : program->usedMatrixSubscripts)
         WriteWrapperMatrixSubscript(usage);
@@ -3084,6 +3112,187 @@ void GLSLGenerator::WriteWrapperIntrinsicsF16toF32()
     EndLn();
 
     Blank();
+}
+
+void GLSLGenerator::WriteWrapperIntrinsicWave(const Intrinsic intrinsic, const IntrinsicUsage& usage)
+{
+    const char* intrinsicName = GetWaveIntrinsicName(intrinsic);
+    if (intrinsicName == nullptr)
+        return;
+
+    bool wrapperWritten = false;
+
+    for (const auto& argList : usage.argLists)
+    {
+        const DataType inputType = (!argList.argTypes.empty() ? argList.argTypes.front() : DataType::Undefined);
+        DataType returnType = inputType;
+
+        switch (intrinsic)
+        {
+            case Intrinsic::WaveIsFirstLane:
+            case Intrinsic::WaveActiveAnyTrue:
+            case Intrinsic::WaveActiveAllTrue:
+                returnType = DataType::Bool;
+                break;
+            case Intrinsic::WaveGetLaneIndex:
+            case Intrinsic::WaveGetLaneCount:
+            case Intrinsic::WaveActiveCountBits:
+            case Intrinsic::WavePrefixCountBits:
+                returnType = DataType::UInt;
+                break;
+            case Intrinsic::WaveActiveAllEqual:
+                returnType = DataTypeWithShapeOf(DataType::Bool, inputType);
+                break;
+            case Intrinsic::WaveActiveBallot:
+                returnType = DataType::UInt4;
+                break;
+            default:
+                break;
+        }
+
+        if (intrinsic == Intrinsic::WaveActiveAllEqual && IsMatrixType(inputType))
+        {
+            Error("WaveActiveAllEqual with a matrix argument cannot be represented in GLSL because GLSL has no boolean matrix type");
+            continue;
+        }
+
+        BeginLn();
+        WriteDataType(returnType, IsESSL());
+        Write(" ");
+        Write(intrinsicName);
+        Write("(");
+
+        if (inputType != DataType::Undefined)
+        {
+            if (WaveIntrinsicHasPredicate(intrinsic))
+                Write("bool value");
+            else
+            {
+                WriteDataType(inputType, IsESSL());
+                Write(" value");
+            }
+
+            if (intrinsic == Intrinsic::WaveReadLaneAt || intrinsic == Intrinsic::QuadReadLaneAt)
+                Write(", uint lane");
+        }
+
+        Write(")");
+        WriteScopeOpen(compactWrappers_);
+        {
+            auto WriteNativeValueCall = [&](const std::string& value)
+            {
+                if (intrinsic == Intrinsic::QuadReadLaneAt)
+                {
+                    Write("(lane == 0u ? subgroupQuadBroadcast(" + value + ", 0u) : ");
+                    Write("lane == 1u ? subgroupQuadBroadcast(" + value + ", 1u) : ");
+                    Write("lane == 2u ? subgroupQuadBroadcast(" + value + ", 2u) : ");
+                    Write("subgroupQuadBroadcast(" + value + ", 3u))");
+                    return;
+                }
+
+                const auto keyword = IntrinsicToGLSLKeyword(intrinsic);
+                if (keyword == nullptr)
+                {
+                    Error("missing GLSL subgroup mapping for " + std::string(intrinsicName));
+                    return;
+                }
+
+                Write(*keyword + "(" + value);
+                if (intrinsic == Intrinsic::WaveReadLaneAt)
+                    Write(", lane");
+                Write(")");
+            };
+
+            const bool componentWise =
+            (
+                IsMatrixType(inputType) ||
+                (intrinsic == Intrinsic::WaveActiveAllEqual && IsVectorType(inputType))
+            );
+
+            if (componentWise)
+            {
+                if (IsVectorType(inputType))
+                {
+                    static const char* components = "xyzw";
+                    const int dimension = VectorTypeDim(inputType);
+
+                    BeginLn();
+                    Write("return ");
+                    WriteDataType(returnType, IsESSL());
+                    Write("(");
+                    for (int component = 0; component < dimension; ++component)
+                    {
+                        if (component > 0)
+                            Write(", ");
+                        WriteNativeValueCall("value." + std::string(1, components[component]));
+                    }
+                    Write(");");
+                    EndLn();
+                }
+                else
+                {
+                    const auto dimensions = MatrixTypeDim(inputType);
+
+                    BeginLn();
+                    WriteDataType(returnType, IsESSL());
+                    Write(" result;");
+                    EndLn();
+
+                    for (int first = 0; first < dimensions.first; ++first)
+                    {
+                        for (int second = 0; second < dimensions.second; ++second)
+                        {
+                            BeginLn();
+                            const std::string element = "value[" + std::to_string(first) + "][" + std::to_string(second) + "]";
+                            Write("result[" + std::to_string(first) + "][" + std::to_string(second) + "] = ");
+                            WriteNativeValueCall(element);
+                            Write(";");
+                            EndLn();
+                        }
+                    }
+
+                    WriteLn("return result;");
+                }
+            }
+            else
+            {
+                BeginLn();
+                Write("return ");
+
+                switch (intrinsic)
+                {
+                    case Intrinsic::WaveIsFirstLane:
+                        Write("subgroupElect()");
+                        break;
+                    case Intrinsic::WaveGetLaneIndex:
+                        Write("gl_SubgroupInvocationID");
+                        break;
+                    case Intrinsic::WaveGetLaneCount:
+                        Write("gl_SubgroupSize");
+                        break;
+                    case Intrinsic::WaveActiveCountBits:
+                        Write("subgroupBallotBitCount(subgroupBallot(value))");
+                        break;
+                    case Intrinsic::WavePrefixCountBits:
+                        Write("subgroupBallotExclusiveBitCount(subgroupBallot(value))");
+                        break;
+                    default:
+                        WriteNativeValueCall("value");
+                        break;
+                }
+
+                Write(";");
+                EndLn();
+            }
+        }
+        WriteScopeClose();
+        EndLn();
+
+        wrapperWritten = true;
+    }
+
+    if (wrapperWritten)
+        Blank();
 }
 
 static std::string GetWrapperNameForMemoryBarrier(const Intrinsic intrinsic, bool groupSync, bool subgroup)

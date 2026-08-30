@@ -259,6 +259,25 @@ static std::map<Intrinsic, std::string> GenerateIntrinsicMap()
 
         { T::WarpGroupMemoryBarrier,           "subgroupMemoryBarrierShared"    },
         { T::WarpAllMemoryBarrier,             "subgroupMemoryBarrier"          },
+        { T::WaveActiveAnyTrue,                "subgroupAny"                    },
+        { T::WaveActiveAllTrue,                "subgroupAll"                    },
+        { T::WaveActiveAllEqual,               "subgroupAllEqual"               },
+        { T::WaveActiveBallot,                 "subgroupBallot"                 },
+        { T::WaveReadLaneAt,                   "subgroupBroadcast"              },
+        { T::WaveReadLaneFirst,                "subgroupBroadcastFirst"         },
+        { T::WaveActiveSum,                    "subgroupAdd"                    },
+        { T::WaveActiveProduct,                "subgroupMul"                    },
+        { T::WaveActiveBitAnd,                 "subgroupAnd"                    },
+        { T::WaveActiveBitOr,                  "subgroupOr"                     },
+        { T::WaveActiveBitXor,                 "subgroupXor"                    },
+        { T::WaveActiveMin,                    "subgroupMin"                    },
+        { T::WaveActiveMax,                    "subgroupMax"                    },
+        { T::WavePrefixSum,                    "subgroupExclusiveAdd"           },
+        { T::WavePrefixProduct,                "subgroupExclusiveMul"           },
+        { T::QuadReadLaneAt,                   "subgroupQuadBroadcast"          },
+        { T::QuadReadAcrossX,                  "subgroupQuadSwapHorizontal"     },
+        { T::QuadReadAcrossY,                  "subgroupQuadSwapVertical"       },
+        { T::QuadReadAcrossDiagonal,           "subgroupQuadSwapDiagonal"       },
     };
 }
 

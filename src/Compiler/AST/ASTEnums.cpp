@@ -600,6 +600,12 @@ DataType MatrixDataType(const DataType baseDataType, int rows, int columns)
     return DataType::Undefined;
 }
 
+DataType DataTypeWithShapeOf(const DataType baseDataType, const DataType shapeDataType)
+{
+    const auto dimensions = MatrixTypeDim(shapeDataType);
+    return MatrixDataType(baseDataType, dimensions.first, dimensions.second);
+}
+
 static DataType SubscriptDataTypeVector(
     const DataType dataType, const std::string& subscript, int vectorSize, std::vector<std::pair<int, int>>* indices)
 {
@@ -1126,6 +1132,81 @@ bool IsAttributeValueTrianglePartitioning(const AttributeValue t)
 
 
 /* ----- Intrinsic Enum ----- */
+
+const char* GetWaveIntrinsicName(const Intrinsic t)
+{
+    switch (t)
+    {
+        case Intrinsic::WaveIsFirstLane:            return "WaveIsFirstLane";
+        case Intrinsic::WaveGetLaneIndex:           return "WaveGetLaneIndex";
+        case Intrinsic::WaveGetLaneCount:           return "WaveGetLaneCount";
+        case Intrinsic::WaveActiveAnyTrue:          return "WaveActiveAnyTrue";
+        case Intrinsic::WaveActiveAllTrue:          return "WaveActiveAllTrue";
+        case Intrinsic::WaveActiveAllEqual:         return "WaveActiveAllEqual";
+        case Intrinsic::WaveActiveBallot:           return "WaveActiveBallot";
+        case Intrinsic::WaveReadLaneAt:             return "WaveReadLaneAt";
+        case Intrinsic::WaveReadLaneFirst:          return "WaveReadLaneFirst";
+        case Intrinsic::WaveActiveCountBits:        return "WaveActiveCountBits";
+        case Intrinsic::WaveActiveSum:              return "WaveActiveSum";
+        case Intrinsic::WaveActiveProduct:          return "WaveActiveProduct";
+        case Intrinsic::WaveActiveBitAnd:           return "WaveActiveBitAnd";
+        case Intrinsic::WaveActiveBitOr:            return "WaveActiveBitOr";
+        case Intrinsic::WaveActiveBitXor:           return "WaveActiveBitXor";
+        case Intrinsic::WaveActiveMin:              return "WaveActiveMin";
+        case Intrinsic::WaveActiveMax:              return "WaveActiveMax";
+        case Intrinsic::WavePrefixCountBits:        return "WavePrefixCountBits";
+        case Intrinsic::WavePrefixSum:              return "WavePrefixSum";
+        case Intrinsic::WavePrefixProduct:          return "WavePrefixProduct";
+        case Intrinsic::QuadReadLaneAt:             return "QuadReadLaneAt";
+        case Intrinsic::QuadReadAcrossX:            return "QuadReadAcrossX";
+        case Intrinsic::QuadReadAcrossY:            return "QuadReadAcrossY";
+        case Intrinsic::QuadReadAcrossDiagonal:     return "QuadReadAcrossDiagonal";
+        default:                                    return nullptr;
+    }
+}
+
+bool WaveIntrinsicHasPredicate(const Intrinsic t)
+{
+    return
+    (
+        t == Intrinsic::WaveActiveAnyTrue   ||
+        t == Intrinsic::WaveActiveAllTrue   ||
+        t == Intrinsic::WaveActiveBallot    ||
+        t == Intrinsic::WaveActiveCountBits ||
+        t == Intrinsic::WavePrefixCountBits
+    );
+}
+
+const std::vector<Intrinsic>& GetWrappedWaveIntrinsics()
+{
+    static const std::vector<Intrinsic> intrinsics
+    {
+        Intrinsic::WaveIsFirstLane,
+        Intrinsic::WaveGetLaneIndex,
+        Intrinsic::WaveGetLaneCount,
+        Intrinsic::WaveActiveAnyTrue,
+        Intrinsic::WaveActiveAllTrue,
+        Intrinsic::WaveActiveAllEqual,
+        Intrinsic::WaveActiveBallot,
+        Intrinsic::WaveReadLaneFirst,
+        Intrinsic::WaveActiveCountBits,
+        Intrinsic::WaveActiveSum,
+        Intrinsic::WaveActiveProduct,
+        Intrinsic::WaveActiveBitAnd,
+        Intrinsic::WaveActiveBitOr,
+        Intrinsic::WaveActiveBitXor,
+        Intrinsic::WaveActiveMin,
+        Intrinsic::WaveActiveMax,
+        Intrinsic::WavePrefixCountBits,
+        Intrinsic::WavePrefixSum,
+        Intrinsic::WavePrefixProduct,
+        Intrinsic::QuadReadLaneAt,
+        Intrinsic::QuadReadAcrossX,
+        Intrinsic::QuadReadAcrossY,
+        Intrinsic::QuadReadAcrossDiagonal,
+    };
+    return intrinsics;
+}
 
 bool IsGlobalIntrinsic(const Intrinsic t)
 {

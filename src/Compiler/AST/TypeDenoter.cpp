@@ -478,9 +478,8 @@ BaseTypeDenoterPtr TypeDenoter::MakeBoolTypeWithDimensionOf(const TypeDenoter& t
 {
     if (auto baseTypeDen = typeDen.GetAliased().As<BaseTypeDenoter>())
     {
-        /* Make vector boolean type denoter with dimension of the specified type denoter */
-        auto vecBoolType = VectorDataType(DataType::Bool, VectorTypeDim(baseTypeDen->dataType));
-        return std::make_shared<BaseTypeDenoter>(vecBoolType);
+        /* Make a boolean type denoter with the shape of the specified type denoter */
+        return std::make_shared<BaseTypeDenoter>(DataTypeWithShapeOf(DataType::Bool, baseTypeDen->dataType));
     }
     else
     {
