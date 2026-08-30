@@ -3183,6 +3183,7 @@ void GLSLGenerator::WriteWrapperIntrinsicWave(const Intrinsic intrinsic, const I
             {
                 if (intrinsic == Intrinsic::QuadReadLaneAt)
                 {
+                    /* TODO: Add a fixed-selector QuadSwizzle intrinsic to BSL. Callers with a known permutation could then bypass this four-way branch. */
                     Write("(lane == 0u ? subgroupQuadBroadcast(" + value + ", 0u) : ");
                     Write("lane == 1u ? subgroupQuadBroadcast(" + value + ", 1u) : ");
                     Write("lane == 2u ? subgroupQuadBroadcast(" + value + ", 2u) : ");

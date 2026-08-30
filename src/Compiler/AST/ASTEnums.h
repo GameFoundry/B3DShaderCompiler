@@ -252,16 +252,16 @@ struct MatrixSubscriptUsage
 };
 
 // Returns a descriptive string of the specified data type.
-std::string DataTypeToString(const DataType t, bool useTemplateSyntax = false);
+XSC_EXPORT std::string DataTypeToString(const DataType t, bool useTemplateSyntax = false);
 
 // Returns true if the specified data type is a scalar type.
 bool IsScalarType(const DataType t);
 
 // Returns true if the specified data type is a vector type.
-bool IsVectorType(const DataType t);
+XSC_EXPORT bool IsVectorType(const DataType t);
 
 // Returns true if the specified data type is a matrix type.
-bool IsMatrixType(const DataType t);
+XSC_EXPORT bool IsMatrixType(const DataType t);
 
 // Returns true if the specified data type is a boolean type (i.e. bool, and all vectors and matrices of these).
 bool IsBooleanType(const DataType t);
@@ -288,16 +288,16 @@ bool IsUIntType(const DataType t);
 Returns the dimension of the specified data type interpreted as vector type.
 Values range from 1 to 4, but 0 for matrix types).
 */
-int VectorTypeDim(const DataType t);
+XSC_EXPORT int VectorTypeDim(const DataType t);
 
 /*
 Returns the dimensions MxN of the specified data type interpreted as matrix type.
 Values range from 1x1 to 4x4, but 1x1 to 4x1 for vector and scalar types).
 */
-std::pair<int, int> MatrixTypeDim(const DataType t);
+XSC_EXPORT std::pair<int, int> MatrixTypeDim(const DataType t);
 
 // Returns the base data type for the specified type or DataType::Undefined on failure.
-DataType BaseDataType(const DataType t);
+XSC_EXPORT DataType BaseDataType(const DataType t);
 
 // Returns the vector data type for the specified type and vector size.
 DataType VectorDataType(const DataType baseDataType, int vectorSize);
