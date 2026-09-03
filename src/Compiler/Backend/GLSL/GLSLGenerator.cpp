@@ -7,6 +7,7 @@
 
 #include "GLSLGenerator.h"
 #include "GLSLExtensionAgent.h"
+#include "GLSLExtensions.h"
 #include "GLSLConverter.h"
 #include "BackendRegistry.h"
 #ifdef XSC_ENABLE_LANGUAGE_EXT
@@ -93,6 +94,7 @@ void GLSLGenerator::GenerateCodePrimary(
         {
             /* Pre-process AST before generation begins */
             PreProcessAST(inputDesc, outputDesc);
+            PrepareBindlessResources(outputDesc);
 
             /* Write header */
             if (inputDesc.entryPoint.empty())
@@ -417,8 +419,20 @@ IMPLEMENT_VISIT_PROC(Program)
     }
     EndSep();
 
-    /* Write global program statements */
-    WriteStmntList(ast->globalStmnts, true);
+    /* Bindless storage-buffer declarations can reference user structs. Emit all declarations before the generated arrays and functions. */
+    std::vector<StmntPtr> declarations;
+    std::vector<StmntPtr> functions;
+    for (const auto& stmnt : ast->globalStmnts)
+    {
+        auto basic = (stmnt ? stmnt->As<BasicDeclStmnt>() : nullptr);
+        if (basic && basic->declObject && basic->declObject->As<FunctionDecl>())
+            functions.push_back(stmnt);
+        else
+            declarations.push_back(stmnt);
+    }
+    WriteStmntList(declarations, true);
+    WriteBindlessDeclarations();
+    WriteStmntList(functions, true);
 }
 
 IMPLEMENT_VISIT_PROC(CodeBlock)
@@ -1062,6 +1076,37 @@ IMPLEMENT_VISIT_PROC(ArrayExpr)
     WriteArrayExpr(*ast);
 }
 
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    const Reflection::BindlessBinding* binding = nullptr;
+    if (ast->heap != DescriptorHeapKind::Undefined && ast->resolvedTypeDenoter)
+    {
+        auto program = GetProgram();
+        const auto count = std::min(program->bindlessResourceTypes.size(), program->bindlessBindings.size());
+        for (std::size_t bindingIndex = 0; bindingIndex < count; ++bindingIndex)
+        {
+            const auto& resource = program->bindlessResourceTypes[bindingIndex];
+            if (resource.heap == ast->heap && resource.type && resource.type->Equals(*ast->resolvedTypeDenoter))
+            {
+                binding = &program->bindlessBindings[bindingIndex];
+                break;
+            }
+        }
+    }
+
+    if (binding)
+    {
+        Write(binding->ident);
+        Write("[");
+        Visit(ast->index);
+        Write("]");
+        if (binding->bindingClass == Reflection::BindlessBindingClass::ReadOnlyStorageBufferArray || binding->bindingClass == Reflection::BindlessBindingClass::ReadWriteStorageBufferArray)
+            Write(".data");
+    }
+    else
+        Error("missing generated binding for descriptor heap access", ast);
+}
+
 IMPLEMENT_VISIT_PROC(CastExpr)
 {
     WriteTypeDenoter(*ast->typeSpecifier->typeDenoter, false, ast);
@@ -1169,7 +1214,7 @@ void GLSLGenerator::PreProcessOpaqueTypeLowering(const ShaderOutput& outputDesc)
     /* This pass only does work when the OpaqueStructTypes language extension is
        enabled. Without it, the HLSL analyzer has already rejected opaque-bearing
        structs, so the resolver would be a no-op anyway. */
-    if (!extensions_(Extensions::OpaqueStructTypes))
+    if (!extensions_(Extensions::OpaqueStructTypes) && !extensions_(Extensions::BindlessResources))
         return;
 
     /* GLSL/SPIR-V disallows opaque values in several source-language positions. */
@@ -1289,7 +1334,179 @@ void GLSLGenerator::WriteProgramHeaderVersion()
 
 void GLSLGenerator::WriteProgramHeaderExtension(const std::string& extensionName)
 {
-    WriteLn("#extension " + extensionName + " : enable");// "require" or "enable"
+    WriteLn("#extension " + extensionName + (extensionName == E_GL_EXT_nonuniform_qualifier ? " : require" : " : enable"));
+}
+
+void GLSLGenerator::WriteBindlessDeclarations()
+{
+    auto program = GetProgram();
+    if (program->bindlessBindings.empty())
+        return;
+
+    const auto count = std::min(program->bindlessResourceTypes.size(), program->bindlessBindings.size());
+    for (std::size_t bindingIndex = 0; bindingIndex < count; ++bindingIndex)
+        WriteBindlessDeclaration(program->bindlessResourceTypes[bindingIndex], program->bindlessBindings[bindingIndex], bindingIndex);
+    Blank();
+}
+
+void GLSLGenerator::WriteBindlessDeclaration(const BindlessResourceType& resource, const Reflection::BindlessBinding& binding, std::size_t index)
+{
+    BeginLn();
+    {
+        if (resource.heap == DescriptorHeapKind::Sampler)
+        {
+            auto sampler = (resource.type ? resource.type->GetAliased().As<SamplerTypeDenoter>() : nullptr);
+            const bool comparison = (sampler && sampler->samplerType == SamplerType::SamplerComparisonState);
+            Write("layout(set = " + std::to_string(binding.set) + ", binding = " + std::to_string(binding.location) + ") ");
+            Write("uniform ");
+            Write(comparison ? "samplerShadow " : "sampler ");
+            Write(binding.ident + "[];");
+        }
+        else
+        {
+            auto buffer = (resource.type ? resource.type->GetAliased().As<BufferTypeDenoter>() : nullptr);
+            if (!buffer)
+            {
+                Error("invalid bindless resource type");
+                EndLn();
+                return;
+            }
+
+            if (binding.bindingClass == Reflection::BindlessBindingClass::ReadOnlyStorageBufferArray || binding.bindingClass == Reflection::BindlessBindingClass::ReadWriteStorageBufferArray)
+            {
+                Write("layout(std430, set = " + std::to_string(binding.set) + ", binding = " + std::to_string(binding.location) + ") ");
+                if (binding.bindingClass == Reflection::BindlessBindingClass::ReadOnlyStorageBufferArray)
+                    Write("readonly ");
+                Write("buffer XscBindlessBlock" + std::to_string(index) + " {");
+                EndLn();
+                IncIndent();
+                {
+                    BeginLn();
+                    if (buffer->bufferType == BufferType::ByteAddressBuffer || buffer->bufferType == BufferType::RWByteAddressBuffer)
+                        Write("uint");
+                    else
+                        WriteTypeDenoter(*buffer->GetGenericTypeDenoter(), IsESSL());
+                    Write(" data[];");
+                    EndLn();
+                }
+                DecIndent();
+                WriteLn("} " + binding.ident + "[];");
+                return;
+            }
+            else
+            {
+                auto format = ImageLayoutFormat::Undefined;
+                if (binding.bindingClass == Reflection::BindlessBindingClass::StorageImageArray || binding.bindingClass == Reflection::BindlessBindingClass::StorageTexelBufferArray)
+                {
+                    if (auto base = buffer->GetGenericTypeDenoter()->As<BaseTypeDenoter>())
+                        format = DataTypeToImageLayoutFormat(base->dataType);
+                }
+
+                Write("layout(");
+                if (auto formatKeyword = ImageLayoutFormatToGLSLKeyword(format))
+                    Write(*formatKeyword + ", ");
+                Write("set = " + std::to_string(binding.set) + ", binding = " + std::to_string(binding.location) + ") uniform ");
+
+                if (auto base = buffer->GetGenericTypeDenoter()->As<BaseTypeDenoter>())
+                {
+                    if (IsIntType(base->dataType))
+                        Write("i");
+                    else if (IsUIntType(base->dataType))
+                        Write("u");
+                }
+                if (auto keyword = BufferTypeToKeyword(buffer->bufferType))
+                    Write(*keyword);
+                Write(" " + binding.ident + "[];");
+            }
+        }
+    }
+    EndLn();
+}
+
+void GLSLGenerator::PrepareBindlessResources(const ShaderOutput& outputDesc)
+{
+    auto program = GetProgram();
+    program->bindlessBindings.clear();
+    if (program->bindlessResourceTypes.empty())
+        return;
+
+    if (!IsVKSL())
+    {
+        Error("bindless resources require a Vulkan GLSL output target");
+        return;
+    }
+
+    std::set<int> usedBindings;
+    auto reserveRegisters = [this, &usedBindings, &outputDesc](const std::vector<RegisterPtr>& registers)
+    {
+        if (auto reg = Register::GetForTarget(registers, GetShaderTarget()))
+        {
+            if (reg->space == outputDesc.options.bindlessBindingSet && reg->slot >= 0)
+                usedBindings.insert(reg->slot);
+        }
+    };
+    for (const auto& stmnt : program->globalStmnts)
+    {
+        if (auto buffers = (stmnt ? stmnt->As<BufferDeclStmnt>() : nullptr))
+        {
+            for (const auto& buffer : buffers->bufferDecls)
+                reserveRegisters(buffer->slotRegisters);
+        }
+        else if (auto samplers = (stmnt ? stmnt->As<SamplerDeclStmnt>() : nullptr))
+        {
+            for (const auto& sampler : samplers->samplerDecls)
+                reserveRegisters(sampler->slotRegisters);
+        }
+        else if (auto basic = (stmnt ? stmnt->As<BasicDeclStmnt>() : nullptr))
+        {
+            if (auto uniformBuffer = (basic->declObject ? basic->declObject->As<UniformBufferDecl>() : nullptr))
+                reserveRegisters(uniformBuffer->slotRegisters);
+        }
+    }
+
+    int nextBinding = outputDesc.options.autoBindingStartSlot;
+    for (std::size_t bindingIndex = 0; bindingIndex < program->bindlessResourceTypes.size(); ++bindingIndex)
+    {
+        const auto& resource = program->bindlessResourceTypes[bindingIndex];
+        while (usedBindings.find(nextBinding) != usedBindings.end())
+            ++nextBinding;
+
+        Reflection::BindlessBinding binding;
+        binding.heap         = (resource.heap == DescriptorHeapKind::Sampler ? Reflection::BindlessHeapKind::Sampler : Reflection::BindlessHeapKind::Resource);
+        binding.location     = nextBinding;
+        binding.set          = outputDesc.options.bindlessBindingSet;
+        binding.ident        = "xsc_bindless_" + std::to_string(bindingIndex);
+        binding.resourceType = (resource.type ? resource.type->ToString() : "");
+
+        if (resource.heap == DescriptorHeapKind::Sampler)
+            binding.bindingClass = Reflection::BindlessBindingClass::SamplerArray;
+        else if (auto buffer = (resource.type ? resource.type->GetAliased().As<BufferTypeDenoter>() : nullptr))
+        {
+            switch (buffer->bufferType)
+            {
+                case BufferType::Buffer:                  binding.bindingClass = Reflection::BindlessBindingClass::UniformTexelBufferArray; break;
+                case BufferType::RWBuffer:                binding.bindingClass = Reflection::BindlessBindingClass::StorageTexelBufferArray; break;
+                case BufferType::StructuredBuffer:
+                case BufferType::ByteAddressBuffer:       binding.bindingClass = Reflection::BindlessBindingClass::ReadOnlyStorageBufferArray; break;
+                case BufferType::RWStructuredBuffer:
+                case BufferType::RWByteAddressBuffer:     binding.bindingClass = Reflection::BindlessBindingClass::ReadWriteStorageBufferArray; break;
+                case BufferType::RWTexture1D:
+                case BufferType::RWTexture1DArray:
+                case BufferType::RWTexture2D:
+                case BufferType::RWTexture2DArray:
+                case BufferType::RWTexture3D:             binding.bindingClass = Reflection::BindlessBindingClass::StorageImageArray; break;
+                default:                                  binding.bindingClass = Reflection::BindlessBindingClass::SampledImageArray; break;
+            }
+        }
+        else
+        {
+            Error("invalid resource type registered for a bindless descriptor heap");
+            return;
+        }
+
+        program->bindlessBindings.push_back(binding);
+        usedBindings.insert(nextBinding++);
+    }
 }
 
 /* ----- Global layouts ----- */

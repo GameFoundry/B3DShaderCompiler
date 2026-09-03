@@ -573,6 +573,15 @@ IMPLEMENT_VISIT_PROC(InitializerExpr)
     PopPrintable();
 }
 
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    PushPrintable(ast, WriteLabel("DescriptorHeapExpr (" + ast->HeapIdentifier() + ")", ast));
+    {
+        VISIT_MEMBER(index);
+    }
+    PopPrintable();
+}
+
 #undef IMPLEMENT_VISIT_PROC
 #undef VISIT_MEMBER
 #undef ADD_PRINTABLE_MEMBER

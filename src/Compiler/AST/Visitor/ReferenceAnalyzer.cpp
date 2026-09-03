@@ -39,6 +39,10 @@ void ReferenceAnalyzer::MarkReferencesFromEntryPoint(Program& program, const Sha
         else if (const auto& samplerDeclStmnt = stmt->As<SamplerDeclStmnt>())
             Visit(samplerDeclStmnt);
     }
+
+    /* Visit types required by compiler-generated bindless declarations. */
+    for (const auto& resource : program.bindlessResourceTypes)
+        MarkTypeDenoterReferences(resource.type.get());
 }
 
 
@@ -49,6 +53,20 @@ void ReferenceAnalyzer::MarkReferencesFromEntryPoint(Program& program, const Sha
 bool ReferenceAnalyzer::Reachable(AST* ast)
 {
     return (ast ? ast->flags.SetOnce(AST::isReachable) : false);
+}
+
+void ReferenceAnalyzer::MarkTypeDenoterReferences(const TypeDenoter* typeDenoter)
+{
+    if (!typeDenoter)
+        return;
+
+    Visit(typeDenoter->SymbolRef());
+
+    const auto& aliasedTypeDenoter = typeDenoter->GetAliased();
+    if (&aliasedTypeDenoter != typeDenoter)
+        Visit(aliasedTypeDenoter.SymbolRef());
+
+    MarkTypeDenoterReferences(aliasedTypeDenoter.FetchSubTypeDenoter());
 }
 
 void ReferenceAnalyzer::VisitStmntList(const std::vector<StmntPtr>& stmnts)
@@ -108,7 +126,7 @@ IMPLEMENT_VISIT_PROC(TypeSpecifier)
 {
     if (Reachable(ast))
     {
-        Visit(ast->typeDenoter->SymbolRef());
+        MarkTypeDenoterReferences(ast->typeDenoter.get());
         VISIT_DEFAULT(TypeSpecifier);
     }
 }
@@ -199,15 +217,7 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
 {
     if (Reachable(ast))
     {
-        if (auto genericTypeDenoter = ast->typeDenoter->genericTypeDenoter.get())
-        {
-            if (auto structTypeDen = genericTypeDenoter->As<StructTypeDenoter>())
-            {
-                /* Mark structure declaration of generic type denoter as referenced */
-                Visit(structTypeDen->structDeclRef);
-            }
-        }
-
+        MarkTypeDenoterReferences(ast->typeDenoter->genericTypeDenoter.get());
         VISIT_DEFAULT(BufferDeclStmnt);
     }
 }

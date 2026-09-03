@@ -44,8 +44,13 @@ void RegisterBackend_GLSL()
     registry.Register(TargetLanguage::ESSL320, { OutputShaderVersion::ESSL320, factory });
     registry.Register(TargetLanguage::ESSL,    { OutputShaderVersion::ESSL,    factory });
 
-    registry.Register(TargetLanguage::VKSL450, { OutputShaderVersion::VKSL450, factory });
-    registry.Register(TargetLanguage::VKSL,    { OutputShaderVersion::VKSL,    factory });
+    BackendDescriptor vksl450 { OutputShaderVersion::VKSL450, factory };
+    BackendDescriptor vksl    { OutputShaderVersion::VKSL,    factory };
+    vksl450.features |= BackendDescriptor::BindlessResources;
+    vksl.features    |= BackendDescriptor::BindlessResources;
+
+    registry.Register(TargetLanguage::VKSL450, vksl450);
+    registry.Register(TargetLanguage::VKSL,    vksl);
 }
 
 

@@ -141,6 +141,29 @@ static bool DescribeResource(const ExprPtr& expr, Decl*& root, std::vector<Index
     return false;
 }
 
+// Returns true when an access indexes the contents of a resource object, rather than an array of resources.
+// e.g. storageBuffer[index] = value . This is image store operation rather than a resource array access, same for texture reads.
+static bool IsResourceDataAccess(const ExprPtr& expr)
+{
+    if (!expr)
+        return false;
+    if (expr->As<DescriptorHeapExpr>())
+        return false;
+    if (auto bracket = expr->As<BracketExpr>())
+        return IsResourceDataAccess(bracket->expr);
+    if (auto object = expr->As<ObjectExpr>())
+        return IsResourceDataAccess(object->prefixExpr);
+    if (auto array = expr->As<ArrayExpr>())
+    {
+        const auto prefixType = array->prefixExpr->GetTypeDenoter()->GetSub();
+        if (prefixType->GetAliased().As<BufferTypeDenoter>())
+            return true;
+
+        return IsResourceDataAccess(array->prefixExpr);
+    }
+    return false;
+}
+
 
 /* ----- Dataflow lattice helpers (file-local) ----- */
 
@@ -652,6 +675,35 @@ OpaqueValue OpaqueProgramAnalyzer::Evaluate(const ExprPtr& expr, BindingEnvironm
     if (auto initializer = expr->As<InitializerExpr>())
         return EvaluateInitializer(*initializer, env, expectedLayout, expectedNode);
 
+    if (auto descriptor = expr->As<DescriptorHeapExpr>())
+    {
+        if (descriptor->resolvedTypeDenoter)
+        {
+            OpaqueValue value;
+            value.layout = expectedLayout;
+            value.node   = expectedNode;
+            if (!value.node)
+            {
+                value.layout = layouts_.Get(descriptor->resolvedTypeDenoter, descriptor);
+                value.node   = (value.layout ? value.layout->root : nullptr);
+            }
+            if (value.node && value.node->hasOpaque)
+            {
+                value.bindings.resize(value.node->laneIndices.size());
+                for (auto& binding : value.bindings)
+                {
+                    binding = OpaqueBinding::Descriptor(
+                        descriptor->heap,
+                        descriptor->resolvedTypeDenoter,
+                        descriptor->index
+                    );
+                }
+                plan_.expressionValues[expr.get()] = value;
+                return value;
+            }
+        }
+    }
+
     OpaqueValue accessValue = EvaluateAccess(expr, env);
     if (accessValue.Valid())
     {
@@ -785,6 +837,33 @@ LayoutNodePtr OpaqueProgramAnalyzer::FindLaneNode(const LayoutNodePtr& node, std
 
 OpaqueValue OpaqueProgramAnalyzer::EvaluateAccess(const ExprPtr& expr, BindingEnvironment& env)
 {
+    // Treat buffer[index].member as a data read, not a projection of the resource alias itself.
+    if (auto object = (expr ? expr->As<ObjectExpr>() : nullptr))
+    {
+        if (auto element = (object->prefixExpr ? object->prefixExpr->As<ArrayExpr>() : nullptr))
+        {
+            const auto resourceType = element->prefixExpr->GetTypeDenoter()->GetSub();
+            if (resourceType->GetAliased().As<BufferTypeDenoter>())
+            {
+                Evaluate(object->prefixExpr, env, nullptr, nullptr);
+                return OpaqueValue{};
+            }
+        }
+    }
+
+    if (auto array = (expr ? expr->As<ArrayExpr>() : nullptr))
+    {
+        // Treat buffer[index] as a data read while still resolving the resource alias in its prefix.
+        const auto prefixType = array->prefixExpr->GetTypeDenoter()->GetSub();
+        if (prefixType->GetAliased().As<BufferTypeDenoter>())
+        {
+            Evaluate(array->prefixExpr, env, nullptr, nullptr);
+            for (const auto& index : array->arrayIndices)
+                Evaluate(index, env, nullptr, nullptr);
+            return OpaqueValue{};
+        }
+    }
+
     AccessDescription access;
     if (DescribeAccess(expr, access))
     {
@@ -991,6 +1070,13 @@ OpaqueBinding OpaqueProgramAnalyzer::GeneralizeDynamicLane(
 
 OpaqueValue OpaqueProgramAnalyzer::EvaluateAssignment(AssignExpr& assign, BindingEnvironment& env)
 {
+    // Treat buffer[index] assignments as data writes, not assignments to the resource alias itself.
+    if (IsResourceDataAccess(assign.lvalueExpr))
+    {
+        Evaluate(assign.lvalueExpr, env, nullptr, nullptr);
+        return Evaluate(assign.rvalueExpr, env, nullptr, nullptr);
+    }
+
     AccessDescription access;
     if (DescribeAccess(assign.lvalueExpr, access))
     {

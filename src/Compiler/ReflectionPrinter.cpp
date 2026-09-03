@@ -29,12 +29,26 @@ void ReflectionPrinter::PrintReflection(const Reflection::ReflectionData& reflec
         PrintReflectionObjects  ( reflectionData.storageBuffers,   "Storage Buffers"   );
         PrintReflectionObjects  ( reflectionData.constantBuffers,  "Constant Buffers"  );
         PrintReflectionObjects  ( reflectionData.pushConstantBuffers, "Push Constants" );
+        PrintReflectionObjects  ( reflectionData.bindless,         "Bindless Resources" );
         PrintReflectionObjects  ( reflectionData.inputAttributes,  "Input Attributes"  );
         PrintReflectionObjects  ( reflectionData.outputAttributes, "Output Attributes" );
         PrintReflectionObjects  ( reflectionData.samplerStates,    "Sampler States"    );
         PrintReflectionAttribute( reflectionData.numThreads,       "Number of Threads" );
     }
     indentHandler_.DecIndent();
+}
+
+void ReflectionPrinter::PrintReflectionObjects(const Reflection::BindlessUsage& bindless, const std::string& title)
+{
+    IndentOut() << title << ':' << std::endl;
+    ScopedIndent indent(indentHandler_);
+
+    IndentOut() << "Resource heap: " << (bindless.resourceHeap ? "used" : "unused") << std::endl;
+    IndentOut() << "Sampler heap: " << (bindless.samplerHeap ? "used" : "unused") << std::endl;
+    for (const auto& binding : bindless.bindings)
+    {
+        IndentOut() << binding.ident << ": " << binding.resourceType << ", set " << binding.set << ", binding " << binding.location << std::endl;
+    }
 }
 
 

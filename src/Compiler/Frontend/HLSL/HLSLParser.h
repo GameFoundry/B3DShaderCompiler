@@ -139,6 +139,7 @@ class HLSLParser : public SLParser
 
         ExprPtr                         ParsePrimaryExpr() override;
         ExprPtr                         ParsePrimaryExprPrefix();
+        ExprPtr                         ParseDescriptorHeapExpr();
         ExprPtr                         ParseExprWithSuffixOpt(ExprPtr expr);
         LiteralExprPtr                  ParseLiteralExpr();
         ExprPtr                         ParseTypeSpecifierOrCallExpr();

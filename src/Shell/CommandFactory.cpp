@@ -88,6 +88,7 @@ CommandFactory::CommandFactory()
         RowMajorAlignmentCommand,
         AutoBindingCommand,
         AutoBindingStartSlotCommand,
+        BindlessBindingSetCommand,
         PushConstantSizeCommand,
         PushConstantRegisterCommand,
         PushConstantSpaceCommand,

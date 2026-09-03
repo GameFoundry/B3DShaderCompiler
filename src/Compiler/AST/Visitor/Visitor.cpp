@@ -310,6 +310,11 @@ IMPLEMENT_VISIT_PROC(InitializerExpr)
     Visit(ast->exprs);
 }
 
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    Visit(ast->index);
+}
+
 #undef IMPLEMENT_VISIT_PROC
 
 

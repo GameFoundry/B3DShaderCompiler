@@ -112,6 +112,7 @@ class ExprConverter : public VisitorTracker
         DECL_VISIT_PROC( CallExpr         );
         DECL_VISIT_PROC( BracketExpr      );
         DECL_VISIT_PROC( CastExpr         );
+        DECL_VISIT_PROC( DescriptorHeapExpr );
         DECL_VISIT_PROC( ObjectExpr       );
         DECL_VISIT_PROC( AssignExpr       );
         DECL_VISIT_PROC( ArrayExpr        );

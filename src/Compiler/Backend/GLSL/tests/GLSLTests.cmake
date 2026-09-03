@@ -39,6 +39,40 @@ set(XSC_BIN "$<TARGET_FILE:xsc>")
 set(_GLSL_TESTS_DIR "${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests")
 set(_GLSL_OUT_DIR   "${CMAKE_BINARY_DIR}/glsl_roundtrip")
 
+# Helper: add_expect_error(<name> <shader> <entry> <stage> <regex>
+#                          [EXTRA_FLAGS <flags>]
+#                          [LABELS <label>...])
+# Registers a shader that must be rejected, pinned to its diagnostic.
+# EXTRA_FLAGS supports '@' as intra-flag separator (matching xsc_add_roundtrip_tests).
+# LABELS defaults to "glsl-roundtrip;opaque-struct;negative" if omitted.
+function(add_expect_error _name _shader _entry _stage _regex)
+    cmake_parse_arguments(_ERR "" "" "EXTRA_FLAGS;LABELS" ${ARGN})
+
+    set(_extra_flags "")
+    if(_ERR_EXTRA_FLAGS)
+        string(REPLACE "@" ";" _extra_flags "${_ERR_EXTRA_FLAGS}")
+    endif()
+
+    set(_labels "glsl-roundtrip;opaque-struct;negative")
+    if(_ERR_LABELS)
+        set(_labels "${_ERR_LABELS}")
+    endif()
+
+    add_test(
+        NAME    glsl_reject.${_name}
+        COMMAND ${CMAKE_COMMAND}
+            -DXSC=${XSC_BIN}
+            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
+            -DENTRY=${_entry}
+            -DXSC_STAGE=${_stage}
+            -DOUT_DIR=${_GLSL_OUT_DIR}
+            "-DEXPECT_REGEX=${_regex}"
+            "-DXSC_EXTRA_FLAGS=${_extra_flags}"
+            -P ${_GLSL_TESTS_DIR}/RunXscExpectError.cmake
+    )
+    set_tests_properties(glsl_reject.${_name} PROPERTIES LABELS "${_labels}")
+endfunction()
+
 # --- Positive round-trip cases ---------------------------------------------
 # Pipe-delimited: shader|entry|stage. All opaque-struct cases compile with the
 # OpaqueStructTypes language extension enabled.
@@ -93,6 +127,36 @@ xsc_add_roundtrip_tests(
     EXTRA_FLAGS -Xopaque-struct@ON
     CASES       ${XSC_GLSL_ROUNDTRIP_CASES}
 )
+
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;bindless"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@--bindless-set@2
+    CASES
+        "BindlessResources|PS|frag"
+        "BindlessResourceClasses|CS|comp"
+)
+
+add_expect_error(UnsupportedResource BindlessUnsupportedResource CS comp
+    "bindless append/consume buffers require an explicit counter handle"
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON
+    LABELS "glsl-roundtrip;bindless;negative")
+add_expect_error(ExtensionDisabled BindlessExtensionDisabled PS frag
+    "ResourceDescriptorHeap' requires the 'bindless' language extension"
+    EXTRA_FLAGS -Vin@HLSL6
+    LABELS "glsl-roundtrip;bindless;negative")
+add_expect_error(KindMismatch BindlessKindMismatch PS frag
+    "ResourceDescriptorHeap' cannot provide a resource of type 'SamplerState'"
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON
+    LABELS "glsl-roundtrip;bindless;negative")
+add_expect_error(MissingContext BindlessMissingContext PS frag
+    "ResourceDescriptorHeap' must initialize or be assigned to a resource variable"
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON
+    LABELS "glsl-roundtrip;bindless;negative")
 
 xsc_add_roundtrip_tests(
     PREFIX      glsl_roundtrip
@@ -164,59 +228,39 @@ xsc_add_roundtrip_tests(
 
 # --- Negative (expect-error) cases -----------------------------------------
 # Each registers a shader that must be rejected, pinned to its diagnostic.
-# Helper: add_expect_error(<name> <shader> <entry> <stage> <regex> <extra flags...>)
-function(add_expect_error _name _shader _entry _stage _regex)
-    add_test(
-        NAME    glsl_reject.${_name}
-        COMMAND ${CMAKE_COMMAND}
-            -DXSC=${XSC_BIN}
-            -DSHADER=${PROJECT_SOURCE_DIR}/test/${_shader}.hlsl
-            -DENTRY=${_entry}
-            -DXSC_STAGE=${_stage}
-            -DOUT_DIR=${_GLSL_OUT_DIR}
-            "-DEXPECT_REGEX=${_regex}"
-            ${ARGN}
-            -P ${_GLSL_TESTS_DIR}/RunXscExpectError.cmake
-    )
-    set_tests_properties(glsl_reject.${_name} PROPERTIES LABELS "glsl-roundtrip;opaque-struct;negative")
-endfunction()
-
 # With the extension enabled, these specific unsupported patterns are rejected.
-add_expect_error(Global       OpaqueStructRejectGlobal       main frag "cannot be declared as globals"        "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(Entry        OpaqueStructRejectEntry        main frag "entry-point parameters or return types" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(CBuffer      OpaqueStructRejectCBuffer      main frag "constant-buffer members"               "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(CondReassign OpaqueStructRejectCondReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(LoopReassign OpaqueStructRejectLoopReassign main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(ReturnAmbiguous OpaqueStructRejectReturnAmbiguous main frag "cannot be resolved to a single global"  "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(Global       OpaqueStructRejectGlobal       main frag "cannot be declared as globals"          EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(Entry        OpaqueStructRejectEntry        main frag "entry-point parameters or return types" EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(CBuffer      OpaqueStructRejectCBuffer      main frag "constant-buffer members"                 EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(CondReassign OpaqueStructRejectCondReassign main frag "cannot be resolved to a single global"    EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(LoopReassign OpaqueStructRejectLoopReassign main frag "cannot be resolved to a single global"    EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(ReturnAmbiguous OpaqueStructRejectReturnAmbiguous main frag "cannot be resolved to a single global" EXTRA_FLAGS -Xopaque-struct@ON)
 # Without the extension, the struct is rejected outright (no extra flags).
 add_expect_error(ExtDisabled  OpaqueStructRejectExtDisabled  main frag "opaque-struct' language extension is enabled")
 
-add_expect_error(UnrelatedRuntime OpaqueTypeRejectUnrelatedRuntime main frag "runtime indexing requires one cohesive" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(DynamicWrite     OpaqueTypeRejectDynamicWrite     main frag "runtime-indexed writes to opaque values" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(UnsizedArray     OpaqueTypeRejectUnsizedArray     main frag "require a fixed, positive compile-time extent" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(DefaultArgument  OpaqueTypeRejectDefaultArgument  main frag "cannot use default arguments" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "cannot return a structure containing opaque resources" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
-add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" "-DXSC_EXTRA_FLAGS=-Xopaque-struct;ON")
+add_expect_error(UnrelatedRuntime OpaqueTypeRejectUnrelatedRuntime main frag "runtime indexing requires one cohesive" EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(DynamicWrite     OpaqueTypeRejectDynamicWrite     main frag "runtime-indexed writes to opaque values" EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(UnsizedArray     OpaqueTypeRejectUnsizedArray     main frag "require a fixed, positive compile-time extent" EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(DefaultArgument  OpaqueTypeRejectDefaultArgument  main frag "cannot use default arguments" EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "cannot return a structure containing opaque resources" EXTRA_FLAGS -Xopaque-struct@ON)
+add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" EXTRA_FLAGS -Xopaque-struct@ON)
 add_expect_error(LocalExtDisabled OpaqueTypeLocalTexture           main frag "opaque-struct' language extension is enabled")
 
-add_expect_error(PushConstantType      PushConstantInvalidType main vert "must be a non-array scalar" "-DXSC_EXTRA_FLAGS=-Xall")
-add_expect_error(PushConstantArray     PushConstantInvalidArray main vert "must be a non-array scalar" "-DXSC_EXTRA_FLAGS=-Xall")
-add_expect_error(PushConstantSize      PushConstantInvalidSize main vert "exceeding the configured maximum of 16 bytes" "-DXSC_EXTRA_FLAGS=-Xall")
-add_expect_error(PushConstantDuplicate PushConstantDuplicate   main vert "only one push-constant buffer" "-DXSC_EXTRA_FLAGS=-Xall")
+add_expect_error(PushConstantType      PushConstantInvalidType main vert "must be a non-array scalar"
+    EXTRA_FLAGS -Xall
+    LABELS "glsl-roundtrip;push-constants;negative")
+add_expect_error(PushConstantArray     PushConstantInvalidArray main vert "must be a non-array scalar"
+    EXTRA_FLAGS -Xall
+    LABELS "glsl-roundtrip;push-constants;negative")
+add_expect_error(PushConstantSize      PushConstantInvalidSize main vert "exceeding the configured maximum of 16 bytes"
+    EXTRA_FLAGS -Xall
+    LABELS "glsl-roundtrip;push-constants;negative")
+add_expect_error(PushConstantDuplicate PushConstantDuplicate   main vert "only one push-constant buffer"
+    EXTRA_FLAGS -Xall
+    LABELS "glsl-roundtrip;push-constants;negative")
 
-add_test(
-    NAME glsl_reject.TemplateExtensionDisabled
-    COMMAND ${CMAKE_COMMAND}
-        -DXSC=${XSC_BIN}
-        -DSHADER=${PROJECT_SOURCE_DIR}/test/TemplateTest1.hlsl
-        -DENTRY=VS
-        -DXSC_STAGE=vert
-        -DOUT_DIR=${_GLSL_OUT_DIR}
-        "-DEXPECT_REGEX=hlsl-templates' language extension"
-        -P ${_GLSL_TESTS_DIR}/RunXscExpectError.cmake
-)
-set_tests_properties(glsl_reject.TemplateExtensionDisabled
-    PROPERTIES LABELS "glsl-roundtrip;hlsl-templates;negative")
+add_expect_error(TemplateExtensionDisabled TemplateTest1 VS vert "hlsl-templates' language extension"
+    LABELS "glsl-roundtrip;hlsl-templates;negative")
 
 # add_generated_glsl_assert(<name> <shader> <expect regex> <reject regex> [<labels>])
 function(add_generated_glsl_assert _name _shader _expect _reject)

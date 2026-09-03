@@ -103,6 +103,9 @@ void Compiler::ValidateArguments(const ShaderInput& inputDesc, const ShaderOutpu
     if (outputDesc.options.pushConstantHLSLRegisterSpace < 0)
         throw std::invalid_argument(R_InvalidPushConstantHLSLRegisterSpace);
 
+    if (outputDesc.options.bindlessBindingSet < 0)
+        throw std::invalid_argument("bindless binding set/register space must not be negative");
+
     const auto& nameMngl = outputDesc.nameMangling;
     
     if (nameMngl.reservedWordPrefix.empty())
@@ -246,6 +249,13 @@ bool Compiler::CompileShaderPrimary(
 
     if (!analyzerResult)
         return ReturnWithError(R_AnalyzingSourceFailed);
+
+    if (!program->bindlessResourceTypes.empty())
+    {
+        const auto* backend = BackendRegistry::Instance().Find(outputDesc.targetLanguage);
+        if (!backend || (backend->features & BackendDescriptor::BindlessResources) == 0)
+            return ReturnWithError("the selected output backend does not support bindless resources");
+    }
 
     /* Optimize AST */
     timePoints_.optimizer = Time::now();

@@ -486,6 +486,45 @@ struct PushConstantBuffer
     std::vector<PushConstantMember> members;
 };
 
+//! Descriptor heap selected by a bindless source access.
+enum class BindlessHeapKind
+{
+    Resource, //!< ResourceDescriptorHeap.
+    Sampler,  //!< SamplerDescriptorHeap.
+};
+
+//! Runtime binding representation manufactured by the selected backend.
+enum class BindlessBindingClass
+{
+    SampledImageArray,          //!< Runtime array of sampled images.
+    StorageImageArray,          //!< Runtime array of storage images.
+    UniformTexelBufferArray,    //!< Runtime array of read-only typed buffers.
+    StorageTexelBufferArray,    //!< Runtime array of writable typed buffers.
+    ReadOnlyStorageBufferArray, //!< Runtime array of read-only storage buffers.
+    ReadWriteStorageBufferArray, //!< Runtime array of writable storage buffers.
+    SamplerArray,               //!< Runtime array of samplers.
+    DescriptorBuffer,           //!< Buffer containing native resource or sampler descriptors.
+};
+
+//! One compiler-generated bindless ABI binding.
+struct BindlessBinding
+{
+    std::string             ident;                                                          //!< Generated shader identifier.
+    std::string             resourceType;                                                   //!< Source resource type for typed views, or native descriptor element type.
+    BindlessHeapKind        heap         = BindlessHeapKind::Resource;                      //!< Source descriptor heap.
+    BindlessBindingClass    bindingClass = BindlessBindingClass::SampledImageArray;         //!< Runtime representation.
+    int                     location     = -1;                                               //!< Binding or register index.
+    int                     set          = 0;                                                //!< Descriptor set or register space.
+};
+
+//! Bindless heap usage and the backend-specific bindings required at runtime.
+struct BindlessUsage
+{
+    bool                         resourceHeap = false; //!< ResourceDescriptorHeap is used.
+    bool                         samplerHeap  = false; //!< SamplerDescriptorHeap is used.
+    std::vector<BindlessBinding> bindings;             //!< Backend-generated runtime ABI.
+};
+
 //! Structure for shader output statistics (e.g. texture/buffer binding points).
 struct ReflectionData
 {
@@ -503,6 +542,9 @@ struct ReflectionData
 
     //! Push-constant blocks. The BSL portable contract currently allows at most one.
     std::vector<PushConstantBuffer>     pushConstantBuffers;
+
+    //! Portable descriptor-heap usage and generated backend ABI.
+    BindlessUsage                       bindless;
 
     //! Shader input attributes.
     std::vector<BindingSlot>            inputAttributes;

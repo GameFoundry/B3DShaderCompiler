@@ -2,9 +2,9 @@
 #
 # Self-contained CTest registration for the HLSL round-trip suite. Included
 # from the root CMakeLists.txt when XSC_BUILD_HLSL=ON and
-# XSC_BUILD_HLSL_ROUNDTRIP_TESTS=ON. Locates fxc, registers per-case tests that
-# run `xsc -Vout HLSL5` on shaders from test/ and re-compile the output with
-# fxc to verify the result is valid HLSL.
+# XSC_BUILD_HLSL_ROUNDTRIP_TESTS=ON. Locates fxc and dxc, registers per-case
+# tests that round-trip shaders through the matching HLSL target, and compiles
+# the result with the vendor compiler.
 
 if(NOT WIN32)
     message(WARNING "XSC_BUILD_HLSL_ROUNDTRIP_TESTS requires fxc.exe; only Windows is supported.")
@@ -21,8 +21,15 @@ find_program(FXC_EXECUTABLE fxc
         "C:/Program Files (x86)/Windows Kits/10/bin/x64"
 )
 
-if(NOT FXC_EXECUTABLE)
-    message(WARNING "fxc.exe not found; HLSL round-trip tests will not be registered.")
+find_program(DXC_EXECUTABLE dxc
+    HINTS
+        "$ENV{VULKAN_SDK}/Bin"
+        "$ENV{VULKAN_SDK}/bin"
+        "C:/Program Files (x86)/Windows Kits/10/bin/x64"
+)
+
+if(NOT FXC_EXECUTABLE AND NOT DXC_EXECUTABLE)
+    message(WARNING "Neither fxc.exe nor dxc.exe was found; HLSL round-trip tests will not be registered.")
     return()
 endif()
 
@@ -30,7 +37,12 @@ if(NOT TARGET xsc)
     message(FATAL_ERROR "XSC_BUILD_HLSL_ROUNDTRIP_TESTS requires XSC_BUILD_SHELL=ON.")
 endif()
 
-message(STATUS "HLSL round-trip tests: using fxc at ${FXC_EXECUTABLE}")
+if(FXC_EXECUTABLE)
+    message(STATUS "HLSL 5 round-trip tests: using fxc at ${FXC_EXECUTABLE}")
+endif()
+if(DXC_EXECUTABLE)
+    message(STATUS "HLSL 6 round-trip tests: using dxc at ${DXC_EXECUTABLE}")
+endif()
 enable_testing()
 
 # Shared round-trip registration helper (xsc_add_roundtrip_tests).
@@ -44,28 +56,52 @@ set(_HLSL_OUT_DIR "${CMAKE_BINARY_DIR}/hlsl_roundtrip")
 # MVP coverage: VS/PS, arithmetic & control flow, intrinsics, function calls,
 # semantics, struct outputs. Each entry has been confirmed to compile cleanly
 # with fxc both before and after the xsc HLSL round-trip.
-set(XSC_HLSL_ROUNDTRIP_CASES
-    "ArrayTest3|main|vs_5_0|vert"
-    "ExprTest3|VS|vs_5_0|vert"
-    "ExprTest4|VS|vs_5_0|vert"
-    "ExprTest5|VS|vs_5_0|vert"
-    "FloatTest2|VS|vs_5_0|vert"
-    "FormattingTest1|VS|vs_5_0|vert"
-    "FuncOverloadTest1|PS|ps_5_0|frag"
-    "FunctionCallTest1|VS|vs_5_0|vert"
-    "SemanticTest3|VS|vs_5_0|vert"
-)
+if(FXC_EXECUTABLE)
+    set(XSC_HLSL_ROUNDTRIP_CASES
+        "ArrayTest3|main|vs_5_0|vert"
+        "ExprTest3|VS|vs_5_0|vert"
+        "ExprTest4|VS|vs_5_0|vert"
+        "ExprTest5|VS|vs_5_0|vert"
+        "FloatTest2|VS|vs_5_0|vert"
+        "FormattingTest1|VS|vs_5_0|vert"
+        "FuncOverloadTest1|PS|ps_5_0|frag"
+        "FunctionCallTest1|VS|vs_5_0|vert"
+        "SemanticTest3|VS|vs_5_0|vert"
+    )
 
-xsc_add_roundtrip_tests(
-    PREFIX         hlsl_roundtrip
-    DRIVER         ${_HLSL_DRIVER}
-    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
-    OUT_DIR        ${_HLSL_OUT_DIR}
-    LABELS         "hlsl-roundtrip"
-    DEFINES        -DFXC=${FXC_EXECUTABLE}
-    PROFILE_DEFINE FXC_PROFILE
-    CASES          ${XSC_HLSL_ROUNDTRIP_CASES}
-)
+    xsc_add_roundtrip_tests(
+        PREFIX         hlsl_roundtrip
+        DRIVER         ${_HLSL_DRIVER}
+        SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+        OUT_DIR        ${_HLSL_OUT_DIR}
+        LABELS         "hlsl-roundtrip"
+        DEFINES        -DFXC=${FXC_EXECUTABLE}
+        PROFILE_DEFINE FXC_PROFILE
+        CASES          ${XSC_HLSL_ROUNDTRIP_CASES}
+    )
+endif()
+
+if(DXC_EXECUTABLE)
+    xsc_add_roundtrip_tests(
+        PREFIX         hlsl6_roundtrip
+        DRIVER         ${_HLSL_DRIVER}
+        SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+        OUT_DIR        ${_HLSL_OUT_DIR}
+        LABELS         "hlsl-roundtrip;bindless"
+        DEFINES        -DDXC=${DXC_EXECUTABLE}
+        PROFILE_DEFINE FXC_PROFILE
+        EXTRA_FLAGS    -Xbindless@ON
+        CASES
+            "BindlessResources|PS|ps_6_6|frag"
+            "BindlessResourceClasses|CS|cs_6_6|comp"
+    )
+else()
+    message(STATUS "dxc not found; HLSL 6 bindless round-trip tests will not be registered.")
+endif()
+
+if(NOT FXC_EXECUTABLE)
+    return()
+endif()
 
 # HLSL 2021-style templates are specialized by the front end, so the HLSL5
 # round-trip remains valid for FXC as well as DX12 consumers.

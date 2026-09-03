@@ -67,6 +67,7 @@ const std::map<std::string, int>& GetGLSLExtensionVersionMap()
         { E_GL_EXT_device_group,                            110 },
         { E_GL_EXT_gpu_shader4,                             130 },
         { E_GL_EXT_multiview,                               110 },
+        { E_GL_EXT_nonuniform_qualifier,                    000 },
         { E_GL_EXT_shader_image_load_formatted,             110 },
         { E_GL_EXT_shader_non_constant_global_initializers, 110 }, // ESSL
         { E_GL_EXT_geometry_shader,                         110 },

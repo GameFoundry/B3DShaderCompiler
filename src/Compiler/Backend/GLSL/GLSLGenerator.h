@@ -141,6 +141,7 @@ class GLSLGenerator : public Generator
         DECL_VISIT_PROC( ArrayExpr         );
         DECL_VISIT_PROC( CastExpr          );
         DECL_VISIT_PROC( InitializerExpr   );
+        DECL_VISIT_PROC( DescriptorHeapExpr );
 
         /* --- Helper functions for code generation --- */
 
@@ -155,6 +156,7 @@ class GLSLGenerator : public Generator
         void PreProcessFuncNameConverter();
         void PreProcessReferenceAnalyzer(const ShaderInput& inputDesc);
         void PreProcessExprConverterSecondary();
+        void PrepareBindlessResources(const ShaderOutput& outputDesc);
 
         /* ----- Basics ----- */
 
@@ -170,6 +172,8 @@ class GLSLGenerator : public Generator
         void WriteProgramHeader();
         void WriteProgramHeaderVersion();
         void WriteProgramHeaderExtension(const std::string& extensionName);
+        void WriteBindlessDeclarations();
+        void WriteBindlessDeclaration(const BindlessResourceType& resource, const Reflection::BindlessBinding& binding, std::size_t index);
 
         /* ----- Global layouts ----- */
 

@@ -832,6 +832,18 @@ ExprPtr OpaqueASTLowerer::BindingExpression(const OpaqueBinding& binding, const 
 {
     switch (binding.kind)
     {
+        case OpaqueBinding::Kind::DescriptorHeap:
+        {
+            if (binding.indices.size() != 1 || !binding.indices.front().expression || !binding.descriptorType)
+                RuntimeErr(R_OpaqueTypeInvalidRuntimeIndex("invalid descriptor heap access"), context);
+
+            auto expression = std::make_shared<DescriptorHeapExpr>(SourcePosition::ignore);
+            expression->heap                = binding.descriptorHeap;
+            expression->index               = binding.indices.front().expression;
+            expression->resolvedTypeDenoter = binding.descriptorType->Copy();
+
+            return expression;
+        }
         case OpaqueBinding::Kind::Resource:
         case OpaqueBinding::Kind::ResourceArraySlice:
         {

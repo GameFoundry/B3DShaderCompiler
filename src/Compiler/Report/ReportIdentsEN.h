@@ -506,6 +506,16 @@ DECL_REPORT( OpaqueTypeUnsizedArray,            "opaque-bearing arrays require a
 DECL_REPORT( OpaqueTypeInvalidRuntimeIndex,     "runtime indexing requires one cohesive global or formal opaque resource array[: '{0}']"                         );
 DECL_REPORT( OpaqueTypeDynamicWrite,            "runtime-indexed writes to opaque values are not supported[: '{0}']"                                             );
 DECL_REPORT( OpaqueTypeDefaultArgument,         "opaque-bearing function parameters cannot use default arguments[: '{0}']"                                       );
+DECL_REPORT( DescriptorHeapExtDisabled,         "'{0}' requires the 'bindless' language extension"                                                              );
+DECL_REPORT( DescriptorHeapExtensionUnavailable, "descriptor heap access requires language-extension support"                                                   );
+DECL_REPORT( DescriptorHeapRequiresHLSL6,       "'{0}' requires HLSL6 input"                                                                                    );
+DECL_REPORT( DescriptorHeapNeedsContext,        "'{0}' must initialize or be assigned to a resource variable; the resource type is taken from that variable"    );
+DECL_REPORT( DescriptorHeapIndexType,           "'{0}' index must have scalar type 'uint'"                                                                      );
+DECL_REPORT( DescriptorHeapKindMismatch,        "'{0}' cannot provide a resource of type '{1}'"                                                                 );
+DECL_REPORT( DescriptorHeapUnsupportedType,     "resource type '{0}' cannot be fetched from ResourceDescriptorHeap"                                             );
+DECL_REPORT( DescriptorHeapCounterUnsupported,  "bindless append/consume buffers require an explicit counter handle and are not supported"                      );
+DECL_REPORT( NonUniformResourceIndexExtDisabled,"NonUniformResourceIndex requires the 'bindless' language extension"                                            );
+DECL_REPORT( NonUniformResourceIndexType,       "NonUniformResourceIndex argument must have scalar type 'uint'"                                                 );
 DECL_REPORT( DeclTypeDiffersFromDefType,        "declaration type '{0}' differs from definition type '{1}'"                                                     );
 DECL_REPORT( ArrayTypeCanOnlyAppearInDef,       "array type can only appear in definition of static member variables[: '{0}']"                                  );
 DECL_REPORT( ExpectedStringArgInAttribute,      "expected string as argument for attribute[ '{0}']"                                                             );
@@ -599,6 +609,7 @@ DECL_REPORT( CmdHelpValidate,                   "Enables/disables to only valida
 DECL_REPORT( CmdHelpBinding,                    "Enables/disables explicit binding slots; default={0}"                                                          );
 DECL_REPORT( CmdHelpAutoBinding,                "Enables/disables automatic binding slot generation (implies -EB); default={0}"                                 );
 DECL_REPORT( CmdHelpAutoBindingStartSlot,       "Sets the start slot index for automatic binding slot generation; default=0"                                    );
+DECL_REPORT( CmdHelpBindlessBindingSet,         "Sets the descriptor set/register space for compiler-generated bindless bindings; default=0"                   );
 DECL_REPORT( CmdHelpPushConstantSize,           "Sets the maximum logical byte range occupied by the entire BSL '[pushConstant]' cbuffer; default=16"            );
 DECL_REPORT( CmdHelpPushConstantRegister,       "Sets the HLSL constant-buffer register used for the push-constant marker; default=0"                            );
 DECL_REPORT( CmdHelpPushConstantSpace,          "Sets the HLSL register space used for the push-constant marker; default=65535"                                  );
@@ -653,9 +664,14 @@ DECL_REPORT( IllegalVectorSpaceAssignment,      "illegal assignment of '{0}' vec
 DECL_REPORT( InconsistVectorSpacesInTypes,      "inconsistent vector-spaces between type denoters[ (found '{0}' and '{1}')]"                                    );
 DECL_REPORT( ExpectedIdentInSpaceAttr,          "expected identifier as argument in 'space' attribute"                                                          );
 DECL_REPORT( CmdHelpLanguageExtension,          "Enables/disables the specified language extension; default={0}; valid types:"                                  );
-DECL_REPORT( CmdHelpDetailsLanguageExtension,   "all         => all kinds of extensions\n"                                  \
-                                                "attr-layout => enable 'layout' attribute to specify image layout format\n" \
-                                                "attr-space  => enable 'space' attribute for a stronger type system"                                            );
+DECL_REPORT( CmdHelpDetailsLanguageExtension,   "all           => all kinds of extensions\n"                                  \
+                                                "attr-layout   => enable 'layout' attribute to specify image layout format\n" \
+                                                "attr-space    => enable 'space' attribute for a stronger type system\n"     \
+                                                "srt           => enable shader resource table signatures\n"                     \
+                                                "opaque-struct => enable opaque resource values in structs and locals\n"       \
+                                                "strict-hlsl   => enable the strict portable HLSL subset\n"                    \
+                                                "hlsl-templates => enable HLSL struct and function templates\n"                  \
+                                                "bindless      => enable portable descriptor heap accesses"                                                     );
 DECL_REPORT( InvalidExtensionType,              "invalid extension type[: '{0}']"                                                                               );
 
 // BEGIN BANSHEE CHANGES

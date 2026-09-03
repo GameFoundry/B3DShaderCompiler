@@ -975,7 +975,7 @@ IMPLEMENT_VISIT_PROC(VarDeclStmnt)
         if (leafType && (leafType->GetAliased().IsBuffer() || leafType->GetAliased().IsSampler()))
         {
             #ifdef XSC_ENABLE_LANGUAGE_EXT
-            if (!extensions_(Extensions::OpaqueStructTypes))
+            if (!extensions_(Extensions::OpaqueStructTypes) && !extensions_(Extensions::BindlessResources))
             #endif
                 Error(R_OpaqueStructExtDisabled(ast->typeSpecifier->ToString()), ast);
         }
@@ -1308,6 +1308,9 @@ IMPLEMENT_VISIT_PROC(AssignExpr)
     }
     PopLValueExpr();
 
+    if (auto expectedType = GetTypeDenoterFrom(ast->lvalueExpr.get()))
+        ResolveDescriptorHeapAccess(ast->rvalueExpr.get(), *expectedType);
+
     Visit(ast->rvalueExpr);
 
     ValidateTypeCastFrom(ast->rvalueExpr.get(), ast->lvalueExpr.get(), R_VarAssignment);
@@ -1333,6 +1336,29 @@ IMPLEMENT_VISIT_PROC(ObjectExpr)
 IMPLEMENT_VISIT_PROC(ArrayExpr)
 {
     AnalyzeArrayExpr(ast);
+}
+
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    if (!extensions_(Extensions::BindlessResources))
+        Error(R_DescriptorHeapExtDisabled(ast->HeapIdentifier()), ast);
+    #else
+    Error(R_DescriptorHeapExtensionUnavailable, ast);
+    #endif
+
+    if (versionIn_ != InputShaderVersion::HLSL6)
+        Error(R_DescriptorHeapRequiresHLSL6(ast->HeapIdentifier()), ast);
+    if (!ast->resolvedTypeDenoter)
+        Error(R_DescriptorHeapNeedsContext(ast->HeapIdentifier()), ast);
+
+    Visit(ast->index);
+    if (auto typeDenoter = GetTypeDenoterFrom(ast->index.get()))
+    {
+        const auto baseTypeDenoter = typeDenoter->GetAliased().As<BaseTypeDenoter>();
+        if (!baseTypeDenoter || baseTypeDenoter->dataType != DataType::UInt)
+            Error(R_DescriptorHeapIndexType(ast->HeapIdentifier()), ast->index.get());
+    }
 }
 
 #undef IMPLEMENT_VISIT_PROC
@@ -1366,6 +1392,9 @@ void HLSLAnalyzer::AnalyzeVarDeclLocal(VarDecl* varDecl, bool registerVarIdent)
 
     if (varDecl->initializer)
     {
+        if (auto expectedType = GetTypeDenoterFrom(varDecl))
+            ResolveDescriptorHeapAccess(varDecl->initializer.get(), *expectedType);
+
         Visit(varDecl->initializer);
 
         /* Compare initializer type with var-decl type */
@@ -1696,6 +1725,22 @@ void HLSLAnalyzer::AnalyzeCallExprFunction(
 void HLSLAnalyzer::AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrinsicEntry& intr, bool isStatic, const TypeDenoter* prefixTypeDenoter)
 {
     const auto intrinsic = intr.intrinsic;
+
+    if (intrinsic == Intrinsic::NonUniformResourceIndex)
+    {
+        #ifdef XSC_ENABLE_LANGUAGE_EXT
+        if (!extensions_(Extensions::BindlessResources))
+            Error(R_NonUniformResourceIndexExtDisabled, callExpr);
+        #endif
+
+        if (callExpr->arguments.size() == 1)
+        {
+            const auto& argType = callExpr->arguments.front()->GetTypeDenoter()->GetAliased();
+            const auto baseType = argType.As<BaseTypeDenoter>();
+            if (!baseType || baseType->dataType != DataType::UInt)
+                Error(R_NonUniformResourceIndexType, callExpr);
+        }
+    }
 
     /* Decoarte function call with intrinsic ID */
     AnalyzeCallExprIntrinsicPrimary(callExpr, intr);
@@ -2295,6 +2340,68 @@ void HLSLAnalyzer::AnalyzeArrayExpr(ArrayExpr* expr)
             }
         }
     }
+}
+
+bool HLSLAnalyzer::ResolveDescriptorHeapAccess(Expr* expr, const TypeDenoter& expectedType)
+{
+    const auto heapExpression = (expr ? expr->As<DescriptorHeapExpr>() : nullptr);
+    if (!heapExpression)
+        return false;
+
+    heapExpression->GetTypeDenoter(&expectedType);
+
+    const auto& type = expectedType.GetAliased();
+    if (heapExpression->heap == DescriptorHeapKind::Resource)
+    {
+        const auto bufferType = type.As<BufferTypeDenoter>();
+        if (!bufferType)
+            Error(R_DescriptorHeapKindMismatch(heapExpression->HeapIdentifier(), type.ToString()), heapExpression);
+        else
+        {
+            switch (bufferType->bufferType)
+            {
+                case BufferType::Buffer:
+                case BufferType::StructuredBuffer:
+                case BufferType::ByteAddressBuffer:
+                case BufferType::RWBuffer:
+                case BufferType::RWStructuredBuffer:
+                case BufferType::RWByteAddressBuffer:
+                case BufferType::RWTexture1D:
+                case BufferType::RWTexture1DArray:
+                case BufferType::RWTexture2D:
+                case BufferType::RWTexture2DArray:
+                case BufferType::RWTexture3D:
+                case BufferType::Texture1D:
+                case BufferType::Texture1DArray:
+                case BufferType::Texture2D:
+                case BufferType::Texture2DArray:
+                case BufferType::Texture3D:
+                case BufferType::TextureCube:
+                case BufferType::TextureCubeArray:
+                case BufferType::Texture2DMS:
+                case BufferType::Texture2DMSArray:
+                    break;
+                case BufferType::AppendStructuredBuffer:
+                case BufferType::ConsumeStructuredBuffer:
+                    Error(R_DescriptorHeapCounterUnsupported, heapExpression);
+                    break;
+                default:
+                    Error(R_DescriptorHeapUnsupportedType(type.ToString()), heapExpression);
+                    break;
+            }
+        }
+    }
+    else
+    {
+        const auto samplerType = type.As<SamplerTypeDenoter>();
+        if (!samplerType || (samplerType->samplerType != SamplerType::SamplerState && samplerType->samplerType != SamplerType::SamplerComparisonState))
+            Error(R_DescriptorHeapKindMismatch(heapExpression->HeapIdentifier(), type.ToString()), heapExpression);
+    }
+
+    if (program_)
+        program_->RegisterBindlessResourceType(heapExpression->heap, *heapExpression->resolvedTypeDenoter);
+
+    return true;
 }
 
 /* ----- Entry point ----- */

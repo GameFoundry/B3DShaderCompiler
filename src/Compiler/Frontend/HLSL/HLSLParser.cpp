@@ -1235,6 +1235,13 @@ StmntPtr HLSLParser::ParseStmntWithIdent()
     if (structTemplateNames_.find(Tkn()->Spell()) != structTemplateNames_.end())
         return ParseVarDeclStmnt();
 
+    if (Is(Tokens::Ident, DescriptorHeapExpr::HeapIdentifier(DescriptorHeapKind::Resource)) || Is(Tokens::Ident, DescriptorHeapExpr::HeapIdentifier(DescriptorHeapKind::Sampler)))
+    {
+        auto expression = ParseExprWithSuffixOpt(ParseDescriptorHeapExpr());
+        PushPreParsedAST(expression);
+        return ParseExprStmnt();
+    }
+
     /* Parse the identifier as object expression (can be converted later) */
     auto primaryExpr = ParseObjectOrCallExpr();
     auto objectExpr = primaryExpr->As<ObjectExpr>();
@@ -1335,11 +1342,26 @@ ExprPtr HLSLParser::ParsePrimaryExprPrefix()
     if (Is(Tokens::LCurly))
         return ParseInitializerExpr();
     if (Is(Tokens::Ident))
+    {
+        if (Is(Tokens::Ident, DescriptorHeapExpr::HeapIdentifier(DescriptorHeapKind::Resource)) || Is(Tokens::Ident, DescriptorHeapExpr::HeapIdentifier(DescriptorHeapKind::Sampler)))
+            return ParseDescriptorHeapExpr();
+
         return ParseObjectOrCallExpr();
+    }
 
     ErrorUnexpected(R_ExpectedPrimaryExpr, nullptr, true);
 
     return nullptr;
+}
+
+ExprPtr HLSLParser::ParseDescriptorHeapExpr()
+{
+    auto ast = Make<DescriptorHeapExpr>();
+    const auto identifier = Accept(Tokens::Ident)->Spell();
+    ast->heap = (identifier == DescriptorHeapExpr::HeapIdentifier(DescriptorHeapKind::Sampler) ? DescriptorHeapKind::Sampler : DescriptorHeapKind::Resource);
+    ast->index = ParseArrayIndex();
+
+    return UpdateSourceArea(ast);
 }
 
 ExprPtr HLSLParser::ParseExprWithSuffixOpt(ExprPtr expr)

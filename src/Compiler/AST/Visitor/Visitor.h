@@ -81,6 +81,7 @@ DECL_PTR( AssignExpr        );
 DECL_PTR( ArrayExpr         );
 DECL_PTR( CastExpr          );
 DECL_PTR( InitializerExpr   );
+DECL_PTR( DescriptorHeapExpr );
 
 #undef DECL_PTR
 
@@ -153,6 +154,7 @@ class XSC_EXPORT Visitor
         VISITOR_VISIT_PROC( ArrayExpr         );
         VISITOR_VISIT_PROC( CastExpr          );
         VISITOR_VISIT_PROC( InitializerExpr   );
+        VISITOR_VISIT_PROC( DescriptorHeapExpr );
 
     protected:
         

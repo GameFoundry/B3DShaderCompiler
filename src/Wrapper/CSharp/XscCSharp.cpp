@@ -93,6 +93,10 @@ public ref class XscCompiler
 
             VKSL450 = (0x00020000 + 450),   //!< VKSL 4.50 (Vulkan 1.0).
             VKSL    = 0x0002ffff,           //!< Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
+
+            HLSL5   = (0x00030000 + 500),   //!< HLSL Shader Model 5.0.
+            HLSL6   = (0x00030000 + 600),   //!< HLSL Shader Model 6.x.
+            HLSL    = 0x0003ffff,           //!< Auto-detect HLSL output version.
         };
 
         //! Sampler filter enumeration (D3D11_FILTER).
@@ -195,6 +199,7 @@ public ref class XscCompiler
             OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
             StrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
             HLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
+            BindlessResources = (1 << 6), //!< Enables portable ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
 
             All               = (~0u)     //!< All extensions.
         };
@@ -280,6 +285,39 @@ public ref class XscCompiler
                 property Collections::Generic::List<PushConstantMember^>^ Members;
         };
 
+        //! Descriptor heap selected by a bindless source access.
+        enum class BindlessHeapKind
+        {
+            Resource,
+            Sampler,
+        };
+
+        //! Runtime representation of a compiler-generated bindless binding.
+        enum class BindlessBindingClass
+        {
+            SampledImageArray,
+            StorageImageArray,
+            UniformTexelBufferArray,
+            StorageTexelBufferArray,
+            ReadOnlyStorageBufferArray,
+            ReadWriteStorageBufferArray,
+            SamplerArray,
+            DescriptorBuffer,
+        };
+
+        //! One compiler-generated bindless ABI binding.
+        ref class BindlessBinding
+        {
+            public:
+
+                property String^                 Ident;        //!< Generated shader identifier.
+                property String^                 ResourceType; //!< Source resource type for typed views, or native descriptor element type.
+                property BindlessHeapKind        Heap;         //!< Source descriptor heap.
+                property BindlessBindingClass    BindingClass; //!< Runtime representation.
+                property int                     Location;     //!< Binding or register index.
+                property int                     Set;          //!< Descriptor set or register space.
+        };
+
         //! Number of threads within each work group of a compute shader.
         ref class ComputeThreads
         {
@@ -331,6 +369,13 @@ public ref class XscCompiler
 
                 //! BSL push-constant blocks.
                 property Collections::Generic::List<PushConstantBuffer^>^           PushConstantBuffers;
+
+                //! Compiler-generated bindings used to implement descriptor heaps.
+                property Collections::Generic::List<BindlessBinding^>^              BindlessBindings;
+                //! ResourceDescriptorHeap is used by the shader.
+                property bool                                                         UsesResourceDescriptorHeap;
+                //! SamplerDescriptorHeap is used by the shader.
+                property bool                                                         UsesSamplerDescriptorHeap;
 
                 //! Shader input attributes.
                 property Collections::Generic::List<BindingSlot^>^                  InputAttributes;
@@ -397,6 +442,7 @@ public ref class XscCompiler
                     AllowExtensions         = false;
                     AutoBinding             = false;
                     AutoBindingStartSlot    = 0;
+                    BindlessBindingSet      = 0;
                     MaxPushConstantSize     = Xsc::PushConstants::DefaultSizeLimit;
                     PushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
                     PushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
@@ -426,6 +472,9 @@ public ref class XscCompiler
 
                 //! Index to start generating binding slots from. Only relevant if 'AutoBinding' is enabled. By default 0.
                 property int    AutoBindingStartSlot;
+
+                //! Descriptor set/register space used for compiler-generated bindless bindings.
+                property int    BindlessBindingSet;
 
                 //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. By default 16.
                 property System::UInt32 MaxPushConstantSize;
@@ -1087,6 +1136,9 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
         case OutputShaderVersion::ESSL:    out.targetLanguage = Xsc::TargetLanguage::ESSL;    break;
         case OutputShaderVersion::VKSL450: out.targetLanguage = Xsc::TargetLanguage::VKSL450; break;
         case OutputShaderVersion::VKSL:    out.targetLanguage = Xsc::TargetLanguage::VKSL;    break;
+        case OutputShaderVersion::HLSL5:   out.targetLanguage = Xsc::TargetLanguage::HLSL5;   break;
+        case OutputShaderVersion::HLSL6:   out.targetLanguage = Xsc::TargetLanguage::HLSL6;   break;
+        case OutputShaderVersion::HLSL:    out.targetLanguage = Xsc::TargetLanguage::HLSL;    break;
         default:                           out.targetLanguage = Xsc::TargetLanguage::GLSL;    break;
     }
 
@@ -1104,6 +1156,7 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
     out.options.allowExtensions         = outputDesc->Options->AllowExtensions;
     out.options.autoBinding             = outputDesc->Options->AutoBinding;
     out.options.autoBindingStartSlot    = outputDesc->Options->AutoBindingStartSlot;
+    out.options.bindlessBindingSet      = outputDesc->Options->BindlessBindingSet;
     out.options.maxPushConstantSize     = outputDesc->Options->MaxPushConstantSize;
     out.options.pushConstantHLSLRegister = outputDesc->Options->PushConstantHLSLRegister;
     out.options.pushConstantHLSLRegisterSpace = outputDesc->Options->PushConstantHLSLRegisterSpace;
@@ -1199,6 +1252,20 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
 
                 dst->PushConstantBuffers->Add(dstBuffer);
             }
+            dst->BindlessBindings = gcnew Collections::Generic::List<BindlessBinding^>();
+            for (const auto& srcBinding : src.bindless.bindings)
+            {
+                auto dstBinding = gcnew BindlessBinding();
+                dstBinding->Ident = gcnew String(srcBinding.ident.c_str());
+                dstBinding->ResourceType = gcnew String(srcBinding.resourceType.c_str());
+                dstBinding->Heap = static_cast<BindlessHeapKind>(srcBinding.heap);
+                dstBinding->BindingClass = static_cast<BindlessBindingClass>(srcBinding.bindingClass);
+                dstBinding->Location = srcBinding.location;
+                dstBinding->Set = srcBinding.set;
+                dst->BindlessBindings->Add(dstBinding);
+            }
+            dst->UsesResourceDescriptorHeap = src.bindless.resourceHeap;
+            dst->UsesSamplerDescriptorHeap = src.bindless.samplerHeap;
             dst->InputAttributes    = ToManagedList(src.inputAttributes);
             dst->OutputAttributes   = ToManagedList(src.outputAttributes);
 

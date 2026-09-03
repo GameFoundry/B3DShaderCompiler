@@ -112,6 +112,7 @@ static HLSLIntrinsicsMap GenerateIntrinsicMap()
         { "msad4",                            { T::MSAD4,                            5, 0 } },
         { "mul",                              { T::Mul,                              1, 0 } },
         { "normalize",                        { T::Normalize,                        1, 1 } },
+        { "NonUniformResourceIndex",           { T::NonUniformResourceIndex,         6, 0 } },
       //{ ""                                  { T::NotEqual,                         0, 0 } }, // GLSL only
       //{ ""                                  { T::Not,                              0, 0 } }, // GLSL only
         { "pow",                              { T::Pow,                              1, 1 } },
@@ -523,6 +524,7 @@ static std::map<Intrinsic, IntrinsicSignature> GenerateIntrinsicSignatureMap()
         { T::MSAD4,                            { Ret::UInt4,       3    } },
       //{ T::Mul,                              {                        } }, // special case
         { T::Normalize,                        { Ret::GenericArg0, 1    } },
+        { T::NonUniformResourceIndex,           { Ret::UInt,        1    } },
         { T::NotEqual,                         { Ret::Bool,        2    } }, // GLSL only
         { T::Not,                              { Ret::Bool,        1    } }, // GLSL only
         { T::Pow,                              { Ret::GenericArg0, 2    } },
@@ -785,6 +787,10 @@ std::vector<TypeDenoterPtr> HLSLIntrinsicAdept::GetIntrinsicParameterTypes(const
         case Intrinsic::FirstBitHigh:
         case Intrinsic::FirstBitLow:
             DeriveParameterTypesFirstBit(paramTypeDenoters, args, intrinsic);
+            break;
+        case Intrinsic::NonUniformResourceIndex:
+            if (args.size() == 1)
+                paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(DataType::UInt));
             break;
         case Intrinsic::WaveActiveAnyTrue:
         case Intrinsic::WaveActiveAllTrue:

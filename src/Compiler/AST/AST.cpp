@@ -35,7 +35,7 @@ bool IsDeclAST(const AST::Types t)
 
 bool IsExprAST(const AST::Types t)
 {
-    return (t >= AST::Types::NullExpr && t <= AST::Types::InitializerExpr);
+    return (t >= AST::Types::NullExpr && t <= AST::Types::DescriptorHeapExpr);
 }
 
 bool IsStmntAST(const AST::Types t)
@@ -210,6 +210,19 @@ const IntrinsicUsage* Program::FetchIntrinsicUsage(const Intrinsic intrinsic) co
 {
     auto it = usedIntrinsics.find(intrinsic);
     return (it != usedIntrinsics.end() ? &(it->second) : nullptr);
+}
+
+std::size_t Program::RegisterBindlessResourceType(DescriptorHeapKind heap, const TypeDenoter& type)
+{
+    for (std::size_t resourceIndex = 0; resourceIndex < bindlessResourceTypes.size(); ++resourceIndex)
+    {
+        const auto& entry = bindlessResourceTypes[resourceIndex];
+        if (entry.heap == heap && entry.type && entry.type->Equals(type))
+            return resourceIndex;
+    }
+
+    bindlessResourceTypes.push_back({ heap, type.Copy() });
+    return bindlessResourceTypes.size() - 1;
 }
 
 
@@ -2579,6 +2592,61 @@ static bool NextArrayIndicesFromInitializerExpr(const InitializerExpr* ast, std:
 bool InitializerExpr::NextArrayIndices(std::vector<int>& arrayIndices) const
 {
     return NextArrayIndicesFromInitializerExpr(this, arrayIndices, 0);
+}
+
+
+/* ----- DescriptorHeapExpr ----- */
+
+TypeDenoterPtr DescriptorHeapExpr::DeriveTypeDenoter(const TypeDenoter* expectedTypeDenoter)
+{
+    if (!resolvedTypeDenoter)
+    {
+        if (!expectedTypeDenoter)
+            RuntimeErr(R_DescriptorHeapNeedsContext(HeapIdentifier()), this);
+
+        resolvedTypeDenoter = expectedTypeDenoter->GetAliased().Copy();
+
+        if (auto bufferTypeDenoter = resolvedTypeDenoter->As<BufferTypeDenoter>())
+            bufferTypeDenoter->bufferDeclRef = nullptr;
+        else if (auto samplerTypeDenoter = resolvedTypeDenoter->As<SamplerTypeDenoter>())
+            samplerTypeDenoter->samplerDeclRef = nullptr;
+    }
+
+    return resolvedTypeDenoter->Copy();
+}
+
+const Expr* DescriptorHeapExpr::Find(const FindPredicateConstFunctor& predicate, unsigned int flags) const
+{
+    if (predicate)
+    {
+        CALL_EXPR_FIND_PREDICATE(predicate);
+        if (index)
+        {
+            if (auto expression = index->Find(predicate, flags))
+                return expression;
+        }
+    }
+
+    return nullptr;
+}
+
+const std::string& DescriptorHeapExpr::HeapIdentifier() const
+{
+    return HeapIdentifier(heap);
+}
+
+const std::string& DescriptorHeapExpr::HeapIdentifier(DescriptorHeapKind heap)
+{
+    static const std::string resourceIdent = "ResourceDescriptorHeap";
+    static const std::string samplerIdent  = "SamplerDescriptorHeap";
+    static const std::string emptyIdent;
+
+    switch (heap)
+    {
+        case DescriptorHeapKind::Resource: return resourceIdent;
+        case DescriptorHeapKind::Sampler:  return samplerIdent;
+        default:                           return emptyIdent;
+    }
 }
 
 

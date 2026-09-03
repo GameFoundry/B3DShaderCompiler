@@ -38,6 +38,9 @@ class ReferenceAnalyzer : private VisitorTracker
         // Marks the specified AST node as reachable and returns false if the AST node has already been marked as reachable.
         bool Reachable(AST* ast);
 
+        // Marks declarations referenced by a type and its nested element types.
+        void MarkTypeDenoterReferences(const TypeDenoter* typeDenoter);
+
         void VisitStmntList(const std::vector<StmntPtr>& stmnts);
 
         void MarkLValueExpr(const Expr* expr);

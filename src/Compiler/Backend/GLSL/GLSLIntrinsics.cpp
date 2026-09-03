@@ -108,6 +108,7 @@ static std::map<Intrinsic, std::string> GenerateIntrinsicMap()
       //{ T::MSAD4,                            ""                      },
       //{ T::Mul,                              ""                      },
         { T::Normalize,                        "normalize"             },
+        { T::NonUniformResourceIndex,           "nonuniformEXT"         },
         { T::NotEqual,                         "notEqual"              }, // GLSL only
         { T::Not,                              "not"                   }, // GLSL only
         { T::Pow,                              "pow"                   },

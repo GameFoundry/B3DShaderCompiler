@@ -53,6 +53,7 @@ enum XscExtensions
     XscExtOpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions.
     XscExtStrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
     XscExtHLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
+    XscExtBindlessResources = (1 << 6), //!< Enables portable ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
 
     XscExtAll               = (~0u)     //!< All extensions.
 };
@@ -96,6 +97,9 @@ struct XscOptions
 
     //! Index to start generating binding slots from. Only relevant if 'autoBinding' is enabled. By default 0.
     int     autoBindingStartSlot;
+
+    //! Descriptor set/register space used for compiler-generated bindless bindings.
+    int     bindlessBindingSet;
 
     //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. Must be a non-zero multiple of four. By default 16.
     unsigned int maxPushConstantSize;

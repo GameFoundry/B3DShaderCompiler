@@ -346,6 +346,7 @@ void HLSLGenerator::GenerateCodePrimary(
         emitPushConstantHLSLBinding_ =
         (
             outputDesc.targetLanguage == TargetLanguage::HLSL5 ||
+            outputDesc.targetLanguage == TargetLanguage::HLSL6 ||
             outputDesc.targetLanguage == TargetLanguage::HLSL
         );
 
@@ -357,6 +358,9 @@ void HLSLGenerator::GenerateCodePrimary(
 
         if (emitPushConstantHLSLBinding_)
             ValidatePushConstantHLSLBinding(program);
+
+        program.bindlessBindings.clear();
+        PrepareBindlessBindings(program, inputDesc, outputDesc);
 
         WriteFileHeader(inputDesc);
 
@@ -375,6 +379,10 @@ void HLSLGenerator::GenerateCodePrimary(
     {
         Error(e.what());
     }
+}
+
+void HLSLGenerator::PrepareBindlessBindings(Program&, const ShaderInput&, const ShaderOutput&)
+{
 }
 
 bool HLSLGenerator::AssignAutoBindings(Program& program, const ShaderOutput& outputDesc)
@@ -1055,6 +1063,14 @@ IMPLEMENT_VISIT_PROC(CastExpr)
         WriteTypeDenoter(*ast->typeSpecifier->typeDenoter, ast);
     Write(")");
     Visit(ast->expr);
+}
+
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    Write(ast->HeapIdentifier());
+    Write("[");
+    Visit(ast->index);
+    Write("]");
 }
 
 IMPLEMENT_VISIT_PROC(InitializerExpr)

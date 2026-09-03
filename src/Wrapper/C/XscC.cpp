@@ -57,6 +57,7 @@ struct CompilerContext
     std::vector<XscSamplerState>    samplerStates;
     std::vector<std::vector<XscPushConstantMember>> pushConstantMembers;
     std::vector<XscPushConstantBuffer>              pushConstantBuffers;
+    std::vector<XscBindlessBinding>                 bindlessBindings;
 };
 
 static struct CompilerContext g_compilerContext;
@@ -82,6 +83,7 @@ static void InitializeOptions(struct XscOptions* s)
     s->allowExtensions          = false;
     s->autoBinding              = false;
     s->autoBindingStartSlot     = 0;
+    s->bindlessBindingSet       = 0;
     s->maxPushConstantSize      = Xsc::PushConstants::DefaultSizeLimit;
     s->pushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
     s->pushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
@@ -164,8 +166,16 @@ static bool ValidateShaderOutput(const struct XscShaderOutput* s)
 
 static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct XscReflectionData* dst)
 {
+    g_compilerContext.macros.clear();
+    g_compilerContext.textures.clear();
+    g_compilerContext.storageBuffers.clear();
+    g_compilerContext.constantBuffers.clear();
+    g_compilerContext.inputAttributes.clear();
+    g_compilerContext.outputAttributes.clear();
+    g_compilerContext.samplerStates.clear();
     g_compilerContext.pushConstantMembers.clear();
     g_compilerContext.pushConstantBuffers.clear();
+    g_compilerContext.bindlessBindings.clear();
 
     /* Fill context buffers */
     for (const auto& s : src.macros)
@@ -174,16 +184,16 @@ static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct Xs
     for (const auto& s : src.textures)
         g_compilerContext.textures.push_back({ s.ident.c_str(), s.location });
 
-    for (const auto& s : src.textures)
+    for (const auto& s : src.storageBuffers)
         g_compilerContext.storageBuffers.push_back({ s.ident.c_str(), s.location });
 
-    for (const auto& s : src.textures)
+    for (const auto& s : src.constantBuffers)
         g_compilerContext.constantBuffers.push_back({ s.ident.c_str(), s.location });
 
-    for (const auto& s : src.textures)
+    for (const auto& s : src.inputAttributes)
         g_compilerContext.inputAttributes.push_back({ s.ident.c_str(), s.location });
 
-    for (const auto& s : src.textures)
+    for (const auto& s : src.outputAttributes)
         g_compilerContext.outputAttributes.push_back({ s.ident.c_str(), s.location });
 
     for (const auto& srcBuffer : src.pushConstantBuffers)
@@ -224,6 +234,20 @@ static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct Xs
         );
     }
 
+    for (const auto& s : src.bindless.bindings)
+    {
+        g_compilerContext.bindlessBindings.push_back(
+            {
+                s.ident.c_str(),
+                s.resourceType.c_str(),
+                static_cast<XscBindlessHeapKind>(s.heap),
+                static_cast<XscBindlessBindingClass>(s.bindingClass),
+                s.location,
+                s.set,
+            }
+        );
+    }
+
     /* Set references to output buffers */
     dst->macros                 = g_compilerContext.macros.data();
     dst->macrosCount            = g_compilerContext.macros.size();
@@ -248,6 +272,11 @@ static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct Xs
 
     dst->samplerStates          = g_compilerContext.samplerStates.data();
     dst->samplerStatesCount     = g_compilerContext.samplerStates.size();
+
+    dst->bindlessResourceHeap   = src.bindless.resourceHeap;
+    dst->bindlessSamplerHeap    = src.bindless.samplerHeap;
+    dst->bindlessBindings       = g_compilerContext.bindlessBindings.data();
+    dst->bindlessBindingsCount  = g_compilerContext.bindlessBindings.size();
 
     /* Copy remaining data fields */
     dst->numThreads.x = src.numThreads.x;
@@ -403,6 +432,7 @@ XSCC_EXPORT bool XscCompileShader(
     out.options.explicitBinding         = outputDesc->options.explicitBinding;
     out.options.autoBinding             = outputDesc->options.autoBinding;
     out.options.autoBindingStartSlot    = outputDesc->options.autoBindingStartSlot;
+    out.options.bindlessBindingSet      = outputDesc->options.bindlessBindingSet;
     out.options.maxPushConstantSize     = outputDesc->options.maxPushConstantSize;
     out.options.pushConstantHLSLRegister = outputDesc->options.pushConstantHLSLRegister;
     out.options.pushConstantHLSLRegisterSpace = outputDesc->options.pushConstantHLSLRegisterSpace;

@@ -210,7 +210,7 @@ HelpDescriptor VersionOutCommand::Help() const
             "GLSL[110, 120, 130, 140, 150, 330, 400, 410, 420, 430, 440, 450],\n"   \
             "ESSL[100, 300, 310, 320],\n"                                           \
             "VKSL[450],\n"                                                          \
-            "HLSL[5]\n"                                                             \
+            "HLSL[5, 6]\n"                                                          \
             "(plus any additional targets provided by registered backends)"
         ),
         HelpCategory::Main
@@ -1039,6 +1039,29 @@ void AutoBindingStartSlotCommand::Run(CommandLine& cmdLine, ShellState& state)
 }
 
 /*
+ * BindlessBindingSetCommand class
+ */
+
+std::vector<Command::Identifier> BindlessBindingSetCommand::Idents() const
+{
+    return { { "--bindless-set" } };
+}
+
+HelpDescriptor BindlessBindingSetCommand::Help() const
+{
+    return
+    {
+        "--bindless-set SET",
+        R_CmdHelpBindlessBindingSet
+    };
+}
+
+void BindlessBindingSetCommand::Run(CommandLine& cmdLine, ShellState& state)
+{
+    state.outputDesc.options.bindlessBindingSet = std::stoi(cmdLine.Accept());
+}
+
+/*
  * PushConstantSizeCommand class
  */
 
@@ -1469,13 +1492,14 @@ void LanguageExtensionCommand::Run(CommandLine& cmdLine, ShellState& state)
     const auto flags = MapStringToType<unsigned int>(
         type,
         {
-            { "all",           Extensions::All               },
-            { "attr-layout",   Extensions::LayoutAttribute   },
-            { "attr-space",    Extensions::SpaceAttribute    },
-            { "srt",           Extensions::SrtSignature      },
-            { "opaque-struct", Extensions::OpaqueStructTypes },
-            { "strict-hlsl",   Extensions::StrictHLSL        },
+            { "all",            Extensions::All               },
+            { "attr-layout",    Extensions::LayoutAttribute   },
+            { "attr-space",     Extensions::SpaceAttribute    },
+            { "srt",            Extensions::SrtSignature      },
+            { "opaque-struct",  Extensions::OpaqueStructTypes },
+            { "strict-hlsl",    Extensions::StrictHLSL        },
             { "hlsl-templates", Extensions::HLSLTemplates     },
+            { "bindless",       Extensions::BindlessResources },
         },
         R_InvalidExtensionType(type)
     );

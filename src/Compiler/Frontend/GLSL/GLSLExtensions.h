@@ -78,6 +78,7 @@ DECL_EXTENSION( GL_ARB_shading_language_packing                 );
 DECL_EXTENSION( GL_EXT_device_group                             );
 DECL_EXTENSION( GL_EXT_gpu_shader4                              );
 DECL_EXTENSION( GL_EXT_multiview                                );
+DECL_EXTENSION( GL_EXT_nonuniform_qualifier                    );
 DECL_EXTENSION( GL_EXT_shader_image_load_formatted              );
 DECL_EXTENSION( GL_EXT_shader_non_constant_global_initializers  ); // ESSL
 DECL_EXTENSION( GL_EXT_geometry_shader                          );

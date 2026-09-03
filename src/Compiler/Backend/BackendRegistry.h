@@ -55,6 +55,14 @@ struct BackendDescriptor
     // that don't translate to this backend) without the core needing to know
     // the backend's identifier. Empty for backends that need no sentinel.
     std::map<std::string, int> predefinedMacros;
+
+    enum Feature : unsigned int
+    {
+        BindlessResources = (1u << 0),
+    };
+
+    // Backend features supported by this target-language variant.
+    unsigned int features = 0;
 };
 
 

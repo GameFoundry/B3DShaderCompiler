@@ -91,6 +91,7 @@ XSC_DATA extern const char* const VKSL450;    //!< "VKSL450" — VKSL 4.50 (Vulk
 XSC_DATA extern const char* const VKSL;       //!< "VKSL"    — Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
 
 XSC_DATA extern const char* const HLSL5;      //!< "HLSL5"   — HLSL Shader Model 5.0 (DirectX 11). Requires the HLSL backend.
+XSC_DATA extern const char* const HLSL6;      //!< "HLSL6"   — HLSL Shader Model 6.x (DirectX 12). Requires the HLSL backend.
 XSC_DATA extern const char* const HLSL;       //!< "HLSL"    — Auto-detect HLSL output version. Requires the HLSL backend.
 
 } // /namespace TargetLanguage

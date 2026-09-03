@@ -48,7 +48,10 @@ class XSC_EXPORT HLSLGenerator : public Generator
             const ShaderOutput& outputDesc
         ) override;
 
-        /* === File-header hook (overridable) === */
+        /* === Generation hooks (overridable) === */
+
+        /** Manufactures bindless ABI bindings after ordinary auto-binding and before shader emission. */
+        virtual void PrepareBindlessBindings(Program& program, const ShaderInput& inputDesc, const ShaderOutput& outputDesc);
 
         // Emits the file-level header comment (generator credit + timestamp).
         virtual void WriteFileHeader(const ShaderInput& inputDesc);
@@ -170,6 +173,7 @@ class XSC_EXPORT HLSLGenerator : public Generator
 
         DECL_VISIT_PROC( UniformBufferDecl );
         DECL_VISIT_PROC( CallExpr          );
+        DECL_VISIT_PROC( DescriptorHeapExpr );
 
     private:
 

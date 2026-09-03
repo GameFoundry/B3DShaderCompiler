@@ -24,8 +24,16 @@ void RegisterBackend_HLSL()
 
     auto& registry = BackendRegistry::Instance();
 
-    registry.Register(TargetLanguage::HLSL5, { OutputShaderVersion::HLSL5, factory });
-    registry.Register(TargetLanguage::HLSL,  { OutputShaderVersion::HLSL,  factory });
+    BackendDescriptor hlsl5 { OutputShaderVersion::HLSL5, factory };
+    BackendDescriptor hlsl6 { OutputShaderVersion::HLSL6, factory };
+    BackendDescriptor hlsl  { OutputShaderVersion::HLSL,  factory };
+
+    hlsl6.features |= BackendDescriptor::BindlessResources;
+    hlsl.features  |= BackendDescriptor::BindlessResources;
+
+    registry.Register(TargetLanguage::HLSL5, hlsl5);
+    registry.Register(TargetLanguage::HLSL6, hlsl6);
+    registry.Register(TargetLanguage::HLSL,  hlsl);
 }
 
 

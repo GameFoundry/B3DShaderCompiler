@@ -391,6 +391,17 @@ enum class UniformBufferType
 };
 
 
+/* ----- DescriptorHeapKind Enum ----- */
+
+// Portable descriptor heap selected by a context-typed heap access expression.
+enum class DescriptorHeapKind
+{
+    Undefined, // Not a descriptor-heap expression.
+    Resource,  // ResourceDescriptorHeap.
+    Sampler,   // SamplerDescriptorHeap.
+};
+
+
 /* ----- TextureType Enum ----- */
 
 // Buffer (and texture) object type enumeration.
@@ -823,6 +834,7 @@ enum class Intrinsic
     MSAD4,
     Mul,
     Normalize,
+    NonUniformResourceIndex,
     NotEqual,                           // GLSL only
     Not,                                // GLSL only
     Pow,

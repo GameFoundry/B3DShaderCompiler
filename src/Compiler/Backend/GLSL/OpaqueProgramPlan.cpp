@@ -19,6 +19,12 @@ bool SameBinding(const OpaqueBinding& lhs, const OpaqueBinding& rhs)
 {
     if (lhs.kind != rhs.kind || lhs.resource != rhs.resource || lhs.formal != rhs.formal || lhs.laneIndex != rhs.laneIndex)
         return false;
+    if (lhs.descriptorHeap != rhs.descriptorHeap)
+        return false;
+    if (static_cast<bool>(lhs.descriptorType) != static_cast<bool>(rhs.descriptorType))
+        return false;
+    if (lhs.descriptorType && !lhs.descriptorType->Equals(*rhs.descriptorType))
+        return false;
     if (lhs.indices.size() != rhs.indices.size() || lhs.elements.size() != rhs.elements.size())
         return false;
     for (std::size_t i = 0; i < lhs.indices.size(); ++i)

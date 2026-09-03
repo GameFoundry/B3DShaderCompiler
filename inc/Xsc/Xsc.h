@@ -114,6 +114,7 @@ struct Extensions
         OpaqueStructTypes = (1 << 3), //!< Allows opaque types (Texture/Buffer/SamplerState) as members of structs and passing such structs to functions. Without this flag, opaque types in structs are rejected.
         StrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive constructs without a portable cross-target equivalent: mul(matrix, vector) with vector dim smaller than the matrix inner dim (no implicit zero-padding), and the 'precise' type modifier. Diagnostic fires at analyzer time independent of output target.
         HLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates. Templates are specialized by the front end so all output targets receive ordinary concrete declarations.
+        BindlessResources = (1 << 6), //!< Enables portable SM 6.6-style ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
 
         All               = (~0u)     //!< All extensions.
     };
@@ -171,6 +172,9 @@ struct Options
 
     //! Index to start generating binding slots from. Only relevant if 'autoBinding' is enabled. By default 0.
     int     autoBindingStartSlot    = 0;
+
+    //! Descriptor set/register space used for compiler-generated bindless bindings. By default 0.
+    int     bindlessBindingSet      = 0;
 
     /**
     \brief Maximum push constant buffer size in bytes. By default 16.

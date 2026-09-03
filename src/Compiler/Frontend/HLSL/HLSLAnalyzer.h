@@ -109,6 +109,7 @@ class HLSLAnalyzer : public Analyzer
         DECL_VISIT_PROC( AssignExpr        );
         DECL_VISIT_PROC( ObjectExpr        );
         DECL_VISIT_PROC( ArrayExpr         );
+        DECL_VISIT_PROC( DescriptorHeapExpr );
 
         /* ----- Declarations ----- */
 
@@ -149,6 +150,7 @@ class HLSLAnalyzer : public Analyzer
 
         /* ----- Array expressions ----- */
 
+        bool ResolveDescriptorHeapAccess(Expr* expr, const TypeDenoter& expectedType);
         void AnalyzeArrayExpr(ArrayExpr* expr);
 
         /* ----- Entry point ----- */

@@ -223,6 +223,12 @@ IMPLEMENT_VISIT_PROC(InitializerExpr)
         OptimizeExpr(subExpr);
 }
 
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    VISIT_DEFAULT(DescriptorHeapExpr);
+    OptimizeExpr(ast->index);
+}
+
 #undef IMPLEMENT_VISIT_PROC
 
 

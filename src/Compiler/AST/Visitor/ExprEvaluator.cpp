@@ -472,6 +472,14 @@ IMPLEMENT_VISIT_PROC(CastExpr)
     }
 }
 
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    if (throwOnFailure_)
+        IllegalExpr("descriptor heap access", ast);
+    else
+        Abort();
+}
+
 IMPLEMENT_VISIT_PROC(InitializerExpr)
 {
     std::vector<Variant> subValues;

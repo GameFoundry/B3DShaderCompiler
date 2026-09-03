@@ -64,6 +64,7 @@ class Optimizer : private Visitor
         DECL_VISIT_PROC( ArrayExpr         );
         DECL_VISIT_PROC( CastExpr          );
         DECL_VISIT_PROC( InitializerExpr   );
+        DECL_VISIT_PROC( DescriptorHeapExpr );
 
 };
 

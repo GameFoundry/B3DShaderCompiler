@@ -54,7 +54,8 @@ enum class OutputShaderVersion
     VKSL    = 0x0002ffff,           //!< Auto-detect minimum required VKSL version (for Vulkan/SPIR-V).
 
     HLSL5   = (0x00030000 + 500),   //!< HLSL Shader Model 5.0 (DirectX 11). Used for HLSL-to-HLSL "round-trip" output.
-    HLSL    = 0x0003ffff,           //!< Auto-detect HLSL output version. Currently aliased to HLSL5.
+    HLSL6   = (0x00030000 + 600),   //!< HLSL Shader Model 6.x (DirectX 12), including SM 6.6 descriptor heaps.
+    HLSL    = 0x0003ffff,           //!< Auto-detect HLSL output version.
 };
 
 

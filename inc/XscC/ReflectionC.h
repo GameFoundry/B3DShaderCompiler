@@ -130,6 +130,35 @@ struct XscPushConstantBuffer
     size_t                              membersCount;
 };
 
+enum XscBindlessHeapKind
+{
+    XscEBindlessHeapResource, //!< ResourceDescriptorHeap.
+    XscEBindlessHeapSampler,  //!< SamplerDescriptorHeap.
+};
+
+enum XscBindlessBindingClass
+{
+    XscEBindlessSampledImageArray,           //!< Runtime array of sampled images.
+    XscEBindlessStorageImageArray,           //!< Runtime array of storage images.
+    XscEBindlessUniformTexelBufferArray,     //!< Runtime array of read-only typed buffers.
+    XscEBindlessStorageTexelBufferArray,     //!< Runtime array of writable typed buffers.
+    XscEBindlessReadOnlyStorageBufferArray,  //!< Runtime array of read-only storage buffers.
+    XscEBindlessReadWriteStorageBufferArray, //!< Runtime array of writable storage buffers.
+    XscEBindlessSamplerArray,                //!< Runtime array of samplers.
+    XscEBindlessDescriptorBuffer,            //!< Buffer containing native resource or sampler descriptors.
+};
+
+//! One compiler-generated bindless ABI binding.
+struct XscBindlessBinding
+{
+    const char*                         ident;        //!< Generated shader identifier.
+    const char*                         resourceType; //!< Source resource type for typed views, or native descriptor element type.
+    enum XscBindlessHeapKind            heap;         //!< Source descriptor heap.
+    enum XscBindlessBindingClass        bindingClass; //!< Runtime representation.
+    int                                 location;     //!< Binding or register index.
+    int                                 set;          //!< Descriptor set or register space.
+};
+
 //! Number of threads within each work group of a compute shader.
 struct XscNumThreads
 {
@@ -191,6 +220,14 @@ struct XscReflectionData
 
     //! 'numthreads' attribute of a compute shader.
     struct XscNumThreads            numThreads;
+
+    //! Whether each portable descriptor heap is used.
+    bool                            bindlessResourceHeap;
+    bool                            bindlessSamplerHeap;
+
+    //! Compiler-generated bindings that implement the bindless ABI.
+    const struct XscBindlessBinding* bindlessBindings;
+    size_t                           bindlessBindingsCount;
 };
 
 

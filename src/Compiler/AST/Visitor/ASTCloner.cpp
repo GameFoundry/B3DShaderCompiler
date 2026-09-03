@@ -545,6 +545,15 @@ IMPLEMENT_VISIT_PROC(InitializerExpr)
     clonedAST_ = clone;
 }
 
+IMPLEMENT_VISIT_PROC(DescriptorHeapExpr)
+{
+    auto clone = CloneTypedLeaf(ast);
+    clone->heap                = ast->heap;
+    clone->index               = Clone(ast->index);
+    clone->resolvedTypeDenoter = (ast->resolvedTypeDenoter ? ast->resolvedTypeDenoter->Copy() : nullptr);
+    clonedAST_ = clone;
+}
+
 #undef IMPLEMENT_VISIT_PROC
 
 

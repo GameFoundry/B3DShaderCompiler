@@ -43,8 +43,8 @@ include_guard(GLOBAL)
 function(xsc_add_roundtrip_tests)
     cmake_parse_arguments(_RT
         "PER_CASE_FLAGS"
-        "PREFIX;DRIVER;SHADER_DIR;OUT_DIR;LABELS;PROFILE_DEFINE;EXTRA_FLAGS"
-        "CASES;DEFINES"
+        "PREFIX;DRIVER;SHADER_DIR;OUT_DIR;PROFILE_DEFINE;EXTRA_FLAGS"
+        "CASES;DEFINES;LABELS"
         ${ARGN})
 
     foreach(_req PREFIX DRIVER SHADER_DIR OUT_DIR LABELS CASES)

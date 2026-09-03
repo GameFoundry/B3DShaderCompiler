@@ -27,6 +27,7 @@
 
 
 #include "OpaqueTypeLayout.h"
+#include "AST.h"
 #include "Visitor.h"
 #include <cstddef>
 #include <functional>
@@ -63,6 +64,7 @@ struct OpaqueBinding
     {
         Uninitialized,       // No binding recorded yet; reading it is an error.
         Resource,            // A global resource (BufferDecl/SamplerDecl), possibly indexed.
+        DescriptorHeap,      // One typed SM 6.6 descriptor-heap access.
         ResourceArraySlice,  // A contiguous slice of a global resource array.
         FormalLane,          // Lane 'laneIndex' of formal parameter 'formal'.
         FormalArrayLane,     // Like FormalLane, but dynamically indexed into a lane-group array.
@@ -76,6 +78,8 @@ struct OpaqueBinding
     std::size_t                     laneIndex   = 0;
     std::vector<IndexUse>           indices;
     std::vector<OpaqueBinding>      elements;
+    DescriptorHeapKind              descriptorHeap = DescriptorHeapKind::Undefined;
+    TypeDenoterPtr                  descriptorType;
 
     static OpaqueBinding Resource(Decl* decl, const std::vector<IndexUse>& indices = std::vector<IndexUse>())
     {
@@ -92,6 +96,19 @@ struct OpaqueBinding
         binding.kind      = Kind::FormalLane;
         binding.formal    = param;
         binding.laneIndex = laneIndex;
+        return binding;
+    }
+
+    static OpaqueBinding Descriptor(DescriptorHeapKind heap, const TypeDenoterPtr& type, const ExprPtr& index)
+    {
+        OpaqueBinding binding;
+        binding.kind           = Kind::DescriptorHeap;
+        binding.descriptorHeap = heap;
+        binding.descriptorType = (type ? type->Copy() : nullptr);
+        IndexUse indexUse;
+        indexUse.dynamic    = true;
+        indexUse.expression = index;
+        binding.indices.push_back(indexUse);
         return binding;
     }
 

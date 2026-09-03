@@ -42,6 +42,7 @@ GLSLExtensionAgent::GLSLExtensionAgent()
         { Intrinsic::F16toF32,                                  E_GL_ARB_shading_language_packing       },
         { Intrinsic::F32toF16,                                  E_GL_ARB_shading_language_packing       },
         { Intrinsic::PackHalf2x16,                              E_GL_ARB_shading_language_packing       },
+        { Intrinsic::NonUniformResourceIndex,                   E_GL_EXT_nonuniform_qualifier           },
         { Intrinsic::WarpGroupMemoryBarrier,                    E_GL_KHR_shader_subgroup_basic          },
         { Intrinsic::WarpGroupMemoryBarrierWithWarpSync,        E_GL_KHR_shader_subgroup_basic          },
         { Intrinsic::WarpDeviceMemoryBarrier,                   E_GL_KHR_shader_subgroup_basic          },
@@ -196,6 +197,9 @@ void GLSLExtensionAgent::AcquireExtension(const std::string& extension, const st
 
 IMPLEMENT_VISIT_PROC(Program)
 {
+    if (!ast->bindlessResourceTypes.empty())
+        AcquireExtension(E_GL_EXT_nonuniform_qualifier, "bindless descriptor arrays", ast);
+
     if (ast->layoutFragment.fragCoordUsed)
         AcquireExtension(E_GL_ARB_fragment_coord_conventions, R_FragmentCoordinate);
 

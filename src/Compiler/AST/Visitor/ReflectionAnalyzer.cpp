@@ -36,6 +36,14 @@ void ReflectionAnalyzer::Reflect(
 
     /* Visit program AST */
     Visit(program_);
+
+    data_->bindless = Reflection::BindlessUsage{};
+    for (const auto& resource : program.bindlessResourceTypes)
+    {
+        data_->bindless.resourceHeap = data_->bindless.resourceHeap || resource.heap == DescriptorHeapKind::Resource;
+        data_->bindless.samplerHeap  = data_->bindless.samplerHeap  || resource.heap == DescriptorHeapKind::Sampler;
+    }
+    data_->bindless.bindings = program.bindlessBindings;
 }
 
 

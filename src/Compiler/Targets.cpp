@@ -43,6 +43,7 @@ const char* const VKSL450 = "VKSL450";
 const char* const VKSL    = "VKSL";
 
 const char* const HLSL5   = "HLSL5";
+const char* const HLSL6   = "HLSL6";
 const char* const HLSL    = "HLSL";
 
 } // /namespace TargetLanguage
@@ -109,6 +110,7 @@ std::string ToString(const OutputShaderVersion shaderVersion)
         case OutputShaderVersion::VKSL:     return "VKSL";
 
         case OutputShaderVersion::HLSL5:    return "HLSL 5.0";
+        case OutputShaderVersion::HLSL6:    return "HLSL 6.x";
         case OutputShaderVersion::HLSL:     return "HLSL";
     }
     return "";
@@ -150,7 +152,12 @@ bool IsLanguageVKSL(const OutputShaderVersion shaderVersion)
 
 bool IsLanguageHLSL(const OutputShaderVersion shaderVersion)
 {
-    return (shaderVersion == OutputShaderVersion::HLSL5 || shaderVersion == OutputShaderVersion::HLSL);
+    return
+    (
+        shaderVersion == OutputShaderVersion::HLSL5 ||
+        shaderVersion == OutputShaderVersion::HLSL6 ||
+        shaderVersion == OutputShaderVersion::HLSL
+    );
 }
 
 XSC_EXPORT const std::map<std::string, int>& GetGLSLExtensionEnumeration()

@@ -9,6 +9,7 @@
 #define XSC_AST_H
 
 
+#include <Xsc/Reflection.h>
 #include <Xsc/Targets.h>
 #include "Token.h"
 #include "Visitor.h"
@@ -59,7 +60,6 @@ using FindPredicateConstFunctor = std::function<bool(const Expr& expr)>;
 
 // Function callback to merge two expressions into one.
 using MergeExprFunctor = std::function<ExprPtr(const ExprPtr& expr0, const ExprPtr& expr1)>;
-
 
 /* ----- Some helper macros ----- */
 
@@ -160,6 +160,7 @@ struct AST
         ArrayExpr,
         CastExpr,
         InitializerExpr,
+        DescriptorHeapExpr,
     };
 
     virtual ~AST();
@@ -319,6 +320,13 @@ struct Decl : public TypedAST
     Identifier ident;
 };
 
+// Context-resolved descriptor view used to generate backend bindings.
+struct BindlessResourceType
+{
+    DescriptorHeapKind heap = DescriptorHeapKind::Undefined;
+    TypeDenoterPtr     type;
+};
+
 // Program AST root.
 struct Program : public AST
 {   
@@ -376,6 +384,9 @@ struct Program : public AST
     // Returns a usage-container of the specified intrinsic or null if the specified intrinsic was not registered to be used.
     const IntrinsicUsage* FetchIntrinsicUsage(const Intrinsic intrinsic) const;
 
+    // Registers a context-resolved descriptor-heap view and returns its stable first-use index.
+    std::size_t RegisterBindlessResourceType(DescriptorHeapKind heap, const TypeDenoter& type);
+
     std::vector<StmntPtr>               globalStmnts;               // Global declaration statements.
 
     std::vector<ASTPtr>                 disabledAST;                // AST nodes that have been disabled for code generation (not part of the default visitor).
@@ -384,6 +395,8 @@ struct Program : public AST
     FunctionDecl*                       entryPointRef   = nullptr;  // Reference to the entry point function declaration.
     std::map<Intrinsic, IntrinsicUsage> usedIntrinsics;             // Set of all used intrinsic (filled by the reference analyzer).
     std::set<MatrixSubscriptUsage>      usedMatrixSubscripts;       // Set of all used matrix subscripts (filled by the reference analyzer).
+    std::vector<BindlessResourceType>        bindlessResourceTypes; // Context-resolved descriptor views in first-use order.
+    std::vector<Reflection::BindlessBinding> bindlessBindings;      // Backend-generated binding ABI, populated during generation.
 
     LayoutTessControlShader             layoutTessControl;          // Global program layout attributes for a tessellation-control shader.
     LayoutTessEvaluationShader          layoutTessEvaluation;       // Global program layout attributes for a tessellation-evaluation shader.
@@ -1425,6 +1438,26 @@ struct InitializerExpr : public Expr
     bool NextArrayIndices(std::vector<int>& arrayIndices) const;
 
     std::vector<ExprPtr> exprs; // Sub expression list.
+};
+
+/** Context-typed access to ResourceDescriptorHeap or SamplerDescriptorHeap. */
+struct DescriptorHeapExpr : public Expr
+{
+    AST_INTERFACE(DescriptorHeapExpr);
+
+    TypeDenoterPtr DeriveTypeDenoter(const TypeDenoter* expectedTypeDenoter) override;
+
+    const Expr* Find(const FindPredicateConstFunctor& predicate, unsigned int flags = SearchAll) const override;
+
+    /** Returns the source-language identifier of this descriptor heap. */
+    const std::string& HeapIdentifier() const;
+
+    /** Returns the source-language identifier of @p heap. */
+    static const std::string& HeapIdentifier(DescriptorHeapKind heap);
+
+    DescriptorHeapKind  heap = DescriptorHeapKind::Undefined;  //!< Descriptor heap selected by the expression.
+    ExprPtr             index;                                 //!< Descriptor index.
+    TypeDenoterPtr      resolvedTypeDenoter;                   //!< Resource type supplied by the initializer or assignment context.
 };
 
 
