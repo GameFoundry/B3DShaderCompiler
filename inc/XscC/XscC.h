@@ -101,6 +101,9 @@ struct XscOptions
     //! Descriptor set/register space used for compiler-generated bindless bindings.
     int     bindlessBindingSet;
 
+    //! First slot considered for compiler-generated bindless bindings. Independent of 'autoBinding'.
+    int     bindlessBindingStartSlot;
+
     //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. Must be a non-zero multiple of four. By default 16.
     unsigned int maxPushConstantSize;
 

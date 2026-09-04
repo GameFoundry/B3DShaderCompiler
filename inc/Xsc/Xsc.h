@@ -176,6 +176,9 @@ struct Options
     //! Descriptor set/register space used for compiler-generated bindless bindings. By default 0.
     int     bindlessBindingSet      = 0;
 
+    //! First slot considered for compiler-generated bindless bindings. Independent of 'autoBinding'. By default 0.
+    int     bindlessBindingStartSlot = 0;
+
     /**
     \brief Maximum push constant buffer size in bytes. By default 16.
     \remarks The value must be a non-zero multiple of four. Individual members may be supported scalar, vector, matrix, or structure types.

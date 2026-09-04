@@ -141,6 +141,30 @@ xsc_add_roundtrip_tests(
         "BindlessResourceClasses|CS|comp"
 )
 
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_binding_planner
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;auto-binding;binding-planner"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE} "-DEXPECT_REGEX=binding = 3[^\r\n]*autoTexture"
+    CASES       "BindingPlanner|PS|frag"
+)
+
+# Generated bindings are planned even with source auto-binding disabled. Slots
+# 0, 2, and 4 in set 2 are explicit source bindings. Starting generated
+# allocation at slot 2 therefore places the first descriptor array at slot 3.
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_binding_planner_no_auto
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;bindless;binding-planner"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE} -DXSC_AUTO_BINDING=OFF "-DEXPECT_REGEX=set = 2, binding = 3[^\r\n]*xsc_bindless_0"
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@-EB@--bindless-set@2@--bindless-slot@2
+    CASES       "BindlessBindingPlanner|PS|frag"
+)
+
 add_expect_error(UnsupportedResource BindlessUnsupportedResource CS comp
     "bindless append/consume buffers require an explicit counter handle"
     EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON

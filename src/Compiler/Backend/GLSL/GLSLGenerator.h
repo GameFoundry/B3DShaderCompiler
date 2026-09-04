@@ -156,7 +156,7 @@ class GLSLGenerator : public Generator
         void PreProcessFuncNameConverter();
         void PreProcessReferenceAnalyzer(const ShaderInput& inputDesc);
         void PreProcessExprConverterSecondary();
-        void PrepareBindlessResources(const ShaderOutput& outputDesc);
+        void PlanResourceBindings(const ShaderOutput& outputDesc);
 
         /* ----- Basics ----- */
 

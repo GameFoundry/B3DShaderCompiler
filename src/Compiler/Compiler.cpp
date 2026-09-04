@@ -106,6 +106,9 @@ void Compiler::ValidateArguments(const ShaderInput& inputDesc, const ShaderOutpu
     if (outputDesc.options.bindlessBindingSet < 0)
         throw std::invalid_argument("bindless binding set/register space must not be negative");
 
+    if (outputDesc.options.bindlessBindingStartSlot < 0)
+        throw std::invalid_argument("bindless binding start slot must not be negative");
+
     const auto& nameMngl = outputDesc.nameMangling;
     
     if (nameMngl.reservedWordPrefix.empty())

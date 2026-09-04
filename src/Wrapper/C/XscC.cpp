@@ -84,6 +84,7 @@ static void InitializeOptions(struct XscOptions* s)
     s->autoBinding              = false;
     s->autoBindingStartSlot     = 0;
     s->bindlessBindingSet       = 0;
+    s->bindlessBindingStartSlot = 0;
     s->maxPushConstantSize      = Xsc::PushConstants::DefaultSizeLimit;
     s->pushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
     s->pushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
@@ -433,6 +434,7 @@ XSCC_EXPORT bool XscCompileShader(
     out.options.autoBinding             = outputDesc->options.autoBinding;
     out.options.autoBindingStartSlot    = outputDesc->options.autoBindingStartSlot;
     out.options.bindlessBindingSet      = outputDesc->options.bindlessBindingSet;
+    out.options.bindlessBindingStartSlot = outputDesc->options.bindlessBindingStartSlot;
     out.options.maxPushConstantSize     = outputDesc->options.maxPushConstantSize;
     out.options.pushConstantHLSLRegister = outputDesc->options.pushConstantHLSLRegister;
     out.options.pushConstantHLSLRegisterSpace = outputDesc->options.pushConstantHLSLRegisterSpace;

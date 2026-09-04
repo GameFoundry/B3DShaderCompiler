@@ -8,7 +8,8 @@
 #   1. Run xsc with `-Vout VKSL450` (Vulkan GLSL) to emit a GLSL copy of the
 #      HLSL input. `--extension ON` and `-AB ON` are forced on so the output is
 #      self-contained Vulkan GLSL (explicit binding/location qualifiers, plus
-#      any required GLSL extension pragmas).
+#      any required GLSL extension pragmas). Tests can explicitly disable
+#      automatic source binding through XSC_AUTO_BINDING.
 #   2. Run glslangValidator with `-V` on the result; this compiles it all the
 #      way to SPIR-V and runs SPIR-V validation, so the test fails if the output
 #      violates a SPIR-V rule -- e.g. an opaque type left inside a struct, which
@@ -26,6 +27,14 @@ endforeach()
 # multiple flags can be forwarded; passed straight through to xsc.
 if(NOT DEFINED XSC_EXTRA_FLAGS)
     set(XSC_EXTRA_FLAGS "")
+endif()
+
+if(NOT DEFINED XSC_AUTO_BINDING)
+    set(XSC_AUTO_BINDING ON)
+endif()
+set(XSC_AUTO_BINDING_ARGS "")
+if(XSC_AUTO_BINDING)
+    set(XSC_AUTO_BINDING_ARGS -AB ON)
 endif()
 
 set(GLSLANG_TARGET_ARGS "")
@@ -57,7 +66,7 @@ endif()
 set(XSC_OUTPUT "${OUT_DIR}/${SHADER_NAME}.${ENTRY}.${XSC_EXT}")
 
 execute_process(
-    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vout VKSL450 --extension ON -AB ON
+    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vout VKSL450 --extension ON ${XSC_AUTO_BINDING_ARGS}
             -E "${ENTRY}" -T "${XSC_STAGE}" ${XSC_EXTRA_FLAGS} "${SHADER}"
     RESULT_VARIABLE XSC_RESULT
     OUTPUT_VARIABLE XSC_OUT
@@ -70,6 +79,13 @@ endif()
 
 if(NOT EXISTS "${XSC_OUTPUT}")
     message(FATAL_ERROR "xsc did not produce expected file: ${XSC_OUTPUT}")
+endif()
+
+if(DEFINED EXPECT_REGEX)
+    file(READ "${XSC_OUTPUT}" GENERATED_GLSL)
+    if(NOT GENERATED_GLSL MATCHES "${EXPECT_REGEX}")
+        message(FATAL_ERROR "generated GLSL did not match /${EXPECT_REGEX}/:\n${GENERATED_GLSL}")
+    endif()
 endif()
 
 execute_process(

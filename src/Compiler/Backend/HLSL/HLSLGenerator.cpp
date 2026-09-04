@@ -11,7 +11,7 @@
 #include "Exception.h"
 #include "Helper.h"
 #include "ReportIdents.h"
-#include "ASTFactory.h"
+#include "ResourceBindingPlanner.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -82,115 +82,6 @@ namespace
         return false;
     }
 } // namespace
-
-
-/*
-Assigns registers to resource declarations that lack them (see
-HLSLGenerator::AssignAutoBindings). Slots are numbered sequentially per register
-space, with all resource kinds sharing one counter per space, matching the GLSL
-backend's auto-binding numbering; explicit registers are respected and their
-slots reserved against auto-assignment.
-*/
-class HLSLAutoBindingVisitor final : public Visitor
-{
-
-    public:
-
-        HLSLAutoBindingVisitor(int startSlot, bool reservePushConstantBinding, int pushConstantRegister, int pushConstantSpace) :
-            startSlot_ { startSlot }
-        {
-            if (reservePushConstantBinding)
-                usedSlots_[pushConstantSpace].insert(pushConstantRegister);
-        }
-
-        // Walks the program and assigns the missing registers. Returns true if any
-        // bindable resource declaration was seen (registered or not).
-        bool Run(Program& program)
-        {
-            Visit(&program);
-            return hasResources_;
-        }
-
-    private:
-
-        DECL_VISIT_PROC( BufferDecl        );
-        DECL_VISIT_PROC( SamplerDecl       );
-        DECL_VISIT_PROC( UniformBufferDecl );
-
-        void AssignRegister(std::vector<RegisterPtr>& slotRegisters, const RegisterType registerType);
-
-        // Reserves and returns the lowest free slot in the given space at or above
-        // that space's running counter.
-        int TakeNextFreeSlot(int space);
-
-        std::map<int, std::set<int>>    usedSlots_;                 // Per-space used binding slots
-        std::map<int, int>              nextSlot_;                  // Per-space auto-binding slot counters
-        int                             startSlot_      = 0;
-        bool                            hasResources_   = false;
-
-};
-
-int HLSLAutoBindingVisitor::TakeNextFreeSlot(int space)
-{
-    auto it = nextSlot_.find(space);
-    if (it == nextSlot_.end())
-        it = nextSlot_.insert({ space, startSlot_ }).first;
-
-    auto& usedSlots = usedSlots_[space];
-    while (usedSlots.count(it->second) > 0)
-        ++it->second;
-
-    usedSlots.insert(it->second);
-    return it->second++;
-}
-
-void HLSLAutoBindingVisitor::AssignRegister(std::vector<RegisterPtr>& slotRegisters, const RegisterType registerType)
-{
-    hasResources_ = true;
-
-    if (!slotRegisters.empty())
-    {
-        /* Explicit register: reserve its slot (within its space) so auto-assignment
-           can't collide; fill in an unassigned slot (register(space#) only) the same
-           way as a missing one. Normalize the register type to the resource's actual
-           kind when the source used a spelling that doesn't map to one — most notably
-           the DX9 'c' register (BufferOffset) hosts use on cbuffers purely to carry
-           an explicit slot + space pair. */
-        auto& reg = slotRegisters.front();
-        if (reg->registerType == RegisterType::Undefined || reg->registerType == RegisterType::BufferOffset)
-            reg->registerType = registerType;
-
-        const int space = (reg->space >= 0 ? reg->space : 0);
-        if (reg->slot >= 0)
-            usedSlots_[space].insert(reg->slot);
-        else
-            reg->slot = TakeNextFreeSlot(space);
-        return;
-    }
-
-    slotRegisters.push_back(ASTFactory::MakeRegister(TakeNextFreeSlot(0), 0, registerType));
-}
-
-void HLSLAutoBindingVisitor::VisitBufferDecl(BufferDecl* ast, void* args)
-{
-    AssignRegister(
-        ast->slotRegisters,
-        IsRWBufferType(ast->GetBufferType()) ? RegisterType::UnorderedAccessView : RegisterType::TextureBuffer);
-    VISIT_DEFAULT(BufferDecl);
-}
-
-void HLSLAutoBindingVisitor::VisitSamplerDecl(SamplerDecl* ast, void* args)
-{
-    AssignRegister(ast->slotRegisters, RegisterType::Sampler);
-    VISIT_DEFAULT(SamplerDecl);
-}
-
-void HLSLAutoBindingVisitor::VisitUniformBufferDecl(UniformBufferDecl* ast, void* args)
-{
-    if (!ast->isPushConstant)
-        AssignRegister(ast->slotRegisters, RegisterType::ConstantBuffer);
-    VISIT_DEFAULT(UniformBufferDecl);
-}
 
 
 /* ----- Token-spelling virtuals ----- */
@@ -350,17 +241,10 @@ void HLSLGenerator::GenerateCodePrimary(
             outputDesc.targetLanguage == TargetLanguage::HLSL
         );
 
-        /* Auto-assign registers before emission when requested: hosts that rely on
-           auto-binding declare resources without registers. */
-        hasBindableResources_ = false;
-        if (outputDesc.options.autoBinding)
-            hasBindableResources_ = AssignAutoBindings(program, outputDesc);
+        PlanResourceBindings(program, inputDesc, outputDesc);
 
         if (emitPushConstantHLSLBinding_)
             ValidatePushConstantHLSLBinding(program);
-
-        program.bindlessBindings.clear();
-        PrepareBindlessBindings(program, inputDesc, outputDesc);
 
         WriteFileHeader(inputDesc);
 
@@ -385,16 +269,23 @@ void HLSLGenerator::PrepareBindlessBindings(Program&, const ShaderInput&, const 
 {
 }
 
-bool HLSLGenerator::AssignAutoBindings(Program& program, const ShaderOutput& outputDesc)
+void HLSLGenerator::PlanResourceBindings(
+    Program& program, const ShaderInput& inputDesc, const ShaderOutput& outputDesc)
 {
-    HLSLAutoBindingVisitor visitor
+    program.bindlessBindings.clear();
+    PrepareBindlessBindings(program, inputDesc, outputDesc);
+
+    ResourceBindingPlanner planner
     {
+        GetShaderTarget(),
         outputDesc.options.autoBindingStartSlot,
-        (emitPushConstantHLSLBinding_ && HasPushConstantBuffer(program)),
-        outputDesc.options.pushConstantHLSLRegister,
-        outputDesc.options.pushConstantHLSLRegisterSpace
+        outputDesc.options.bindlessBindingStartSlot
     };
-    return visitor.Run(program);
+
+    if (emitPushConstantHLSLBinding_ && HasPushConstantBuffer(program))
+        planner.Reserve(outputDesc.options.pushConstantHLSLRegister, outputDesc.options.pushConstantHLSLRegisterSpace);
+
+    hasBindableResources_ = planner.Plan(program, outputDesc.options.autoBinding, program.bindlessBindings);
 }
 
 void HLSLGenerator::ValidatePushConstantHLSLBinding(Program& program)

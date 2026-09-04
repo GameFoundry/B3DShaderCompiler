@@ -1062,6 +1062,29 @@ void BindlessBindingSetCommand::Run(CommandLine& cmdLine, ShellState& state)
 }
 
 /*
+ * BindlessBindingStartSlotCommand class
+ */
+
+std::vector<Command::Identifier> BindlessBindingStartSlotCommand::Idents() const
+{
+    return { { "--bindless-slot" } };
+}
+
+HelpDescriptor BindlessBindingStartSlotCommand::Help() const
+{
+    return
+    {
+        "--bindless-slot SLOT",
+        R_CmdHelpBindlessBindingStartSlot
+    };
+}
+
+void BindlessBindingStartSlotCommand::Run(CommandLine& cmdLine, ShellState& state)
+{
+    state.outputDesc.options.bindlessBindingStartSlot = std::stoi(cmdLine.Accept());
+}
+
+/*
  * PushConstantSizeCommand class
  */
 

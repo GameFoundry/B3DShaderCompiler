@@ -94,6 +94,7 @@ if(DXC_EXECUTABLE)
         CASES
             "BindlessResources|PS|ps_6_6|frag"
             "BindlessResourceClasses|CS|cs_6_6|comp"
+            "BindlessBindingPlanner|PS|ps_6_6|frag"
     )
 else()
     message(STATUS "dxc not found; HLSL 6 bindless round-trip tests will not be registered.")
@@ -136,6 +137,20 @@ xsc_add_roundtrip_tests(
     PROFILE_DEFINE FXC_PROFILE
     EXTRA_FLAGS    -AB
     CASES          ${XSC_HLSL_AUTOBIND_CASES}
+)
+
+# Explicit declarations may follow resources that need automatic bindings. The
+# planner must reserve the later slots before assigning the earlier resources.
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_binding_planner
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;auto-binding;binding-planner"
+    DEFINES        -DFXC=${FXC_EXECUTABLE} "-DEXPECT_REGEX=autoTexture[^\r\n]*register\\(t3\\)"
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -AB
+    CASES          "BindingPlanner|PS|ps_5_0|frag"
 )
 
 # Push constants use a reserved SM5.1 register space and explicit packoffset

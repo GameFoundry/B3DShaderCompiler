@@ -610,6 +610,7 @@ DECL_REPORT( CmdHelpBinding,                    "Enables/disables explicit bindi
 DECL_REPORT( CmdHelpAutoBinding,                "Enables/disables automatic binding slot generation (implies -EB); default={0}"                                 );
 DECL_REPORT( CmdHelpAutoBindingStartSlot,       "Sets the start slot index for automatic binding slot generation; default=0"                                    );
 DECL_REPORT( CmdHelpBindlessBindingSet,         "Sets the descriptor set/register space for compiler-generated bindless bindings; default=0"                   );
+DECL_REPORT( CmdHelpBindlessBindingStartSlot,   "Sets the start slot index for compiler-generated bindless bindings; default=0"                                 );
 DECL_REPORT( CmdHelpPushConstantSize,           "Sets the maximum logical byte range occupied by the entire BSL '[pushConstant]' cbuffer; default=16"            );
 DECL_REPORT( CmdHelpPushConstantRegister,       "Sets the HLSL constant-buffer register used for the push-constant marker; default=0"                            );
 DECL_REPORT( CmdHelpPushConstantSpace,          "Sets the HLSL register space used for the push-constant marker; default=65535"                                  );

@@ -22,6 +22,7 @@
 #include "TypeConverter.h"
 #include "ExprConverter.h"
 #include "FuncNameConverter.h"
+#include "ResourceBindingPlanner.h"
 #include "Helper.h"
 #include "ReportIdents.h"
 #include <initializer_list>
@@ -94,7 +95,7 @@ void GLSLGenerator::GenerateCodePrimary(
         {
             /* Pre-process AST before generation begins */
             PreProcessAST(inputDesc, outputDesc);
-            PrepareBindlessResources(outputDesc);
+            PlanResourceBindings(outputDesc);
 
             /* Write header */
             if (inputDesc.entryPoint.empty())
@@ -1423,57 +1424,23 @@ void GLSLGenerator::WriteBindlessDeclaration(const BindlessResourceType& resourc
     EndLn();
 }
 
-void GLSLGenerator::PrepareBindlessResources(const ShaderOutput& outputDesc)
+void GLSLGenerator::PlanResourceBindings(const ShaderOutput& outputDesc)
 {
     auto program = GetProgram();
     program->bindlessBindings.clear();
-    if (program->bindlessResourceTypes.empty())
-        return;
 
-    if (!IsVKSL())
+    if (!program->bindlessResourceTypes.empty() && !IsVKSL())
     {
         Error("bindless resources require a Vulkan GLSL output target");
         return;
     }
 
-    std::set<int> usedBindings;
-    auto reserveRegisters = [this, &usedBindings, &outputDesc](const std::vector<RegisterPtr>& registers)
-    {
-        if (auto reg = Register::GetForTarget(registers, GetShaderTarget()))
-        {
-            if (reg->space == outputDesc.options.bindlessBindingSet && reg->slot >= 0)
-                usedBindings.insert(reg->slot);
-        }
-    };
-    for (const auto& stmnt : program->globalStmnts)
-    {
-        if (auto buffers = (stmnt ? stmnt->As<BufferDeclStmnt>() : nullptr))
-        {
-            for (const auto& buffer : buffers->bufferDecls)
-                reserveRegisters(buffer->slotRegisters);
-        }
-        else if (auto samplers = (stmnt ? stmnt->As<SamplerDeclStmnt>() : nullptr))
-        {
-            for (const auto& sampler : samplers->samplerDecls)
-                reserveRegisters(sampler->slotRegisters);
-        }
-        else if (auto basic = (stmnt ? stmnt->As<BasicDeclStmnt>() : nullptr))
-        {
-            if (auto uniformBuffer = (basic->declObject ? basic->declObject->As<UniformBufferDecl>() : nullptr))
-                reserveRegisters(uniformBuffer->slotRegisters);
-        }
-    }
-
-    int nextBinding = outputDesc.options.autoBindingStartSlot;
     for (std::size_t bindingIndex = 0; bindingIndex < program->bindlessResourceTypes.size(); ++bindingIndex)
     {
         const auto& resource = program->bindlessResourceTypes[bindingIndex];
-        while (usedBindings.find(nextBinding) != usedBindings.end())
-            ++nextBinding;
 
         Reflection::BindlessBinding binding;
         binding.heap         = (resource.heap == DescriptorHeapKind::Sampler ? Reflection::BindlessHeapKind::Sampler : Reflection::BindlessHeapKind::Resource);
-        binding.location     = nextBinding;
         binding.set          = outputDesc.options.bindlessBindingSet;
         binding.ident        = "xsc_bindless_" + std::to_string(bindingIndex);
         binding.resourceType = (resource.type ? resource.type->ToString() : "");
@@ -1505,8 +1472,15 @@ void GLSLGenerator::PrepareBindlessResources(const ShaderOutput& outputDesc)
         }
 
         program->bindlessBindings.push_back(binding);
-        usedBindings.insert(nextBinding++);
     }
+
+    ResourceBindingPlanner planner
+    {
+        GetShaderTarget(),
+        outputDesc.options.autoBindingStartSlot,
+        outputDesc.options.bindlessBindingStartSlot
+    };
+    planner.Plan(*program, outputDesc.options.autoBinding, program->bindlessBindings);
 }
 
 /* ----- Global layouts ----- */

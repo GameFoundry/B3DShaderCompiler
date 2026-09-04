@@ -443,6 +443,7 @@ public ref class XscCompiler
                     AutoBinding             = false;
                     AutoBindingStartSlot    = 0;
                     BindlessBindingSet      = 0;
+                    BindlessBindingStartSlot = 0;
                     MaxPushConstantSize     = Xsc::PushConstants::DefaultSizeLimit;
                     PushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
                     PushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
@@ -475,6 +476,9 @@ public ref class XscCompiler
 
                 //! Descriptor set/register space used for compiler-generated bindless bindings.
                 property int    BindlessBindingSet;
+
+                //! First slot considered for compiler-generated bindless bindings. Independent of 'AutoBinding'.
+                property int    BindlessBindingStartSlot;
 
                 //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. By default 16.
                 property System::UInt32 MaxPushConstantSize;
@@ -1157,6 +1161,7 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
     out.options.autoBinding             = outputDesc->Options->AutoBinding;
     out.options.autoBindingStartSlot    = outputDesc->Options->AutoBindingStartSlot;
     out.options.bindlessBindingSet      = outputDesc->Options->BindlessBindingSet;
+    out.options.bindlessBindingStartSlot = outputDesc->Options->BindlessBindingStartSlot;
     out.options.maxPushConstantSize     = outputDesc->Options->MaxPushConstantSize;
     out.options.pushConstantHLSLRegister = outputDesc->Options->PushConstantHLSLRegister;
     out.options.pushConstantHLSLRegisterSpace = outputDesc->Options->PushConstantHLSLRegisterSpace;

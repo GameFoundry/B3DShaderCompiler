@@ -107,10 +107,6 @@ void GLSLConverter::ConvertASTPrimary(Program& program, const ShaderInput& input
     autoBinding_        = outputDesc.options.autoBinding;
     separateSamplers_   = outputDesc.options.separateSamplers;
 
-    /* Initialize per-space auto-binding slots */
-    for (int i = 0; i < maxBindingSpaces_; ++i)
-        autoBindingSlot_[i] = outputDesc.options.autoBindingStartSlot;
-
     /* Visit program AST */
     Visit(&program);
 }
@@ -1787,39 +1783,7 @@ void GLSLConverter::UnrollStmntsVarDeclInitializer(std::vector<StmntPtr>& unroll
 
 void GLSLConverter::ConvertSlotRegisters(std::vector<RegisterPtr>& slotRegisters)
 {
-    if (autoBinding_)
-    {
-        if (!slotRegisters.empty())
-        {
-            auto& reg = slotRegisters.front();
-            int space = reg->space;
-
-            if (space < 0 || space >= maxBindingSpaces_)
-                space = 0;
-
-            if (reg->slot >= 0)
-                usedBindingSlots_[space].insert(reg->slot);
-            else
-            {
-                while (usedBindingSlots_[space].count(autoBindingSlot_[space]) > 0)
-                    autoBindingSlot_[space]++;
-
-                reg->slot = autoBindingSlot_[space];
-                usedBindingSlots_[space].insert(autoBindingSlot_[space]);
-                autoBindingSlot_[space]++;
-            }
-        }
-        else
-        {
-            while (usedBindingSlots_[0].count(autoBindingSlot_[0]) > 0)
-                autoBindingSlot_[0]++;
-
-            slotRegisters.push_back(ASTFactory::MakeRegister(autoBindingSlot_[0]));
-            usedBindingSlots_[0].insert(autoBindingSlot_[0]);
-            autoBindingSlot_[0]++;
-        }
-    }
-    else
+    if (!autoBinding_)
     {
         for (auto& reg : slotRegisters)
         {

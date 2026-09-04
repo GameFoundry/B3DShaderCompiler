@@ -50,7 +50,7 @@ class XSC_EXPORT HLSLGenerator : public Generator
 
         /* === Generation hooks (overridable) === */
 
-        /** Manufactures bindless ABI bindings after ordinary auto-binding and before shader emission. */
+        /** Describes the backend's generated bindless ABI bindings before coordinated allocation. */
         virtual void PrepareBindlessBindings(Program& program, const ShaderInput& inputDesc, const ShaderOutput& outputDesc);
 
         // Emits the file-level header comment (generator credit + timestamp).
@@ -151,18 +151,17 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // Writes a single statement; wraps non-block bodies in a block when needed for readability.
         virtual void WriteScopedStmnt(Stmnt* ast);
 
-        /* === Auto-binding === */
+        /* === Resource bindings === */
 
-        // Assigns register slot to every resource declaration that lacks on. Similar to GLSLConverter::ConvertSlotRegisters.
-        // Returns true if any bindable resource declaration was seen (registered or not).
-        bool AssignAutoBindings(Program& program, const ShaderOutput& outputDesc);
+        // Assigns register slot to resource declarations that lack one.
+        void PlanResourceBindings(Program& program, const ShaderInput& inputDesc, const ShaderOutput& outputDesc);
 
         // Rejects an ordinary constant buffer that explicitly occupies the configured push-constant marker binding.
         void ValidatePushConstantHLSLBinding(Program& program);
 
-        // True when AssignAutoBindings ran and saw at least one bindable resource
-        // declaration. Lets derived backends make binding-related emission decisions
-        // (e.g. an entry-point attribute) before any resource declaration was visited.
+        // True when the binding planner saw a source or compiler-generated resource.
+        // Lets derived backends make binding-related emission decisions (e.g. an
+        // entry-point attribute) before any resource declaration was visited.
         bool hasBindableResources_ = false;
 
         int pushConstantHLSLRegister_      = PushConstants::HLSLRegister;

@@ -66,6 +66,13 @@ if(NOT EXISTS "${XSC_OUTPUT}")
     message(FATAL_ERROR "xsc did not produce expected file: ${XSC_OUTPUT}")
 endif()
 
+if(DEFINED EXPECT_REGEX)
+    file(READ "${XSC_OUTPUT}" GENERATED_HLSL)
+    if(NOT GENERATED_HLSL MATCHES "${EXPECT_REGEX}")
+        message(FATAL_ERROR "generated HLSL did not match /${EXPECT_REGEX}/:\n${GENERATED_HLSL}")
+    endif()
+endif()
+
 if(DXC)
     execute_process(
         COMMAND "${DXC}" -T "${FXC_PROFILE}" -E "${ENTRY}" -Fo "${XSC_OUTPUT}.dxil" "${XSC_OUTPUT}"
