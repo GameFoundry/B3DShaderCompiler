@@ -1,5 +1,9 @@
 .DS_Store
-Build
+.vs
+_Resharper.Caches
+Build*
+build*
+cmake_build*
 
 # Generated install tree (cmake --install output)
 install/.context-compiler/
