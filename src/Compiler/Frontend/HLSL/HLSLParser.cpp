@@ -420,6 +420,11 @@ AttributePtr HLSLParser::ParseAttribute()
 
     UpdateSourceArea(ast);
 
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    if (ast->attributeType == AttributeType::PushConstant && !extensions_(Extensions::PushConstants))
+        Error(R_AttributeRequiresExtension("pushConstant", "push-constants"), ast->area);
+    #endif
+
     if (ast->attributeType == AttributeType::Undefined)
         Warning(R_UnknownAttribute(attribIdent));
 

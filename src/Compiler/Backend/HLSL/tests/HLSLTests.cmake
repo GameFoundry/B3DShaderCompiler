@@ -163,7 +163,7 @@ xsc_add_roundtrip_tests(
     LABELS         "hlsl-roundtrip;push-constants"
     DEFINES        -DFXC=${FXC_EXECUTABLE}
     PROFILE_DEFINE FXC_PROFILE
-    EXTRA_FLAGS    -Xall@-push-constant-register@3@-push-constant-space@7
+    EXTRA_FLAGS    -Xpush-constants@-push-constant-register@3@-push-constant-space@7
     CASES          "PushConstantLayoutTest|main|vs_5_1|vert"
 )
 
@@ -175,7 +175,7 @@ xsc_add_roundtrip_tests(
     LABELS         "hlsl-roundtrip;push-constants"
     DEFINES        -DFXC=${FXC_EXECUTABLE}
     PROFILE_DEFINE FXC_PROFILE
-    EXTRA_FLAGS    -Xall@--max-push-constant-buffer-size@4
+    EXTRA_FLAGS    -Xpush-constants@--max-push-constant-buffer-size@4
     CASES          "PushConstantScalarRange|main|vs_5_1|vert"
 )
 
@@ -187,7 +187,7 @@ xsc_add_roundtrip_tests(
     LABELS         "hlsl-roundtrip;push-constants;aggregates"
     DEFINES        -DFXC=${FXC_EXECUTABLE}
     PROFILE_DEFINE FXC_PROFILE
-    EXTRA_FLAGS    -Xall@--max-push-constant-buffer-size@64
+    EXTRA_FLAGS    -Xpush-constants@--max-push-constant-buffer-size@64
     CASES          "PushConstantAggregateLayout|main|vs_5_1|vert"
 )
 
@@ -199,7 +199,7 @@ xsc_add_roundtrip_tests(
     LABELS         "hlsl-roundtrip;push-constants;auto-binding"
     DEFINES        -DFXC=${FXC_EXECUTABLE}
     PROFILE_DEFINE FXC_PROFILE
-    EXTRA_FLAGS    -Xall@-AB@-push-constant-register@0@-push-constant-space@0
+    EXTRA_FLAGS    -Xpush-constants@-AB@-push-constant-register@0@-push-constant-space@0
     CASES          "PushConstantAutoBinding|main|vs_5_1|vert"
 )
 
@@ -213,7 +213,7 @@ add_test(
         -DOUT_DIR=${_HLSL_OUT_DIR}
         -DXSC_VOUT=HLSL5
         "-DEXPECT_REGEX=push-constant HLSL binding b3, space7 conflicts"
-        "-DXSC_EXTRA_FLAGS=-Xall;-push-constant-register;3;-push-constant-space;7"
+        "-DXSC_EXTRA_FLAGS=-Xpush-constants;-push-constant-register;3;-push-constant-space;7"
         -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests/RunXscExpectError.cmake
 )
 set_tests_properties(hlsl_reject.PushConstantBindingCollision

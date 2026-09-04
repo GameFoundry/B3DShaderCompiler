@@ -105,7 +105,7 @@ int TestPushConstants()
     in.filename = "push-constant-test.hlsl";
     in.entryPoint = "main";
     in.shaderTarget = XscETargetVertexShader;
-    in.extensions = XscExtAll;
+    in.extensions = XscExtPushConstants;
     in.sourceCode =
     (
         "[pushConstant]\n"

@@ -54,6 +54,7 @@ enum XscExtensions
     XscExtStrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
     XscExtHLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
     XscExtBindlessResources = (1 << 6), //!< Enables portable ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
+    XscExtPushConstants     = (1 << 7), //!< Enables portable '[pushConstant]' constant-buffer declarations.
 
     XscExtAll               = (~0u)     //!< All extensions.
 };

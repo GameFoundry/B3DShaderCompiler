@@ -200,6 +200,7 @@ public ref class XscCompiler
             StrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive but cross-target-incompatible constructs (mul matrix/vector dim mismatch, 'precise' keyword).
             HLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
             BindlessResources = (1 << 6), //!< Enables portable ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
+            PushConstants     = (1 << 7), //!< Enables portable '[pushConstant]' constant-buffer declarations.
 
             All               = (~0u)     //!< All extensions.
         };

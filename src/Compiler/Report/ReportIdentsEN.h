@@ -672,7 +672,8 @@ DECL_REPORT( CmdHelpDetailsLanguageExtension,   "all           => all kinds of e
                                                 "opaque-struct => enable opaque resource values in structs and locals\n"       \
                                                 "strict-hlsl   => enable the strict portable HLSL subset\n"                    \
                                                 "hlsl-templates => enable HLSL struct and function templates\n"                  \
-                                                "bindless      => enable portable descriptor heap accesses"                                                     );
+                                                "bindless      => enable portable descriptor heap accesses\n"                    \
+                                                "push-constants => enable portable '[pushConstant]' constant buffers"                                           );
 DECL_REPORT( InvalidExtensionType,              "invalid extension type[: '{0}']"                                                                               );
 
 // BEGIN BANSHEE CHANGES

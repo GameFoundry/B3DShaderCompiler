@@ -115,6 +115,7 @@ struct Extensions
         StrictHLSL        = (1 << 4), //!< Enforces a stricter HLSL subset that errors on fxc-permissive constructs without a portable cross-target equivalent: mul(matrix, vector) with vector dim smaller than the matrix inner dim (no implicit zero-padding), and the 'precise' type modifier. Diagnostic fires at analyzer time independent of output target.
         HLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates. Templates are specialized by the front end so all output targets receive ordinary concrete declarations.
         BindlessResources = (1 << 6), //!< Enables portable SM 6.6-style ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
+        PushConstants     = (1 << 7), //!< Enables portable '[pushConstant]' constant-buffer declarations.
 
         All               = (~0u)     //!< All extensions.
     };

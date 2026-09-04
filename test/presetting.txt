@@ -225,10 +225,10 @@
 -T vert -E main -Xall -o output/* ExtSpaceAttrTest1.hlsl
 
 [PushConstantTest1: vert]
--T vert -E main -Xall -o output/* PushConstantTest1.hlsl
+-T vert -E main -Xpush-constants -o output/* PushConstantTest1.hlsl
 
 [PushConstantLayoutTest: vert]
--T vert -E main -Xall -o output/* PushConstantLayoutTest.hlsl
+-T vert -E main -Xpush-constants -o output/* PushConstantLayoutTest.hlsl
 
 [SampleCmpTest1: vert]
 -T vert -E main -Xall -o output/* SampleCmpTest1.hlsl

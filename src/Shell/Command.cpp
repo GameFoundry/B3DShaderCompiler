@@ -1523,6 +1523,7 @@ void LanguageExtensionCommand::Run(CommandLine& cmdLine, ShellState& state)
             { "strict-hlsl",    Extensions::StrictHLSL        },
             { "hlsl-templates", Extensions::HLSLTemplates     },
             { "bindless",       Extensions::BindlessResources },
+            { "push-constants", Extensions::PushConstants     },
         },
         R_InvalidExtensionType(type)
     );

@@ -224,7 +224,7 @@ xsc_add_roundtrip_tests(
     OUT_DIR     ${_GLSL_OUT_DIR}
     LABELS      "glsl-roundtrip;push-constants"
     DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
-    EXTRA_FLAGS -Xall
+    EXTRA_FLAGS -Xpush-constants
     CASES       "PushConstantLayoutTest|main|vert"
 )
 
@@ -235,7 +235,7 @@ xsc_add_roundtrip_tests(
     OUT_DIR     ${_GLSL_OUT_DIR}
     LABELS      "glsl-roundtrip;push-constants"
     DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
-    EXTRA_FLAGS -Xall@--max-push-constant-buffer-size@4
+    EXTRA_FLAGS -Xpush-constants@--max-push-constant-buffer-size@4
     CASES       "PushConstantScalarRange|main|vert"
 )
 
@@ -246,7 +246,7 @@ xsc_add_roundtrip_tests(
     OUT_DIR     ${_GLSL_OUT_DIR}
     LABELS      "glsl-roundtrip;push-constants;aggregates"
     DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
-    EXTRA_FLAGS -Xall@--max-push-constant-buffer-size@64
+    EXTRA_FLAGS -Xpush-constants@--max-push-constant-buffer-size@64
     CASES       "PushConstantAggregateLayout|main|vert"
 )
 
@@ -270,17 +270,19 @@ add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "ca
 add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" EXTRA_FLAGS -Xopaque-struct@ON)
 add_expect_error(LocalExtDisabled OpaqueTypeLocalTexture           main frag "opaque-struct' language extension is enabled")
 
+add_expect_error(PushConstantExtension PushConstantTest1 main vert "attribute 'pushConstant' requires language extension 'push-constants'"
+    LABELS "glsl-roundtrip;push-constants;negative")
 add_expect_error(PushConstantType      PushConstantInvalidType main vert "must be a non-array scalar"
-    EXTRA_FLAGS -Xall
+    EXTRA_FLAGS -Xpush-constants
     LABELS "glsl-roundtrip;push-constants;negative")
 add_expect_error(PushConstantArray     PushConstantInvalidArray main vert "must be a non-array scalar"
-    EXTRA_FLAGS -Xall
+    EXTRA_FLAGS -Xpush-constants
     LABELS "glsl-roundtrip;push-constants;negative")
 add_expect_error(PushConstantSize      PushConstantInvalidSize main vert "exceeding the configured maximum of 16 bytes"
-    EXTRA_FLAGS -Xall
+    EXTRA_FLAGS -Xpush-constants
     LABELS "glsl-roundtrip;push-constants;negative")
 add_expect_error(PushConstantDuplicate PushConstantDuplicate   main vert "only one push-constant buffer"
-    EXTRA_FLAGS -Xall
+    EXTRA_FLAGS -Xpush-constants
     LABELS "glsl-roundtrip;push-constants;negative")
 
 add_expect_error(TemplateExtensionDisabled TemplateTest1 VS vert "hlsl-templates' language extension"
