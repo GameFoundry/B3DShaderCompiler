@@ -968,6 +968,7 @@ static Dictionary<AttributeType> GenerateAttributeTypeDict()
         { "name",                      T::Name                      },
         { "hdr",                       T::HDR                       },
         { "pushConstant",              T::PushConstant              },
+        { "dynamicOffset",             T::DynamicOffset             },
 
         // END BANSHEE CHANGES
         #endif

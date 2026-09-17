@@ -915,7 +915,6 @@ struct UniformBufferDecl : public Decl
 	
     // BEGIN BANSHEE CHANGES
     int             extModifiers      = 0;
-    bool            isPushConstant    = false;
     int             pushConstantSize  = 0; // Logical occupied byte range, rounded to the four-byte transport granularity.
     // END BANSHEE CHANGES
 };

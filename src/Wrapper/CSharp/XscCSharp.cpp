@@ -201,6 +201,7 @@ public ref class XscCompiler
             HLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
             BindlessResources = (1 << 6), //!< Enables portable ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
             PushConstants     = (1 << 7), //!< Enables portable '[pushConstant]' constant-buffer declarations.
+            DynamicOffsets    = (1 << 8), //!< Enables '[dynamicOffset]' on non-array uniform-buffer bindings.
 
             All               = (~0u)     //!< All extensions.
         };
@@ -260,11 +261,25 @@ public ref class XscCompiler
                     Location = location;
                 }
 
+                BindingSlot(String^ ident, int location, int set, bool usesDynamicOffset)
+                {
+                    Ident = ident;
+                    Location = location;
+                    Set = set;
+                    UsesDynamicOffset = usesDynamicOffset;
+                }
+
                 //! Identifier of the binding point.
                 property String^    Ident;
 
                 //! Zero based binding point or location. If this is -1, the location has not been set explicitly.
                 property int        Location;
+
+                //! Descriptor set or register space; -1 when no binding has been assigned.
+                property int        Set;
+
+                //! True only for a non-array uniform-buffer binding marked with '[dynamicOffset]'.
+                property bool       UsesDynamicOffset;
 
         };
 
@@ -1071,8 +1086,7 @@ static Collections::Generic::List<XscCompiler::BindingSlot^>^ ToManagedList(cons
     auto dst = gcnew Collections::Generic::List<XscCompiler::BindingSlot^>();
 
     for (const auto& s : src)
-        dst->Add(gcnew XscCompiler::BindingSlot(gcnew String(s.ident.c_str()), s.location));
-
+        dst->Add(gcnew XscCompiler::BindingSlot(gcnew String(s.ident.c_str()), s.location, s.set, s.usesDynamicOffset));
 
     return dst;
 }

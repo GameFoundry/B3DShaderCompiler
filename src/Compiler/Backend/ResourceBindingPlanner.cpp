@@ -118,7 +118,7 @@ IMPLEMENT_VISIT_PROC(SamplerDecl)
 
 IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 {
-    if (!ast->isPushConstant)
+    if ((ast->extModifiers & ExtModifiers::PushConstant) == 0)
         AddSourceBinding(ast->slotRegisters, RegisterType::ConstantBuffer);
     VISIT_DEFAULT(UniformBufferDecl);
 }

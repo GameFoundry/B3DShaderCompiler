@@ -55,6 +55,7 @@ enum XscExtensions
     XscExtHLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates.
     XscExtBindlessResources = (1 << 6), //!< Enables portable ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
     XscExtPushConstants     = (1 << 7), //!< Enables portable '[pushConstant]' constant-buffer declarations.
+    XscExtDynamicOffsets    = (1 << 8), //!< Enables '[dynamicOffset]' on non-array uniform-buffer bindings.
 
     XscExtAll               = (~0u)     //!< All extensions.
 };

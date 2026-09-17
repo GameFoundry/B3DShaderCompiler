@@ -42,6 +42,10 @@ bool Compiler::CompileShader(
     Reflection::ReflectionData* reflectionData,
     StageTimePoints*            stageTimePoints)
 {
+    /* Reflection belongs to this invocation, even when compilation fails. */
+    if (reflectionData)
+        *reflectionData = Reflection::ReflectionData{};
+
     /* Check for supported feature */
     if (!IsLanguageHLSL(inputDesc.shaderVersion) && !outputDesc.options.preprocessOnly)
         return ReturnWithError(R_OnlyPreProcessingForNonHLSL);

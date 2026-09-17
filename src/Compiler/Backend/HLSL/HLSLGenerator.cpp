@@ -74,7 +74,7 @@ namespace
             {
                 if (auto bufferDecl = basicDecl->declObject->As<UniformBufferDecl>())
                 {
-                    if (bufferDecl->isPushConstant)
+                    if ((bufferDecl->extModifiers & ExtModifiers::PushConstant) != 0)
                         return true;
                 }
             }
@@ -304,7 +304,7 @@ void HLSLGenerator::ValidatePushConstantHLSLBinding(Program& program)
         (
             bufferDecl == nullptr ||
             bufferDecl->bufferType != UniformBufferType::ConstantBuffer ||
-            bufferDecl->isPushConstant ||
+            (bufferDecl->extModifiers & ExtModifiers::PushConstant) != 0 ||
             bufferDecl->slotRegisters.empty()
         )
             continue;
@@ -406,7 +406,7 @@ IMPLEMENT_VISIT_PROC(VarDecl)
     if
     (
         !uniformBufferStack.empty() &&
-        uniformBufferStack.back()->isPushConstant &&
+        (uniformBufferStack.back()->extModifiers & ExtModifiers::PushConstant) != 0 &&
         ast->pushConstantOffset >= 0
     )
     {
@@ -470,7 +470,7 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
     Write(ast->ident);
 
     /* Register annotation (e.g. " : register(b0)") */
-    if (ast->isPushConstant)
+    if ((ast->extModifiers & ExtModifiers::PushConstant) != 0)
     {
         Write(" : register(b");
         Write(std::to_string(pushConstantHLSLRegister_));

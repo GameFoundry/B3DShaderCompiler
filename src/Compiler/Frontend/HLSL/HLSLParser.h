@@ -158,7 +158,7 @@ class HLSLParser : public SLParser
         std::vector<StmntPtr>           ParseStructStmntList();
         std::vector<VarDeclStmntPtr>    ParseAnnotationList();
         std::vector<RegisterPtr>        ParseRegisterList(bool parseFirstColon = true);
-        std::vector<AttributePtr>       ParseAttributeList();
+        std::vector<AttributePtr>       ParseAttributeList(bool allowDynamicOffset = false);
         std::vector<BufferDeclPtr>      ParseBufferDeclList(BufferDeclStmnt* declStmntRef, const TokenPtr& identTkn = nullptr);
         std::vector<SamplerDeclPtr>     ParseSamplerDeclList(SamplerDeclStmnt* declStmntRef, const TokenPtr& identTkn = nullptr);
         std::vector<SamplerValuePtr>    ParseSamplerValueList();

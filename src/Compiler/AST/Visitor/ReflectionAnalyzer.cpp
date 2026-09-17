@@ -491,7 +491,7 @@ IMPLEMENT_VISIT_PROC(StructDecl)
 
 IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 {
-    if (ast->isPushConstant)
+    if ((ast->extModifiers & ExtModifiers::PushConstant) != 0)
     {
         Reflection::PushConstantBuffer buffer;
         buffer.ident = ast->ident;
@@ -518,7 +518,8 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
     // END BANSHEE CHANGES
     {
         /* Reflect constant buffer binding */
-        data_->constantBuffers.push_back({ ast->ident, GetBindingPoint(ast->slotRegisters), GetBindingSet(ast->slotRegisters) });
+        const bool usesDynamicOffset = (ast->extModifiers & ExtModifiers::DynamicOffset) != 0;
+        data_->constantBuffers.push_back({ ast->ident, GetBindingPoint(ast->slotRegisters), GetBindingSet(ast->slotRegisters), usesDynamicOffset });
 
         // BEGIN BANSHEE CHANGES
 
@@ -526,12 +527,14 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
         uniform.ident = ast->ident;
         uniform.type = Reflection::VariableType::UniformBuffer;
         uniform.baseType = 0;
+        if (usesDynamicOffset)
+            uniform.flags |= Reflection::Uniform::Flags::DynamicOffset;
 
         if ((ast->extModifiers & ExtModifiers::Internal) != 0)
-            uniform.flags = Reflection::Uniform::Flags::Internal;
+            uniform.flags |= Reflection::Uniform::Flags::Internal;
 
         if ((ast->extModifiers & ExtModifiers::HideInInspector) != 0)
-            uniform.flags = Reflection::Uniform::Flags::HideInInspector;
+            uniform.flags |= Reflection::Uniform::Flags::HideInInspector;
 
         data_->uniforms.push_back(uniform);
 

@@ -111,6 +111,12 @@ struct XscBindingSlot
 
     //! Zero based binding point or location. If this is -1, the location has not been set explicitly.
     int         location;
+
+    //! Descriptor set or register space; -1 when no binding has been assigned.
+    int         set;
+
+    //! Nonzero only for a non-array uniform-buffer binding marked with '[dynamicOffset]'.
+    int         usesDynamicOffset;
 };
 
 //! Reflected member of a BSL push-constant block.

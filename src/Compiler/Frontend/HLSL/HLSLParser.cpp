@@ -423,6 +423,8 @@ AttributePtr HLSLParser::ParseAttribute()
     #ifdef XSC_ENABLE_LANGUAGE_EXT
     if (ast->attributeType == AttributeType::PushConstant && !extensions_(Extensions::PushConstants))
         Error(R_AttributeRequiresExtension("pushConstant", "push-constants"), ast->area);
+    if (ast->attributeType == AttributeType::DynamicOffset && !extensions_(Extensions::DynamicOffsets))
+        Error(R_AttributeRequiresExtension("dynamicOffset", "dynamic-offsets"), ast->area);
     #endif
 
     if (ast->attributeType == AttributeType::Undefined)
@@ -448,6 +450,11 @@ AttributePtr HLSLParser::ParseAttribute()
     }
 
     Accept(Tokens::RParen);
+
+    #ifdef XSC_ENABLE_LANGUAGE_EXT
+    if (ast->attributeType == AttributeType::DynamicOffset && !ast->arguments.empty())
+        Error(R_DynamicOffsetNoArguments, ast->area);
+    #endif
 
     return ast;
 }
@@ -836,8 +843,19 @@ StmntPtr HLSLParser::ParseGlobalStmnt()
     if (Is(Tokens::LParen))
     {
         /* Parse attributes and statement */
-        auto attribs = ParseAttributeList();
+        auto attribs = ParseAttributeList(true);
         auto ast = ParseGlobalStmntPrimary();
+        #ifdef XSC_ENABLE_LANGUAGE_EXT
+        for (const auto& attrib : attribs)
+        {
+            if (attrib->attributeType == AttributeType::DynamicOffset)
+            {
+                auto declStmnt = ast->As<BasicDeclStmnt>();
+                if (!declStmnt || !declStmnt->declObject->As<UniformBufferDecl>())
+                    Error(R_DynamicOffsetOnlyOnCBuffer, attrib->area);
+            }
+        }
+        #endif
         ast->attribs = std::move(attribs);
         return ast;
     }
@@ -1753,12 +1771,19 @@ std::vector<RegisterPtr> HLSLParser::ParseRegisterList(bool parseFirstColon)
     return registers;
 }
 
-std::vector<AttributePtr> HLSLParser::ParseAttributeList()
+std::vector<AttributePtr> HLSLParser::ParseAttributeList(bool allowDynamicOffset)
 {
     std::vector<AttributePtr> attribs;
 
     while (Is(Tokens::LParen))
+    {
         attribs.push_back(ParseAttribute());
+
+        #ifdef XSC_ENABLE_LANGUAGE_EXT
+        if (!allowDynamicOffset && attribs.back()->attributeType == AttributeType::DynamicOffset)
+            Error(R_DynamicOffsetOnlyOnCBuffer, attribs.back()->area);
+        #endif
+    }
 
     return attribs;
 }

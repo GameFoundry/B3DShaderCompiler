@@ -27,7 +27,7 @@ void ReflectionPrinter::PrintReflection(const Reflection::ReflectionData& reflec
         PrintReflectionObjects  ( reflectionData.macros,           "Macros"            );
         PrintReflectionObjects  ( reflectionData.textures,         "Textures"          );
         PrintReflectionObjects  ( reflectionData.storageBuffers,   "Storage Buffers"   );
-        PrintReflectionObjects  ( reflectionData.constantBuffers,  "Constant Buffers"  );
+        PrintReflectionObjects  ( reflectionData.constantBuffers,  "Constant Buffers", true );
         PrintReflectionObjects  ( reflectionData.pushConstantBuffers, "Push Constants" );
         PrintReflectionObjects  ( reflectionData.bindless,         "Bindless Resources" );
         PrintReflectionObjects  ( reflectionData.inputAttributes,  "Input Attributes"  );
@@ -62,7 +62,7 @@ std::ostream& ReflectionPrinter::IndentOut()
     return output_;
 }
 
-void ReflectionPrinter::PrintReflectionObjects(const std::vector<Reflection::BindingSlot>& objects, const std::string& title)
+void ReflectionPrinter::PrintReflectionObjects(const std::vector<Reflection::BindingSlot>& objects, const std::string& title, bool printBindingDetails)
 {
     IndentOut() << title << ':' << std::endl;
     ScopedIndent indent(indentHandler_);
@@ -87,7 +87,10 @@ void ReflectionPrinter::PrintReflectionObjects(const std::vector<Reflection::Bin
                 else
                     output_ << std::string(maxLocationLen, ' ') << "  ";
             }
-            output_ << obj.ident << std::endl;
+            output_ << obj.ident;
+            if (printBindingDetails)
+                output_ << ", set " << obj.set << ", usesDynamicOffset " << (obj.usesDynamicOffset ? "true" : "false");
+            output_ << std::endl;
         }
     }
     else

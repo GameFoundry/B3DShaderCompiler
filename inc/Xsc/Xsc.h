@@ -116,6 +116,7 @@ struct Extensions
         HLSLTemplates     = (1 << 5), //!< Enables HLSL 2021-style struct and function templates. Templates are specialized by the front end so all output targets receive ordinary concrete declarations.
         BindlessResources = (1 << 6), //!< Enables portable SM 6.6-style ResourceDescriptorHeap and SamplerDescriptorHeap accesses.
         PushConstants     = (1 << 7), //!< Enables portable '[pushConstant]' constant-buffer declarations.
+        DynamicOffsets    = (1 << 8), //!< Enables '[dynamicOffset]' on non-array uniform-buffer bindings.
 
         All               = (~0u)     //!< All extensions.
     };

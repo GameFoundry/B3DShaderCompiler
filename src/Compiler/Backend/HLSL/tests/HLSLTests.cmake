@@ -153,6 +153,22 @@ xsc_add_roundtrip_tests(
     CASES          "BindingPlanner|PS|ps_5_0|frag"
 )
 
+# Dynamic bindings keep ordinary native buffer declarations and packing.
+xsc_add_roundtrip_tests(
+    PREFIX         hlsl_roundtrip
+    DRIVER         ${_HLSL_DRIVER}
+    SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR        ${_HLSL_OUT_DIR}
+    LABELS         "hlsl-roundtrip;dynamic-offsets"
+    DEFINES        -DFXC=${FXC_EXECUTABLE}
+    PROFILE_DEFINE FXC_PROFILE
+    EXTRA_FLAGS    -Xdynamic-offsets
+    PER_CASE_FLAGS
+    CASES          "DynamicOffsets|main|vs_5_1|vert"
+                   "DynamicOffsetsRenamed|main|ps_5_1|frag"
+                   "DynamicOffsetsAutomatic|main|ps_5_1|frag|-Xdynamic-offsets@-AB"
+)
+
 # Push constants use a reserved SM5.1 register space and explicit packoffset
 # annotations so HLSL bytecode reflection retains both identity and layout.
 xsc_add_roundtrip_tests(

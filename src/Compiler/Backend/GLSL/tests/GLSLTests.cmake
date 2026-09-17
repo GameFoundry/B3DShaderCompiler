@@ -250,7 +250,56 @@ xsc_add_roundtrip_tests(
     CASES       "PushConstantAggregateLayout|main|vert"
 )
 
+# Dynamic bindings keep ordinary native buffer declarations and packing.
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;dynamic-offsets"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    EXTRA_FLAGS -Xdynamic-offsets
+    CASES       "DynamicOffsets|main|vert"
+                "DynamicOffsetsRenamed|main|frag"
+                "DynamicOffsetsAutomatic|main|frag"
+)
+
 # --- Negative (expect-error) cases -----------------------------------------
+add_expect_error(DynamicOffsetExtension DynamicOffsets main vert "requires language extension 'dynamic-offsets'"
+    LABELS "glsl-roundtrip;dynamic-offsets;negative")
+add_expect_error(DynamicOffsetPushOnly DynamicOffsets main vert "requires language extension 'dynamic-offsets'"
+    EXTRA_FLAGS -Xpush-constants
+    LABELS "glsl-roundtrip;dynamic-offsets;negative")
+add_expect_error(DynamicOffsetLegacyGLSL DynamicOffsetsAutomatic main frag "preserves uniform buffers"
+    EXTRA_FLAGS -Xdynamic-offsets@-Vout@GLSL120@--extension@ON
+    LABELS "glsl-roundtrip;dynamic-offsets;negative")
+
+set(_DYNAMIC_OFFSET_INVALID_TARGETS
+    StructuredBuffer RWStructuredBuffer StructuredBufferArray RWStructuredBufferArray
+    ByteAddressBuffer RWByteAddressBuffer Buffer RWBuffer Texture TextureArray Sampler
+    Value Function TBuffer CBufferField StructField Parameter Local Statement Struct)
+foreach(_target IN LISTS _DYNAMIC_OFFSET_INVALID_TARGETS)
+    add_expect_error(DynamicOffset${_target} DynamicOffsetInvalidTarget main frag "only valid on a non-array cbuffer"
+        EXTRA_FLAGS -Xdynamic-offsets@-DTEST_${_target}
+        LABELS "glsl-roundtrip;dynamic-offsets;negative")
+endforeach()
+
+foreach(_arguments Single Multiple)
+    add_expect_error(DynamicOffset${_arguments}Argument DynamicOffsetInvalidArguments main frag "takes no arguments"
+        EXTRA_FLAGS -Xdynamic-offsets@-DTEST_${_arguments}
+        LABELS "glsl-roundtrip;dynamic-offsets;negative")
+endforeach()
+foreach(_order PushFirst DynamicFirst)
+    add_expect_error(DynamicOffsetConflict${_order} DynamicOffsetPushConstantConflict main frag "cannot be combined"
+        EXTRA_FLAGS -Xdynamic-offsets@-Xpush-constants@-DTEST_${_order}
+        LABELS "glsl-roundtrip;dynamic-offsets;negative")
+endforeach()
+foreach(_buffer CBufferArray ConstantBuffer ConstantBufferArray)
+    add_expect_error(DynamicOffset${_buffer} DynamicOffsetUnsupportedBuffer main frag "syntax error"
+        EXTRA_FLAGS -Xdynamic-offsets@-DTEST_${_buffer}
+        LABELS "glsl-roundtrip;dynamic-offsets;negative")
+endforeach()
+
 # Each registers a shader that must be rejected, pinned to its diagnostic.
 # With the extension enabled, these specific unsupported patterns are rejected.
 add_expect_error(Global       OpaqueStructRejectGlobal       main frag "cannot be declared as globals"          EXTRA_FLAGS -Xopaque-struct@ON)

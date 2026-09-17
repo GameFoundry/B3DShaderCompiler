@@ -130,6 +130,9 @@ struct BindingSlot
     int         location;
 
     int         set;
+
+    //! True only for a non-array uniform-buffer binding marked with '[dynamicOffset]'. Defaults to false.
+    bool        usesDynamicOffset = false;
 };
 
 // BEGIN BANSHEE CHANGES
@@ -392,7 +395,10 @@ struct Uniform : Variable
         Internal        = 1 << 0,
         Color           = 1 << 1,
         HideInInspector = 1 << 2,
-        HDR             = 1 << 3
+        HDR             = 1 << 3,
+
+        //! Marks a uniform-buffer binding declared with '[dynamicOffset]', never its members.
+        DynamicOffset   = 1 << 4
     };
 
     //! Index of the uniform block this uniform belongs to. -1 if none.

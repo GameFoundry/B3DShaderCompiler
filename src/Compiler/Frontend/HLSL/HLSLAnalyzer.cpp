@@ -948,7 +948,18 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
             ast->extModifiers |= ExtModifiers::HideInInspector;
         else if (attrib->attributeType == AttributeType::PushConstant)
             AnalyzePushConstantBuffer(ast, attrib.get());
+        else if (attrib->attributeType == AttributeType::DynamicOffset)
+        {
+            if (ast->bufferType != UniformBufferType::ConstantBuffer)
+                Error(R_DynamicOffsetOnlyOnCBuffer, attrib.get());
+
+            ast->extModifiers |= ExtModifiers::DynamicOffset;
+        }
     }
+
+    if ((ast->extModifiers & ExtModifiers::DynamicOffset) != 0 &&
+        (ast->extModifiers & ExtModifiers::PushConstant) != 0)
+        Error(R_DynamicOffsetPushConstant, ast);
 #endif
     // END BANSHEE CHANGES
 }
@@ -3601,7 +3612,7 @@ void HLSLAnalyzer::AnalyzePushConstantBuffer(UniformBufferDecl* bufferDecl, Attr
     else
         pushConstantBuffer_ = bufferDecl;
 
-    bufferDecl->isPushConstant = true;
+    bufferDecl->extModifiers |= ExtModifiers::PushConstant;
 
     if (!bufferDecl->slotRegisters.empty())
         Error(R_PushConstantRegisterNotAllowed, bufferDecl->slotRegisters.front().get());

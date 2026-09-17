@@ -85,6 +85,8 @@ struct VectorSpace
 bool operator == (const VectorSpace& lhs, const VectorSpace& rhs);
 bool operator != (const VectorSpace& lhs, const VectorSpace& rhs);
 
+#endif
+
 // BEGIN BANSHEE CHANGES
 struct ExtModifiers
 {
@@ -93,9 +95,15 @@ struct ExtModifiers
         Color           = 1 << 0,
         Internal        = 1 << 1,
         HideInInspector = 1 << 2,
-        HDR             = 1 << 3
+        HDR             = 1 << 3,
+
+        // Uniform-buffer declaration attributes, not member or resource-type modifiers.
+        PushConstant    = 1 << 4,
+        DynamicOffset   = 1 << 5
     };
 };
+
+#ifdef XSC_ENABLE_LANGUAGE_EXT
 
 struct DefaultValue
 {

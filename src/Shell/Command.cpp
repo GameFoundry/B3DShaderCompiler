@@ -1524,6 +1524,7 @@ void LanguageExtensionCommand::Run(CommandLine& cmdLine, ShellState& state)
             { "hlsl-templates", Extensions::HLSLTemplates     },
             { "bindless",       Extensions::BindlessResources },
             { "push-constants", Extensions::PushConstants     },
+            { "dynamic-offsets", Extensions::DynamicOffsets   },
         },
         R_InvalidExtensionType(type)
     );

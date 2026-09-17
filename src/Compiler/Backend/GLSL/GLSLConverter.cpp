@@ -351,9 +351,10 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
 
 IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 {
+    RenameReservedKeyword(ast->ident);
     PushUniformBufferDecl(ast);
     {
-        if (!ast->isPushConstant)
+        if ((ast->extModifiers & ExtModifiers::PushConstant) == 0)
             ConvertSlotRegisters(ast->slotRegisters);
         VisitScopedStmntList(ast->localStmnts);
 

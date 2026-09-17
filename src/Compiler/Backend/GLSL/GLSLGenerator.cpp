@@ -569,6 +569,9 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 
     if (versionOut_ < OutputShaderVersion::GLSL140)
     {
+        if ((ast->extModifiers & ExtModifiers::DynamicOffset) != 0)
+            Error(R_DynamicOffsetRequiresUniformBuffer, ast);
+
         /* Write individual uniforms */
         for (auto& varDeclStmnt : ast->varMembers)
         {
@@ -582,7 +585,7 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
         WriteLineMark(ast);
 
         /* Write uniform buffer declaration */
-        if (ast->isPushConstant)
+        if ((ast->extModifiers & ExtModifiers::PushConstant) != 0)
         {
             /* HLSL matrix dimensions map to transposed GLSL matrix dimensions. The
                converter swaps direct matrix qualifiers accordingly; using row-major
@@ -600,7 +603,7 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
                 [&]() { Write("std140"); },
                 [&]()
                 {
-                    if (ast->isPushConstant && IsVKSL())
+                    if ((ast->extModifiers & ExtModifiers::PushConstant) != 0 && IsVKSL())
                         Write("push_constant");
                 },
                 [&]()
@@ -610,7 +613,7 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
                 },
                 [&]()
                 {
-                    if (!ast->isPushConstant)
+                    if ((ast->extModifiers & ExtModifiers::PushConstant) == 0)
                         WriteLayoutBinding(ast->slotRegisters);
                 },
             }

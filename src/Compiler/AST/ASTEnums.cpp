@@ -1102,7 +1102,7 @@ bool IsShaderModel5AttributeType(const AttributeType t)
 
 bool IsLanguageExtAttributeType(const AttributeType t)
 {
-    return (t >= AttributeType::Space && t <= AttributeType::PushConstant);
+    return (t >= AttributeType::Space && t <= AttributeType::DynamicOffset);
 }
 
 #endif

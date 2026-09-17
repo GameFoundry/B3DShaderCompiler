@@ -411,6 +411,10 @@ DECL_REPORT( TypeHasNoMemberVariables,          "'{0}' has no member variables" 
 DECL_REPORT( BufferCanOnlyHaveOneSlot,          "buffers can only be bound to one slot"                                                                         );
 DECL_REPORT( UserCBuffersCantBeTargetSpecific,  "user-defined constant buffer slots can not be target specific"                                                 );
 DECL_REPORT( PushConstantOnlyOnCBuffer,         "'pushConstant' attribute is only valid on a cbuffer declaration"                                                );
+DECL_REPORT( DynamicOffsetOnlyOnCBuffer,        "'dynamicOffset' attribute is only valid on a non-array cbuffer declaration"                                     );
+DECL_REPORT( DynamicOffsetNoArguments,          "'dynamicOffset' attribute takes no arguments"                                                                  );
+DECL_REPORT( DynamicOffsetPushConstant,         "'dynamicOffset' and 'pushConstant' attributes cannot be combined"                                               );
+DECL_REPORT( DynamicOffsetRequiresUniformBuffer, "'dynamicOffset' requires an output version that preserves uniform buffers"                                    );
 DECL_REPORT( OnlyOnePushConstantBuffer,         "only one push-constant buffer is allowed per shader"                                                           );
 DECL_REPORT( PushConstantRegisterNotAllowed,    "push-constant buffers cannot have a register annotation"                                                       );
 DECL_REPORT( PushConstantBufferEmpty,           "push-constant buffer cannot be empty"                                                                          );
@@ -673,7 +677,8 @@ DECL_REPORT( CmdHelpDetailsLanguageExtension,   "all           => all kinds of e
                                                 "strict-hlsl   => enable the strict portable HLSL subset\n"                    \
                                                 "hlsl-templates => enable HLSL struct and function templates\n"                  \
                                                 "bindless      => enable portable descriptor heap accesses\n"                    \
-                                                "push-constants => enable portable '[pushConstant]' constant buffers"                                           );
+                                                "push-constants => enable portable '[pushConstant]' constant buffers\n"                                         \
+                                                "dynamic-offsets => enable '[dynamicOffset]' uniform-buffer bindings"                                          );
 DECL_REPORT( InvalidExtensionType,              "invalid extension type[: '{0}']"                                                                               );
 
 // BEGIN BANSHEE CHANGES

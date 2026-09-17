@@ -183,19 +183,19 @@ static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct Xs
         g_compilerContext.macros.push_back(s.c_str());
 
     for (const auto& s : src.textures)
-        g_compilerContext.textures.push_back({ s.ident.c_str(), s.location });
+        g_compilerContext.textures.push_back({ s.ident.c_str(), s.location, s.set, s.usesDynamicOffset });
 
     for (const auto& s : src.storageBuffers)
-        g_compilerContext.storageBuffers.push_back({ s.ident.c_str(), s.location });
+        g_compilerContext.storageBuffers.push_back({ s.ident.c_str(), s.location, s.set, s.usesDynamicOffset });
 
     for (const auto& s : src.constantBuffers)
-        g_compilerContext.constantBuffers.push_back({ s.ident.c_str(), s.location });
+        g_compilerContext.constantBuffers.push_back({ s.ident.c_str(), s.location, s.set, s.usesDynamicOffset });
 
     for (const auto& s : src.inputAttributes)
-        g_compilerContext.inputAttributes.push_back({ s.ident.c_str(), s.location });
+        g_compilerContext.inputAttributes.push_back({ s.ident.c_str(), s.location, s.set, s.usesDynamicOffset });
 
     for (const auto& s : src.outputAttributes)
-        g_compilerContext.outputAttributes.push_back({ s.ident.c_str(), s.location });
+        g_compilerContext.outputAttributes.push_back({ s.ident.c_str(), s.location, s.set, s.usesDynamicOffset });
 
     for (const auto& srcBuffer : src.pushConstantBuffers)
     {

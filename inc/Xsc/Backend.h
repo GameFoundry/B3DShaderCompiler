@@ -32,7 +32,7 @@ whole mechanism assumes both modules share the same toolset and the same dynamic
 and this integer is the only thing that can catch a mismatch at load time, so it must hard-fail
 the load when it differs.
 */
-constexpr int BackendAbiVersion = 3;
+constexpr int BackendAbiVersion = 4;
 
 /*
 Loads an output-backend DLL from the given path and lets it self-register. Returns true on

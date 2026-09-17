@@ -678,7 +678,8 @@ enum class AttributeType
     HideInInspector,
     Name,
     HDR,
-    PushConstant
+    PushConstant,
+    DynamicOffset
     // END BANSHEE CHANGES
 
     #endif
