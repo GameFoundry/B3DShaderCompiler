@@ -666,6 +666,7 @@ struct SamplerDecl : public Decl
 
     // BEGIN BANSHEE CHANGES
     std::string                     alias;
+    int                             extModifiers = 0;
     // END BANSHEE CHANGES
 };
 

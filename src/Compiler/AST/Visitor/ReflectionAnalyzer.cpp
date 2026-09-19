@@ -145,6 +145,9 @@ IMPLEMENT_VISIT_PROC(SamplerDecl)
     uniform.type = Reflection::VariableType::Sampler;
     uniform.baseType = 0;
 
+    if ((ast->extModifiers & ExtModifiers::Internal) != 0)
+        uniform.flags |= Reflection::Uniform::Flags::Internal;
+
     data_->uniforms.push_back(uniform);
 
     // END BANSHEE CHANGES

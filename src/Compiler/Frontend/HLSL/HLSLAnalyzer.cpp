@@ -3751,6 +3751,12 @@ void HLSLAnalyzer::AnalyzeExtAttributes(std::vector<AttributePtr>& attribs, cons
     {
         switch (attrib->attributeType)
         {
+            case AttributeType::Internal:
+            {
+                for (auto& samplerDecl : samplerDecls)
+                    samplerDecl->extModifiers |= ExtModifiers::Internal;
+            }
+            break;
             case AttributeType::Alias:
             {
                 if (AnalyzeNumArgsAttribute(attrib.get(), 1, true))
