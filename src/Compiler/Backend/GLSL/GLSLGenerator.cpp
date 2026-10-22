@@ -819,7 +819,8 @@ IMPLEMENT_VISIT_PROC(ForLoopStmnt)
 {
     /* Write loop header */
     BeginLn();
-    
+
+    WriteControlFlowAttribute(ast->attribs, LoopControlAttributeToGLSLKeyword);
     Write("for (");
 
     PushOptions({ false, false });
@@ -844,7 +845,8 @@ IMPLEMENT_VISIT_PROC(WhileLoopStmnt)
 {
     /* Write loop condExpr */
     BeginLn();
-    
+
+    WriteControlFlowAttribute(ast->attribs, LoopControlAttributeToGLSLKeyword);
     Write("while (");
     Visit(ast->condition);
     Write(")");
@@ -856,6 +858,7 @@ IMPLEMENT_VISIT_PROC(DoWhileLoopStmnt)
 {
     BeginLn();
 
+    WriteControlFlowAttribute(ast->attribs, LoopControlAttributeToGLSLKeyword);
     Write("do");
     WriteScopedStmnt(ast->bodyStmnt.get());
 
@@ -877,6 +880,7 @@ IMPLEMENT_VISIT_PROC(IfStmnt)
     if (!hasElseParentNode)
         BeginLn();
     
+    WriteControlFlowAttribute(ast->attribs, SelectionControlAttributeToGLSLKeyword);
     Write("if (");
     Visit(ast->condition);
     Write(")");
@@ -918,6 +922,7 @@ IMPLEMENT_VISIT_PROC(SwitchStmnt)
     /* Write selector */
     BeginLn();
     
+    WriteControlFlowAttribute(ast->attribs, SelectionControlAttributeToGLSLKeyword);
     Write("switch (");
     Visit(ast->selector);
     Write(")");
@@ -3965,6 +3970,23 @@ void GLSLGenerator::WriteScopedStmnt(Stmnt* ast)
         }
         else
             Visit(ast);
+    }
+}
+
+void GLSLGenerator::WriteControlFlowAttribute(const std::vector<AttributePtr>& attribs, const std::string* (*attributeToKeyword)(const Attribute&))
+{
+    /* Only Vulkan GLSL gets control flow attributes (GL_EXT_control_flow_attributes), see GLSLExtensionAgent */
+    if (!IsVKSL())
+        return;
+
+    /* Write the first one only: a loop cannot be both unrolled and kept, nor a branch both flattened and kept */
+    for (const auto& attrib : attribs)
+    {
+        if (auto keyword = attributeToKeyword(*attrib))
+        {
+            Write("[[" + *keyword + "]] ");
+            return;
+        }
     }
 }
 

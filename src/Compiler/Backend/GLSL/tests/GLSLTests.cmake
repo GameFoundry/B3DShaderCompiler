@@ -165,6 +165,28 @@ xsc_add_roundtrip_tests(
     CASES       "BindlessBindingPlanner|PS|frag"
 )
 
+# Loop control attributes must survive all the way to SPIR-V loop controls; the round trip validates the extension use
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;loop-control"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE} "-DEXPECT_REGEX=#extension GL_EXT_control_flow_attributes"
+    CASES       "LoopAttributes|main|frag"
+)
+
+# Selection control attributes must survive all the way to SPIR-V selection controls
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;selection-control"
+    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE} "-DEXPECT_REGEX=#extension GL_EXT_control_flow_attributes"
+    CASES       "SelectionAttributes|main|frag"
+)
+
 add_expect_error(UnsupportedResource BindlessUnsupportedResource CS comp
     "bindless append/consume buffers require an explicit counter handle"
     EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON
@@ -399,3 +421,37 @@ add_generated_glsl_assert(bitcast_int_uint BitCastIntrinsics
 add_generated_glsl_assert(bitcast_result_type BitCastIntrinsics
     "uint shifted = floatBitsToUint\\(fVal\\.w\\) >> 16"
     "16\\.f|255\\.f" ${_BITCAST_LABELS})
+
+# '[unroll]' and '[loop]' map onto GL_EXT_control_flow_attributes for every loop kind. '[unroll(N)]' caps the unroll count,
+# which the extension cannot express, so it must be dropped rather than turned into a full unroll.
+set(_LOOP_CONTROL_LABELS "glsl-roundtrip;loop-control;generated")
+
+add_generated_glsl_assert(loop_control_unroll LoopAttributes
+    "\\[\\[unroll\\]\\] for \\(uint unrolled"
+    "\\[\\[[a-z_]+\\]\\] for \\(uint capped" ${_LOOP_CONTROL_LABELS})
+add_generated_glsl_assert(loop_control_dont_unroll LoopAttributes
+    "\\[\\[dont_unroll\\]\\] for \\(uint kept"
+    "\\[\\[unroll\\]\\] for \\(uint kept" ${_LOOP_CONTROL_LABELS})
+add_generated_glsl_assert(loop_control_while LoopAttributes
+    "\\[\\[dont_unroll\\]\\] while \\(index"
+    "\\[\\[unroll\\]\\] while" ${_LOOP_CONTROL_LABELS})
+add_generated_glsl_assert(loop_control_do_while LoopAttributes
+    "\\[\\[unroll\\]\\] do"
+    "\\[\\[dont_unroll\\]\\] do" ${_LOOP_CONTROL_LABELS})
+
+# '[flatten]' and '[branch]' map onto GL_EXT_control_flow_attributes for 'if', 'else if' and 'switch'. '[forcecase]' and
+# '[call]' have no equivalent, so they must be dropped.
+set(_SELECTION_CONTROL_LABELS "glsl-roundtrip;selection-control;generated")
+
+add_generated_glsl_assert(selection_control_flatten SelectionAttributes
+    "\\[\\[flatten\\]\\] if \\(threshold"
+    "\\[\\[dont_flatten\\]\\] if \\(threshold" ${_SELECTION_CONTROL_LABELS})
+add_generated_glsl_assert(selection_control_dont_flatten SelectionAttributes
+    "\\[\\[dont_flatten\\]\\] if \\(count > 4u"
+    "\\[\\[flatten\\]\\] if \\(count > 4u" ${_SELECTION_CONTROL_LABELS})
+add_generated_glsl_assert(selection_control_else_if SelectionAttributes
+    "else \\[\\[flatten\\]\\] if \\(count > 2u"
+    "else \\[\\[dont_flatten\\]\\]" ${_SELECTION_CONTROL_LABELS})
+add_generated_glsl_assert(selection_control_switch SelectionAttributes
+    "\\[\\[dont_flatten\\]\\] switch \\(count\\)"
+    "\\]\\] switch \\(count \\+ 1u\\)" ${_SELECTION_CONTROL_LABELS})

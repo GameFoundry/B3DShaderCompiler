@@ -7,6 +7,7 @@
 
 #include "GLSLExtensionAgent.h"
 #include "GLSLExtensions.h"
+#include "GLSLKeywords.h"
 #include "AST.h"
 #include "Exception.h"
 #include "ReportIdents.h"
@@ -240,6 +241,10 @@ IMPLEMENT_VISIT_PROC(Attribute)
     /* Check for special attributes */
     if (ast->attributeType == AttributeType::EarlyDepthStencil)
         AcquireExtension(E_GL_ARB_shader_image_load_store, R_EarlyDepthStencil, ast);
+
+    /* Control flow attributes are only written for Vulkan GLSL, where glslang turns them into SPIR-V loop and selection controls */
+    if (IsLanguageVKSL(targetGLSLVersion_) && (LoopControlAttributeToGLSLKeyword(*ast) != nullptr || SelectionControlAttributeToGLSLKeyword(*ast) != nullptr))
+        AcquireExtension(E_GL_EXT_control_flow_attributes, R_ControlFlowAttribute, ast);
 }
 
 IMPLEMENT_VISIT_PROC(VarDecl)

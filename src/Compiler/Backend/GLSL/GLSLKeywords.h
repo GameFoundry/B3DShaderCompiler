@@ -20,6 +20,8 @@ namespace Xsc
 {
 
 
+struct Attribute;
+
 /* ----- GLSL Keywords ----- */
 
 // Returns the Keyword-to-Token map for GLSL.
@@ -75,6 +77,17 @@ const std::string* AttributeValueToGLSLKeyword(const AttributeValue t);
 
 // Returns the attribute value for the specified GLSL keyword or returns AttributeValue::Undefined.
 AttributeValue GLSLKeywordToAttributeValue(const std::string& keyword);
+
+
+/* ----- Control Flow Mapping ----- */
+
+// Returns the GL_EXT_control_flow_attributes keyword ("unroll" or "dont_unroll") for the specified HLSL loop attribute
+// ([unroll] or [loop]), or null if the attribute has no GLSL equivalent.
+const std::string* LoopControlAttributeToGLSLKeyword(const Attribute& attrib);
+
+// Returns the GL_EXT_control_flow_attributes keyword ("flatten" or "dont_flatten") for the specified HLSL selection
+// attribute ([flatten] or [branch]), or null if the attribute has no GLSL equivalent.
+const std::string* SelectionControlAttributeToGLSLKeyword(const Attribute& attrib);
 
 
 /* ----- PrimitiveType Mapping ----- */

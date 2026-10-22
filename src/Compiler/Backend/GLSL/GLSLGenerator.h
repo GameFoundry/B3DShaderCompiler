@@ -313,6 +313,7 @@ class GLSLGenerator : public Generator
 
         void WriteParameter(VarDeclStmnt* ast);
         void WriteScopedStmnt(Stmnt* ast);
+        void WriteControlFlowAttribute(const std::vector<AttributePtr>& attribs, const std::string* (*attributeToKeyword)(const Attribute&));
 
         void WriteLiteral(const std::string& value, const DataType& dataType, const AST* ast = nullptr);
 

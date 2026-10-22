@@ -75,6 +75,7 @@ DECL_EXTENSION( GL_ARB_viewport_array                           );
 DECL_EXTENSION( GL_ARB_shading_language_packing                 );
 
 // EXT
+DECL_EXTENSION( GL_EXT_control_flow_attributes                  );
 DECL_EXTENSION( GL_EXT_device_group                             );
 DECL_EXTENSION( GL_EXT_gpu_shader4                              );
 DECL_EXTENSION( GL_EXT_multiview                                );

@@ -64,6 +64,7 @@ const std::map<std::string, int>& GetGLSLExtensionVersionMap()
         { E_GL_ARB_shading_language_packing,                420 },
 
         // EXT
+        { E_GL_EXT_control_flow_attributes,                 000 },
         { E_GL_EXT_device_group,                            110 },
         { E_GL_EXT_gpu_shader4,                             130 },
         { E_GL_EXT_multiview,                               110 },

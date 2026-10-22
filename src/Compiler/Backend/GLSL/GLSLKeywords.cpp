@@ -6,6 +6,7 @@
  */
 
 #include "GLSLKeywords.h"
+#include "AST.h"
 #include "Dictionary.h"
 #include "Helper.h"
 #include "ReportIdents.h"
@@ -644,6 +645,43 @@ const std::string* AttributeValueToGLSLKeyword(const AttributeValue t)
 AttributeValue GLSLKeywordToAttributeValue(const std::string& keyword)
 {
     return g_attributeValueDictGLSL.StringToEnumOrDefault(keyword, AttributeValue::Undefined);
+}
+
+
+/* ----- Control Flow Mapping ----- */
+
+const std::string* LoopControlAttributeToGLSLKeyword(const Attribute& attrib)
+{
+    static const std::string unrollKeyword = "unroll";
+    static const std::string dontUnrollKeyword = "dont_unroll";
+
+    switch (attrib.attributeType)
+    {
+        case AttributeType::Unroll:
+            /* [unroll(N)] caps the unroll count, which GL_EXT_control_flow_attributes cannot express */
+            return (attrib.arguments.empty() ? &unrollKeyword : nullptr);
+        case AttributeType::Loop:
+            return &dontUnrollKeyword;
+        default:
+            return nullptr;
+    }
+}
+
+const std::string* SelectionControlAttributeToGLSLKeyword(const Attribute& attrib)
+{
+    static const std::string flattenKeyword = "flatten";
+    static const std::string dontFlattenKeyword = "dont_flatten";
+
+    /* [forcecase] and [call] have no GL_EXT_control_flow_attributes equivalent */
+    switch (attrib.attributeType)
+    {
+        case AttributeType::Flatten:
+            return &flattenKeyword;
+        case AttributeType::Branch:
+            return &dontFlattenKeyword;
+        default:
+            return nullptr;
+    }
 }
 
 
