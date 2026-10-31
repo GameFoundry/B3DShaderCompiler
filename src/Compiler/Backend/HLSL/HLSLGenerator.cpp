@@ -279,7 +279,8 @@ void HLSLGenerator::PlanResourceBindings(
     {
         GetShaderTarget(),
         outputDesc.options.autoBindingStartSlot,
-        outputDesc.options.bindlessBindingStartSlot
+        outputDesc.options.bindlessBindingStartSlot,
+        outputDesc.options.bindlessBindingLayout
     };
 
     if (emitPushConstantHLSLBinding_ && HasPushConstantBuffer(program))

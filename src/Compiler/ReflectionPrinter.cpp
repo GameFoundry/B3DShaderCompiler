@@ -45,6 +45,7 @@ void ReflectionPrinter::PrintReflectionObjects(const Reflection::BindlessUsage& 
 
     IndentOut() << "Resource heap: " << (bindless.resourceHeap ? "used" : "unused") << std::endl;
     IndentOut() << "Sampler heap: " << (bindless.samplerHeap ? "used" : "unused") << std::endl;
+    IndentOut() << "Writable resources: " << (bindless.writableResources ? "used" : "unused") << std::endl;
     for (const auto& binding : bindless.bindings)
     {
         IndentOut() << binding.ident << ": " << binding.resourceType << ", set " << binding.set << ", binding " << binding.location << std::endl;

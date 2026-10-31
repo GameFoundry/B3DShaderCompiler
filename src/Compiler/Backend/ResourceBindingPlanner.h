@@ -10,6 +10,7 @@
 
 
 #include "AST.h"
+#include <Xsc/Xsc.h>
 #include "Visitor.h"
 #include <map>
 #include <set>
@@ -23,20 +24,21 @@ namespace Xsc
 Coordinates source-resource and compiler-generated bindless bindings. Explicit source
 bindings are collected before any missing binding is assigned, so allocation is
 independent of declaration order. All resource kinds share one slot namespace
-per descriptor set/register space.
+per descriptor set/register space. Bindless bindings occupy fixed slots selected
+by the bindless binding layout, and missing source bindings skip them.
 */
 class ResourceBindingPlanner final : private Visitor
 {
 
     public:
 
-        ResourceBindingPlanner(ShaderTarget shaderTarget, int autoBindingStartSlot, int bindlessBindingStartSlot);
+        ResourceBindingPlanner(ShaderTarget shaderTarget, int autoBindingStartSlot, int bindlessBindingStartSlot, BindlessBindingLayout bindlessBindingLayout);
 
         // Reserves a binding that is emitted outside the source resource declarations.
         void Reserve(int slot, int space);
 
         // Plans source and bindless bindings. Bindless locations are always assigned here.
-        // Returns true if either kind exists.
+        // Throws if an explicit source binding occupies a bindless slot. Returns true if either kind exists.
         bool Plan(Program& program, bool autoBinding, std::vector<Reflection::BindlessBinding>& bindlessBindings);
 
     private:
@@ -55,13 +57,16 @@ class ResourceBindingPlanner final : private Visitor
 
         int TakeNextFreeSlot(int space, int startSlot, std::map<int, int>& nextSlots);
 
+        // Returns the slot of a bindless binding, relative to the bindless start slot.
+        int GetBindlessSlotOffset(const Reflection::BindlessBinding& binding) const;
+
         ShaderTarget                    shaderTarget_;
         int                             autoBindingStartSlot_;
         int                             bindlessBindingStartSlot_;
+        BindlessBindingLayout           bindlessBindingLayout_;
         std::vector<SourceBinding>      sourceBindings_;
         std::map<int, std::set<int>>    usedSlots_;
         std::map<int, int>              nextAutoBindingSlots_;
-        std::map<int, int>              nextBindlessBindingSlots_;
 
 };
 

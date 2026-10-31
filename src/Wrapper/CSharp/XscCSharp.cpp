@@ -321,6 +321,13 @@ public ref class XscCompiler
             DescriptorBuffer,
         };
 
+        //! Slot assignment of compiler-generated bindless bindings. See Xsc::BindlessBindingLayout.
+        enum class BindlessBindingLayout
+        {
+            PerHeap,
+            PerDescriptorType,
+        };
+
         //! One compiler-generated bindless ABI binding.
         ref class BindlessBinding
         {
@@ -392,6 +399,8 @@ public ref class XscCompiler
                 property bool                                                         UsesResourceDescriptorHeap;
                 //! SamplerDescriptorHeap is used by the shader.
                 property bool                                                         UsesSamplerDescriptorHeap;
+                //! A writable view (RW texture or RW buffer) is fetched from ResourceDescriptorHeap.
+                property bool                                                         UsesWritableDescriptorHeapResources;
 
                 //! Shader input attributes.
                 property Collections::Generic::List<BindingSlot^>^                  InputAttributes;
@@ -460,6 +469,7 @@ public ref class XscCompiler
                     AutoBindingStartSlot    = 0;
                     BindlessBindingSet      = 0;
                     BindlessBindingStartSlot = 0;
+                    BindlessBindingLayout   = XscCompiler::BindlessBindingLayout::PerHeap;
                     MaxPushConstantSize     = Xsc::PushConstants::DefaultSizeLimit;
                     PushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
                     PushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
@@ -493,8 +503,11 @@ public ref class XscCompiler
                 //! Descriptor set/register space used for compiler-generated bindless bindings.
                 property int    BindlessBindingSet;
 
-                //! First slot considered for compiler-generated bindless bindings. Independent of 'AutoBinding'.
+                //! First slot of the compiler-generated bindless bindings. Independent of 'AutoBinding'.
                 property int    BindlessBindingStartSlot;
+
+                //! Fixed slots of the compiler-generated bindless bindings, relative to 'BindlessBindingStartSlot'. By default PerHeap.
+                property BindlessBindingLayout BindlessBindingLayout;
 
                 //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. By default 16.
                 property System::UInt32 MaxPushConstantSize;
@@ -1177,6 +1190,7 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
     out.options.autoBindingStartSlot    = outputDesc->Options->AutoBindingStartSlot;
     out.options.bindlessBindingSet      = outputDesc->Options->BindlessBindingSet;
     out.options.bindlessBindingStartSlot = outputDesc->Options->BindlessBindingStartSlot;
+    out.options.bindlessBindingLayout   = static_cast<Xsc::BindlessBindingLayout>(outputDesc->Options->BindlessBindingLayout);
     out.options.maxPushConstantSize     = outputDesc->Options->MaxPushConstantSize;
     out.options.pushConstantHLSLRegister = outputDesc->Options->PushConstantHLSLRegister;
     out.options.pushConstantHLSLRegisterSpace = outputDesc->Options->PushConstantHLSLRegisterSpace;
@@ -1286,6 +1300,7 @@ bool XscCompiler::CompileShader(ShaderInput^ inputDesc, ShaderOutput^ outputDesc
             }
             dst->UsesResourceDescriptorHeap = src.bindless.resourceHeap;
             dst->UsesSamplerDescriptorHeap = src.bindless.samplerHeap;
+            dst->UsesWritableDescriptorHeapResources = src.bindless.writableResources;
             dst->InputAttributes    = ToManagedList(src.inputAttributes);
             dst->OutputAttributes   = ToManagedList(src.outputAttributes);
 

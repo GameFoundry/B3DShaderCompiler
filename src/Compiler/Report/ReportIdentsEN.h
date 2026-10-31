@@ -520,6 +520,8 @@ DECL_REPORT( DescriptorHeapKindMismatch,        "'{0}' cannot provide a resource
 DECL_REPORT( DescriptorHeapUnsupportedType,     "resource type '{0}' cannot be fetched from ResourceDescriptorHeap"                                             );
 DECL_REPORT( DescriptorHeapCounterUnsupported,  "bindless append/consume buffers require an explicit counter handle and are not supported"                      );
 DECL_REPORT( NonUniformResourceIndexExtDisabled,"NonUniformResourceIndex requires the 'bindless' language extension"                                            );
+DECL_REPORT( BindlessBindingCollision,          "an explicit source binding occupies slot {0} in set/space {1}, which is reserved for bindless descriptor heaps" );
+DECL_REPORT( InvalidBindlessBindingClass,       "invalid binding class for a bindless descriptor heap"                                                          );
 DECL_REPORT( NonUniformResourceIndexType,       "NonUniformResourceIndex argument must have scalar type 'uint'"                                                 );
 DECL_REPORT( DeclTypeDiffersFromDefType,        "declaration type '{0}' differs from definition type '{1}'"                                                     );
 DECL_REPORT( ArrayTypeCanOnlyAppearInDef,       "array type can only appear in definition of static member variables[: '{0}']"                                  );
@@ -616,6 +618,7 @@ DECL_REPORT( CmdHelpAutoBinding,                "Enables/disables automatic bind
 DECL_REPORT( CmdHelpAutoBindingStartSlot,       "Sets the start slot index for automatic binding slot generation; default=0"                                    );
 DECL_REPORT( CmdHelpBindlessBindingSet,         "Sets the descriptor set/register space for compiler-generated bindless bindings; default=0"                   );
 DECL_REPORT( CmdHelpBindlessBindingStartSlot,   "Sets the start slot index for compiler-generated bindless bindings; default=0"                                 );
+DECL_REPORT( CmdHelpBindlessBindingLayout,      "Sets the slot layout of compiler-generated bindless bindings (heap, type); default=heap"                       );
 DECL_REPORT( CmdHelpPushConstantSize,           "Sets the maximum logical byte range occupied by the entire BSL '[pushConstant]' cbuffer; default=16"            );
 DECL_REPORT( CmdHelpPushConstantRegister,       "Sets the HLSL constant-buffer register used for the push-constant marker; default=0"                            );
 DECL_REPORT( CmdHelpPushConstantSpace,          "Sets the HLSL register space used for the push-constant marker; default=65535"                                  );
@@ -645,6 +648,7 @@ DECL_REPORT( CmdHelpSeparateShaders,            "Ensures compatibility to 'ARB_s
 DECL_REPORT( CmdHelpSeparateSamplers,           "Enables/disables generation of separate sampler state objects; default={0}"                                    );
 DECL_REPORT( CmdHelpDisassemble,                "Disassembles the SPIR-V module"                                                                                );
 DECL_REPORT( InvalidShaderTarget,               "invalid shader target[: '{0}']"                                                                                );
+DECL_REPORT( InvalidBindlessBindingLayout,      "invalid bindless binding layout[: '{0}']"                                                                       );
 DECL_REPORT( InvalidShaderVersionIn,            "invalid input shader version[: '{0}']"                                                                         );
 DECL_REPORT( InvalidShaderVersionOut,           "invalid output shader version[: '{0}']"                                                                        );
 DECL_REPORT( InvalidWarningType,                "invalid warning type[: '{0}']"                                                                                 );

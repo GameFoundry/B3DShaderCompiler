@@ -1,9 +1,9 @@
 // Compiler-generated bindless bindings share space 2 with ordinary source
-// resources. With the default generated start slot, occupied slots 0, 2, and 4
-// force the resource and sampler descriptor bindings to slots 1 and 3.
+// resources. Explicit source bindings occupy slots 0, 1, and 4, so the bindless
+// bindings start at slot 2: the sampler heap at 2 and the resource heap at 3.
 
 Texture2D<float4> fixedTexture : register(t0, space2);
-SamplerState fixedSampler : register(s2, space2);
+SamplerState fixedSampler : register(s1, space2);
 
 cbuffer Params : register(b4, space2)
 {

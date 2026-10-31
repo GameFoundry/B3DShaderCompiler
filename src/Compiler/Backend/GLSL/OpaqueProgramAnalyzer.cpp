@@ -878,10 +878,11 @@ OpaqueValue OpaqueProgramAnalyzer::EvaluateAccess(const ExprPtr& expr, BindingEn
 
     if (auto object = expr->As<ObjectExpr>())
     {
-        if (object->prefixExpr && object->FetchVarDecl())
+        // Swizzles and other accesses without a member declaration still evaluate their prefix, so opaque uses inside it are recorded.
+        if (object->prefixExpr)
         {
             OpaqueValue prefix = Evaluate(object->prefixExpr, env, nullptr, nullptr);
-            if (prefix.Valid())
+            if (prefix.Valid() && object->FetchVarDecl())
                 return ProjectRelative(prefix, PathStep::Field(object->FetchVarDecl()), expr.get());
         }
     }

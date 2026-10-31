@@ -160,6 +160,28 @@ struct Formatting
     bool        newLineOpenScope    = true;
 };
 
+/**
+\brief Slot assignment of compiler-generated bindless bindings.
+\remarks Every shader compiled with the same layout, set and start slot uses the same bindings, regardless of which
+descriptor heap types it accesses. Typed views of one heap that share a slot alias the same descriptors. Explicit
+source bindings must not use these slots. Backends that lower each heap to one descriptor buffer (PSSL) always use
+the start slot for the sampler heap and the slot after it for the resource heap.
+*/
+enum class BindlessBindingLayout
+{
+    /**
+    \brief Two bindings: samplers at the start slot, and every resource class at the slot after it.
+    \remarks The resource binding requires a descriptor type that can hold any resource class (e.g. VK_DESCRIPTOR_TYPE_MUTABLE_EXT).
+    */
+    PerHeap,
+
+    /**
+    \brief One binding per descriptor type, at these offsets from the start slot: 0 = samplers, 1 = sampled images,
+    2 = storage images, 3 = uniform texel buffers, 4 = storage texel buffers, 5 = storage buffers.
+    */
+    PerDescriptorType,
+};
+
 //! Structure for additional translation options.
 struct Options
 {
@@ -178,8 +200,11 @@ struct Options
     //! Descriptor set/register space used for compiler-generated bindless bindings. By default 0.
     int     bindlessBindingSet      = 0;
 
-    //! First slot considered for compiler-generated bindless bindings. Independent of 'autoBinding'. By default 0.
+    //! First slot of the compiler-generated bindless bindings. Independent of 'autoBinding'. By default 0.
     int     bindlessBindingStartSlot = 0;
+
+    //! Fixed slots of the compiler-generated bindless bindings, relative to 'bindlessBindingStartSlot'. By default BindlessBindingLayout::PerHeap.
+    BindlessBindingLayout bindlessBindingLayout = BindlessBindingLayout::PerHeap;
 
     /**
     \brief Maximum push constant buffer size in bytes. By default 16.

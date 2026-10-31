@@ -85,6 +85,13 @@ struct XscFormatting
     bool        newLineOpenScope;
 };
 
+//! Slot assignment of compiler-generated bindless bindings. See Xsc::BindlessBindingLayout.
+enum XscBindlessBindingLayout
+{
+    XscEBindlessBindingLayoutPerHeap,           //!< Samplers at the start slot, every resource class at the slot after it.
+    XscEBindlessBindingLayoutPerDescriptorType, //!< One binding per descriptor type, starting at the start slot.
+};
+
 //! Structure for additional translation options.
 struct XscOptions
 {
@@ -103,8 +110,11 @@ struct XscOptions
     //! Descriptor set/register space used for compiler-generated bindless bindings.
     int     bindlessBindingSet;
 
-    //! First slot considered for compiler-generated bindless bindings. Independent of 'autoBinding'.
+    //! First slot of the compiler-generated bindless bindings. Independent of 'autoBinding'.
     int     bindlessBindingStartSlot;
+
+    //! Fixed slots of the compiler-generated bindless bindings, relative to 'bindlessBindingStartSlot'. By default XscEBindlessBindingLayoutPerHeap.
+    enum XscBindlessBindingLayout bindlessBindingLayout;
 
     //! Maximum total packed size, in bytes, of the entire BSL '[pushConstant]' cbuffer. Must be a non-zero multiple of four. By default 16.
     unsigned int maxPushConstantSize;

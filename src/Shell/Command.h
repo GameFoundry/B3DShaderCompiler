@@ -103,6 +103,7 @@ DECL_SHELL_COMMAND( AutoBindingCommand           );
 DECL_SHELL_COMMAND( AutoBindingStartSlotCommand  );
 DECL_SHELL_COMMAND( BindlessBindingSetCommand    );
 DECL_SHELL_COMMAND( BindlessBindingStartSlotCommand  );
+DECL_SHELL_COMMAND( BindlessBindingLayoutCommand );
 DECL_SHELL_COMMAND( PushConstantSizeCommand      );
 DECL_SHELL_COMMAND( PushConstantRegisterCommand  );
 DECL_SHELL_COMMAND( PushConstantSpaceCommand     );

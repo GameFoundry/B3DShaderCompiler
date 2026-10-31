@@ -7,6 +7,8 @@
 
 #include "ResourceBindingPlanner.h"
 #include "ASTFactory.h"
+#include "ReportIdents.h"
+#include <stdexcept>
 
 
 namespace Xsc
@@ -14,10 +16,11 @@ namespace Xsc
 
 
 ResourceBindingPlanner::ResourceBindingPlanner(
-    ShaderTarget shaderTarget, int autoBindingStartSlot, int bindlessBindingStartSlot) :
+    ShaderTarget shaderTarget, int autoBindingStartSlot, int bindlessBindingStartSlot, BindlessBindingLayout bindlessBindingLayout) :
     shaderTarget_               { shaderTarget               },
     autoBindingStartSlot_       { autoBindingStartSlot       },
-    bindlessBindingStartSlot_   { bindlessBindingStartSlot   }
+    bindlessBindingStartSlot_   { bindlessBindingStartSlot   },
+    bindlessBindingLayout_      { bindlessBindingLayout      }
 {
 }
 
@@ -32,7 +35,6 @@ bool ResourceBindingPlanner::Plan(
 {
     sourceBindings_.clear();
     nextAutoBindingSlots_.clear();
-    nextBindlessBindingSlots_.clear();
 
     // Collect source resource bindings.
     Visit(&program);
@@ -42,6 +44,20 @@ bool ResourceBindingPlanner::Plan(
     {
         if (auto reg = Register::GetForTarget(*binding.registers, shaderTarget_))
             Reserve(reg->slot, reg->space);
+    }
+
+    // Bindless bindings use fixed slots. Typed views of one descriptor type share a slot, so only explicit source bindings can collide.
+    std::set<std::pair<int, int>> bindlessSlots;
+    for (auto& binding : bindlessBindings)
+    {
+        binding.location = bindlessBindingStartSlot_ + GetBindlessSlotOffset(binding);
+        bindlessSlots.insert({ binding.set, binding.location });
+    }
+
+    for (const auto& slot : bindlessSlots)
+    {
+        if (!usedSlots_[slot.first].insert(slot.second).second)
+            throw std::runtime_error(R_BindlessBindingCollision(std::to_string(slot.second), std::to_string(slot.first)));
     }
 
     if (autoBinding)
@@ -72,11 +88,27 @@ bool ResourceBindingPlanner::Plan(
         }
     }
 
-    // Assign compiler-generated bindless bindings after source resources.
-    for (auto& binding : bindlessBindings)
-        binding.location = TakeNextFreeSlot(binding.set, bindlessBindingStartSlot_, nextBindlessBindingSlots_);
-
     return (!sourceBindings_.empty() || !bindlessBindings.empty());
+}
+
+int ResourceBindingPlanner::GetBindlessSlotOffset(const Reflection::BindlessBinding& binding) const
+{
+    if (binding.heap == Reflection::BindlessHeapKind::Sampler)
+        return 0;
+
+    if (bindlessBindingLayout_ == BindlessBindingLayout::PerHeap || binding.bindingClass == Reflection::BindlessBindingClass::DescriptorBuffer)
+        return 1;
+
+    switch (binding.bindingClass)
+    {
+        case Reflection::BindlessBindingClass::SampledImageArray:           return 1;
+        case Reflection::BindlessBindingClass::StorageImageArray:           return 2;
+        case Reflection::BindlessBindingClass::UniformTexelBufferArray:     return 3;
+        case Reflection::BindlessBindingClass::StorageTexelBufferArray:     return 4;
+        case Reflection::BindlessBindingClass::ReadOnlyStorageBufferArray:
+        case Reflection::BindlessBindingClass::ReadWriteStorageBufferArray: return 5;
+        default:                                                            throw std::runtime_error(R_InvalidBindlessBindingClass);
+    }
 }
 
 void ResourceBindingPlanner::AddSourceBinding(std::vector<RegisterPtr>& registers, RegisterType registerType)

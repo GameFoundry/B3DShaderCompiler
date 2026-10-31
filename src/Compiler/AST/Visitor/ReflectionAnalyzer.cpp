@@ -42,6 +42,9 @@ void ReflectionAnalyzer::Reflect(
     {
         data_->bindless.resourceHeap = data_->bindless.resourceHeap || resource.heap == DescriptorHeapKind::Resource;
         data_->bindless.samplerHeap  = data_->bindless.samplerHeap  || resource.heap == DescriptorHeapKind::Sampler;
+
+        if (auto buffer = (resource.type ? resource.type->GetAliased().As<BufferTypeDenoter>() : nullptr))
+            data_->bindless.writableResources = data_->bindless.writableResources || IsRWBufferType(buffer->bufferType);
     }
     data_->bindless.bindings = program.bindlessBindings;
 }

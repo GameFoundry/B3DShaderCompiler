@@ -231,6 +231,9 @@ struct XscReflectionData
     bool                            bindlessResourceHeap;
     bool                            bindlessSamplerHeap;
 
+    //! Whether a writable view (RW texture or RW buffer) is fetched from the resource heap.
+    bool                            bindlessWritableResources;
+
     //! Compiler-generated bindings that implement the bindless ABI.
     const struct XscBindlessBinding* bindlessBindings;
     size_t                           bindlessBindingsCount;

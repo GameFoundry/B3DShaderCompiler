@@ -15,6 +15,7 @@
 #      violates a SPIR-V rule -- e.g. an opaque type left inside a struct, which
 #      Vulkan/SPIR-V forbids (this is what gives the opaque-struct tests teeth;
 #      desktop OpenGL GLSL would accept sampler-in-struct, Vulkan does not).
+#   3. If SPIRV_VAL is defined, run spirv-val on the SPIR-V for Vulkan 1.3.
 # The test fails (non-zero exit) on any step's failure.
 
 foreach(_v XSC GLSLANG SHADER ENTRY XSC_STAGE OUT_DIR)
@@ -97,6 +98,19 @@ execute_process(
 
 if(NOT GLSLANG_RESULT EQUAL 0)
     message(FATAL_ERROR "glslangValidator rejected the round-trip output ${XSC_OUTPUT}:\n${GLSLANG_OUT}\n${GLSLANG_ERR}")
+endif()
+
+if(DEFINED SPIRV_VAL)
+    execute_process(
+        COMMAND "${SPIRV_VAL}" --target-env vulkan1.3 "${XSC_OUTPUT}.spv"
+        RESULT_VARIABLE SPIRV_VAL_RESULT
+        OUTPUT_VARIABLE SPIRV_VAL_OUT
+        ERROR_VARIABLE  SPIRV_VAL_ERR
+    )
+
+    if(NOT SPIRV_VAL_RESULT EQUAL 0)
+        message(FATAL_ERROR "spirv-val rejected the round-trip output ${XSC_OUTPUT}.spv:\n${SPIRV_VAL_OUT}\n${SPIRV_VAL_ERR}")
+    endif()
 endif()
 
 message(STATUS "GLSL round-trip OK: ${SHADER} entry=${ENTRY}")

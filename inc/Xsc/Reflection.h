@@ -528,6 +528,7 @@ struct BindlessUsage
 {
     bool                         resourceHeap = false; //!< ResourceDescriptorHeap is used.
     bool                         samplerHeap  = false; //!< SamplerDescriptorHeap is used.
+    bool                         writableResources = false; //!< A writable view (RW texture or RW buffer) is fetched from ResourceDescriptorHeap.
     std::vector<BindlessBinding> bindings;             //!< Backend-generated runtime ABI.
 };
 

@@ -1486,7 +1486,8 @@ void GLSLGenerator::PlanResourceBindings(const ShaderOutput& outputDesc)
     {
         GetShaderTarget(),
         outputDesc.options.autoBindingStartSlot,
-        outputDesc.options.bindlessBindingStartSlot
+        outputDesc.options.bindlessBindingStartSlot,
+        outputDesc.options.bindlessBindingLayout
     };
     planner.Plan(*program, outputDesc.options.autoBinding, program->bindlessBindings);
 }

@@ -1085,6 +1085,38 @@ void BindlessBindingStartSlotCommand::Run(CommandLine& cmdLine, ShellState& stat
 }
 
 /*
+ * BindlessBindingLayoutCommand class
+ */
+
+std::vector<Command::Identifier> BindlessBindingLayoutCommand::Idents() const
+{
+    return { { "--bindless-layout" } };
+}
+
+HelpDescriptor BindlessBindingLayoutCommand::Help() const
+{
+    return
+    {
+        "--bindless-layout LAYOUT",
+        R_CmdHelpBindlessBindingLayout
+    };
+}
+
+void BindlessBindingLayoutCommand::Run(CommandLine& cmdLine, ShellState& state)
+{
+    const auto layout = cmdLine.Accept();
+
+    state.outputDesc.options.bindlessBindingLayout = MapStringToType<BindlessBindingLayout>(
+        layout,
+        {
+            { "heap", BindlessBindingLayout::PerHeap           },
+            { "type", BindlessBindingLayout::PerDescriptorType },
+        },
+        R_InvalidBindlessBindingLayout(layout)
+    );
+}
+
+/*
  * PushConstantSizeCommand class
  */
 

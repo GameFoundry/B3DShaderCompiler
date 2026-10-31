@@ -217,7 +217,12 @@ bool Converter::IsOpaqueTypeDenoter(const TypeDenoterPtr& typeDenoter)
     if (!typeDenoter)
         return false;
     const auto& aliased = typeDenoter->GetAliased();
-    return aliased.IsBuffer() || aliased.IsSampler();
+
+    /* Geometry shader streams are lowered to stage outputs, not resources */
+    if (auto bufferType = aliased.As<BufferTypeDenoter>())
+        return !IsStreamBufferType(bufferType->bufferType);
+
+    return aliased.IsSampler();
 }
 
 void Converter::RemoveDeadCode(std::vector<StmntPtr>& stmnts)

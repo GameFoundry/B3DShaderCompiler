@@ -128,16 +128,70 @@ xsc_add_roundtrip_tests(
     CASES       ${XSC_GLSL_ROUNDTRIP_CASES}
 )
 
+# spirv-val additionally checks that descriptor arrays of different types may alias one binding.
+find_program(SPIRV_VAL_EXECUTABLE
+    NAMES spirv-val
+    HINTS
+        "$ENV{VULKAN_SDK}/Bin"
+        "$ENV{VULKAN_SDK}/bin"
+)
+
+set(_GLSL_BINDLESS_DEFINES -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE})
+if(SPIRV_VAL_EXECUTABLE)
+    list(APPEND _GLSL_BINDLESS_DEFINES -DSPIRV_VAL=${SPIRV_VAL_EXECUTABLE})
+endif()
+
+# Per-heap layout (default): every typed view of a heap aliases one binding.
 xsc_add_roundtrip_tests(
     PREFIX      glsl_roundtrip
     DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
     SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
     OUT_DIR     ${_GLSL_OUT_DIR}
     LABELS      "glsl-roundtrip;bindless"
-    DEFINES     -DGLSLANG=${GLSLANG_VALIDATOR_EXECUTABLE}
+    DEFINES     ${_GLSL_BINDLESS_DEFINES}
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@--bindless-set@2
+    CASES
+        "BindlessResourceClasses|CS|comp"
+)
+
+# Opaque lowering enabled by the bindless extension: geometry shader streams are accepted as inout parameters, as they are not opaque
+# resources, and heap locals are rewritten when used under a swizzle of a call result.
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip_bindless
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;bindless"
+    DEFINES     ${_GLSL_BINDLESS_DEFINES}
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@--bindless-set@2
+    CASES
+        "BindlessGeometryStream|GS|geom"
+        "BindlessSwizzledCall|CS|comp"
+)
+
+# Comparison samplers alias regular samplers on the sampler binding.
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;bindless"
+    DEFINES     ${_GLSL_BINDLESS_DEFINES} "-DEXPECT_REGEX=set = 2, binding = 0\\) uniform samplerShadow"
     EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@--bindless-set@2
     CASES
         "BindlessResources|PS|frag"
+)
+
+# Per-descriptor-type layout: storage buffers of every element type alias the storage buffer binding at offset 5.
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_bindless_per_type
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}/bindless_per_type
+    LABELS      "glsl-roundtrip;bindless"
+    DEFINES     ${_GLSL_BINDLESS_DEFINES} "-DEXPECT_REGEX=std430, set = 2, binding = 5\\) readonly buffer"
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@--bindless-set@2@--bindless-layout@type
+    CASES
         "BindlessResourceClasses|CS|comp"
 )
 
@@ -152,8 +206,9 @@ xsc_add_roundtrip_tests(
 )
 
 # Generated bindings are planned even with source auto-binding disabled. Slots
-# 0, 2, and 4 in set 2 are explicit source bindings. Starting generated
-# allocation at slot 2 therefore places the first descriptor array at slot 3.
+# 0, 1, and 4 in set 2 are explicit source bindings. With the bindless start slot
+# at 2, the sampler heap is at slot 2 and the resource heap (the texture array
+# accessed first) at slot 3.
 xsc_add_roundtrip_tests(
     PREFIX      glsl_binding_planner_no_auto
     DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
@@ -197,6 +252,10 @@ add_expect_error(ExtensionDisabled BindlessExtensionDisabled PS frag
     LABELS "glsl-roundtrip;bindless;negative")
 add_expect_error(KindMismatch BindlessKindMismatch PS frag
     "ResourceDescriptorHeap' cannot provide a resource of type 'SamplerState'"
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON
+    LABELS "glsl-roundtrip;bindless;negative")
+add_expect_error(BindingCollision BindlessBindingCollision PS frag
+    "an explicit source binding occupies slot 1 in set/space 0, which is reserved for bindless descriptor heaps"
     EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON
     LABELS "glsl-roundtrip;bindless;negative")
 add_expect_error(MissingContext BindlessMissingContext PS frag

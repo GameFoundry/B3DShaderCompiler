@@ -85,6 +85,7 @@ static void InitializeOptions(struct XscOptions* s)
     s->autoBindingStartSlot     = 0;
     s->bindlessBindingSet       = 0;
     s->bindlessBindingStartSlot = 0;
+    s->bindlessBindingLayout    = XscEBindlessBindingLayoutPerHeap;
     s->maxPushConstantSize      = Xsc::PushConstants::DefaultSizeLimit;
     s->pushConstantHLSLRegister = Xsc::PushConstants::HLSLRegister;
     s->pushConstantHLSLRegisterSpace = Xsc::PushConstants::HLSLRegisterSpace;
@@ -276,6 +277,7 @@ static void CopyReflection(const Xsc::Reflection::ReflectionData& src, struct Xs
 
     dst->bindlessResourceHeap   = src.bindless.resourceHeap;
     dst->bindlessSamplerHeap    = src.bindless.samplerHeap;
+    dst->bindlessWritableResources = src.bindless.writableResources;
     dst->bindlessBindings       = g_compilerContext.bindlessBindings.data();
     dst->bindlessBindingsCount  = g_compilerContext.bindlessBindings.size();
 
@@ -435,6 +437,7 @@ XSCC_EXPORT bool XscCompileShader(
     out.options.autoBindingStartSlot    = outputDesc->options.autoBindingStartSlot;
     out.options.bindlessBindingSet      = outputDesc->options.bindlessBindingSet;
     out.options.bindlessBindingStartSlot = outputDesc->options.bindlessBindingStartSlot;
+    out.options.bindlessBindingLayout   = static_cast<Xsc::BindlessBindingLayout>(outputDesc->options.bindlessBindingLayout);
     out.options.maxPushConstantSize     = outputDesc->options.maxPushConstantSize;
     out.options.pushConstantHLSLRegister = outputDesc->options.pushConstantHLSLRegister;
     out.options.pushConstantHLSLRegisterSpace = outputDesc->options.pushConstantHLSLRegisterSpace;

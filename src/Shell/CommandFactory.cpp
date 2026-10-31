@@ -90,6 +90,7 @@ CommandFactory::CommandFactory()
         AutoBindingStartSlotCommand,
         BindlessBindingSetCommand,
         BindlessBindingStartSlotCommand,
+        BindlessBindingLayoutCommand,
         PushConstantSizeCommand,
         PushConstantRegisterCommand,
         PushConstantSpaceCommand,
