@@ -1010,6 +1010,25 @@ enum class Intrinsic
     StreamOutput_Append,        // Append(StreamDataType)
     StreamOutput_RestartStrip,  // RestartStrip()
 
+    ByteAddressBuffer_GetDimensions,                // GetDimensions(out uint Size)
+    ByteAddressBuffer_Load,                         // Load(uint Address)
+    ByteAddressBuffer_Load2,                        // Load2(uint Address)
+    ByteAddressBuffer_Load3,                        // Load3(uint Address)
+    ByteAddressBuffer_Load4,                        // Load4(uint Address)
+    ByteAddressBuffer_Store,                        // Store(uint Address, uint Value)
+    ByteAddressBuffer_Store2,                       // Store2(uint Address, uint2 Value)
+    ByteAddressBuffer_Store3,                       // Store3(uint Address, uint3 Value)
+    ByteAddressBuffer_Store4,                       // Store4(uint Address, uint4 Value)
+    ByteAddressBuffer_InterlockedAdd,               // InterlockedAdd(uint Address, uint Value [, out uint Original])
+    ByteAddressBuffer_InterlockedAnd,               // InterlockedAnd(uint Address, uint Value [, out uint Original])
+    ByteAddressBuffer_InterlockedCompareExchange,   // InterlockedCompareExchange(uint Address, uint Compare, uint Value, out uint Original)
+    ByteAddressBuffer_InterlockedCompareStore,      // InterlockedCompareStore(uint Address, uint Compare, uint Value)
+    ByteAddressBuffer_InterlockedExchange,          // InterlockedExchange(uint Address, uint Value, out uint Original)
+    ByteAddressBuffer_InterlockedMax,               // InterlockedMax(uint Address, uint Value [, out uint Original])
+    ByteAddressBuffer_InterlockedMin,               // InterlockedMin(uint Address, uint Value [, out uint Original])
+    ByteAddressBuffer_InterlockedOr,                // InterlockedOr(uint Address, uint Value [, out uint Original])
+    ByteAddressBuffer_InterlockedXor,               // InterlockedXor(uint Address, uint Value [, out uint Original])
+
     Image_Load,                 // GLSL only
     Image_Store,                // GLSL only
     Image_AtomicAdd,            // GLSL only
@@ -1076,6 +1095,34 @@ bool IsStreamOutputIntrinsic(const Intrinsic t);
 
 // Returns true if the specified intrinsic is an image load/store intrinsic.
 bool IsImageIntrinsic(const Intrinsic t);
+
+// Returns true if the specified intrinsic belongs to a (RW)ByteAddressBuffer object.
+bool IsByteAddressBufferIntrinsic(const Intrinsic t);
+
+// Returns true if the specified intrinsic belongs to a (RW)ByteAddressBuffer object and writes to it.
+bool IsByteAddressBufferWriteIntrinsic(const Intrinsic t);
+
+// Returns true if the specified intrinsic is a (RW)ByteAddressBuffer atomic intrinsic (e.g. Intrinsic::ByteAddressBuffer_InterlockedAdd).
+bool IsByteAddressBufferInterlockedIntrinsic(const Intrinsic t);
+
+// (RW)ByteAddressBuffer member intrinsic that shares its name with another intrinsic, which name lookups resolve to.
+struct ByteAddressBufferSharedIntrinsic
+{
+    Intrinsic shared;               // Intrinsic the name resolves to (e.g. Intrinsic::Texture_Load_1).
+    Intrinsic byteAddressBuffer;    // Member intrinsic of the same name (e.g. Intrinsic::ByteAddressBuffer_Load).
+};
+
+// Returns every (RW)ByteAddressBuffer member intrinsic that shares its name with another intrinsic.
+const std::vector<ByteAddressBufferSharedIntrinsic>& GetByteAddressBufferSharedIntrinsics();
+
+/*
+Returns the (RW)ByteAddressBuffer member intrinsic for an intrinsic resolved by name (e.g. Intrinsic::Texture_Load_1 to Intrinsic::ByteAddressBuffer_Load),
+or Intrinsic::Undefined if (RW)ByteAddressBuffer has no such member function.
+*/
+Intrinsic ToByteAddressBufferIntrinsic(const Intrinsic t);
+
+// Returns the number of 32-bit words read or written by the specified (RW)ByteAddressBuffer load or store intrinsic, or 0 for any other intrinsic.
+int GetByteAddressBufferIntrinsicWordCount(const Intrinsic t);
 
 // Returns true if the specified intrinsic in an interlocked intrinsic (e.g. Intrinsic::InterlockedAdd).
 bool IsInterlockedIntristic(const Intrinsic t);

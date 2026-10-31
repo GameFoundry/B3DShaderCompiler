@@ -50,6 +50,53 @@ struct StructDeclArgs
     bool inEndWithSemicolon;
 };
 
+// Detects expressions that change state, and so must not be written more than once.
+class SideEffectDetector : public Visitor
+{
+    public:
+
+        // Returns true if the specified expression may change state.
+        bool HasSideEffects(const ExprPtr& expr)
+        {
+            hasSideEffects_ = false;
+            Visit(expr);
+            return hasSideEffects_;
+        }
+
+    private:
+
+        bool hasSideEffects_ = false;
+
+        DECL_VISIT_PROC( AssignExpr    ) { hasSideEffects_ = true; }
+        DECL_VISIT_PROC( PostUnaryExpr ) { hasSideEffects_ = true; }
+
+        DECL_VISIT_PROC( UnaryExpr )
+        {
+            if (IsLValueOp(ast->op))
+                hasSideEffects_ = true;
+            else
+                VISIT_DEFAULT(UnaryExpr);
+        }
+
+        DECL_VISIT_PROC( CallExpr )
+        {
+            const auto intrinsic = ast->intrinsic;
+            const bool isUserFunction = (intrinsic == Intrinsic::Undefined && !ast->typeDenoter);
+            const bool isWriteIntrinsic =
+            (
+                IsInterlockedIntristic(intrinsic) ||
+                IsByteAddressBufferWriteIntrinsic(intrinsic) ||
+                IsStreamOutputIntrinsic(intrinsic) ||
+                (intrinsic >= Intrinsic::Image_Store && intrinsic <= Intrinsic::Image_AtomicExchange)
+            );
+
+            if (isUserFunction || isWriteIntrinsic)
+                hasSideEffects_ = true;
+            else
+                VISIT_DEFAULT(CallExpr);
+        }
+};
+
 /*
  * GLSLGenerator class
  */
@@ -1053,6 +1100,8 @@ IMPLEMENT_VISIT_PROC(CallExpr)
         WriteCallExprIntrinsicImageAtomic(ast);
     else if (ast->intrinsic == Intrinsic::StreamOutput_Append)
         WriteCallExprIntrinsicStreamOutputAppend(ast);
+    else if (IsByteAddressBufferIntrinsic(ast->intrinsic))
+        WriteCallExprIntrinsicByteAddressBuffer(ast);
     else if (ast->intrinsic == Intrinsic::Texture_QueryLod)
         WriteCallExprIntrinsicTextureQueryLod(ast, true);
     else if (ast->intrinsic == Intrinsic::Texture_QueryLodUnclamped)
@@ -3091,6 +3140,166 @@ void GLSLGenerator::WriteCallExprIntrinsicStreamOutputAppend(CallExpr* funcCall)
     Write("EmitVertex()");
 }
 
+// "buffer.Load2(address)"                    -> "uvec2(buffer[(address) >> 2u], buffer[((address) >> 2u) + 1u])"
+// "buffer.Store2(address, value)"            -> "buffer[(address) >> 2u] = (value).x, buffer[((address) >> 2u) + 1u] = (value).y"
+// "buffer.InterlockedAdd(address, value, o)" -> "o = atomicAdd(buffer[(address) >> 2u], value)"
+// "buffer.GetDimensions(size)"               -> "size = uint(buffer.length()) * 4u"
+void GLSLGenerator::WriteCallExprIntrinsicByteAddressBuffer(CallExpr* callExpr)
+{
+    const auto intrinsic = callExpr->intrinsic;
+    const auto& args = callExpr->arguments;
+
+    if (!callExpr->prefixExpr)
+    {
+        ErrorIntrinsic(callExpr->ident, callExpr);
+        return;
+    }
+
+    auto WriteWord = [&](int wordIndex)
+    {
+        Visit(callExpr->prefixExpr);
+        Write(wordIndex > 0 ? "[((" : "[(");
+        Visit(args[0]);
+        Write(") >> 2u");
+        if (wordIndex > 0)
+            Write(") + " + std::to_string(wordIndex) + "u");
+        Write("]");
+    };
+
+    /* Writes the output argument assignment, converting the uint result to the argument type */
+    auto WriteOutputAssignment = [&](const ExprPtr& outputArg, const std::function<void()>& writeValue)
+    {
+        Visit(outputArg);
+        Write(" = ");
+
+        const auto& outputTypeDen = outputArg->GetTypeDenoter()->GetAliased();
+        const auto outputBaseTypeDen = outputTypeDen.As<BaseTypeDenoter>();
+        if (outputBaseTypeDen && outputBaseTypeDen->dataType != DataType::UInt)
+        {
+            WriteTypeDenoter(outputTypeDen, false, callExpr);
+            Write("(");
+            writeValue();
+            Write(")");
+        }
+        else
+            writeValue();
+    };
+
+    if (intrinsic == Intrinsic::ByteAddressBuffer_GetDimensions)
+    {
+        AssertIntrinsicNumArgs(callExpr, 1, 1);
+        WriteOutputAssignment(
+            args[0],
+            [&]()
+            {
+                Write("uint(");
+                Visit(callExpr->prefixExpr);
+                Write(".length()) * 4u");
+            }
+        );
+        return;
+    }
+
+    if (const auto wordCount = GetByteAddressBufferIntrinsicWordCount(intrinsic))
+    {
+        const bool isStore = IsByteAddressBufferWriteIntrinsic(intrinsic);
+        AssertIntrinsicNumArgs(callExpr, (isStore ? 2 : 1), (isStore ? 2 : 1));
+
+        /* The address, and the stored value, are written once per word */
+        SideEffectDetector detector;
+        if (wordCount > 1 && (detector.HasSideEffects(args[0]) || (isStore && detector.HasSideEffects(args[1]))))
+        {
+            Error(R_ByteAddressBufferArgSideEffects(callExpr->ident), callExpr);
+            return;
+        }
+
+        if (isStore)
+        {
+            static const char* swizzles[] = { "x", "y", "z", "w" };
+            for (int wordIndex = 0; wordIndex < wordCount; ++wordIndex)
+            {
+                if (wordIndex > 0)
+                    Write(", ");
+
+                WriteWord(wordIndex);
+                Write(" = ");
+
+                if (wordCount > 1)
+                {
+                    Write("(");
+                    Visit(args[1]);
+                    Write(std::string(").") + swizzles[wordIndex]);
+                }
+                else
+                    Visit(args[1]);
+            }
+        }
+        else if (wordCount > 1)
+        {
+            Write("uvec" + std::to_string(wordCount) + "(");
+            for (int wordIndex = 0; wordIndex < wordCount; ++wordIndex)
+            {
+                if (wordIndex > 0)
+                    Write(", ");
+                WriteWord(wordIndex);
+            }
+            Write(")");
+        }
+        else
+            WriteWord(0);
+
+        return;
+    }
+
+    /* Atomic intrinsics */
+    const bool isCompare =
+    (
+        intrinsic == Intrinsic::ByteAddressBuffer_InterlockedCompareExchange ||
+        intrinsic == Intrinsic::ByteAddressBuffer_InterlockedCompareStore
+    );
+
+    const std::size_t numInputArgs = (isCompare ? 3 : 2);
+    AssertIntrinsicNumArgs(callExpr, numInputArgs, numInputArgs + 1);
+
+    if (intrinsic == Intrinsic::ByteAddressBuffer_InterlockedMin || intrinsic == Intrinsic::ByteAddressBuffer_InterlockedMax)
+    {
+        /* The buffer is declared as uint[], so atomicMin and atomicMax can only compare unsigned values */
+        const auto& valueTypeDen = args[1]->GetTypeDenoter()->GetAliased();
+        if (auto valueBaseTypeDen = valueTypeDen.As<BaseTypeDenoter>())
+        {
+            if (IsIntType(valueBaseTypeDen->dataType))
+            {
+                Error(R_ByteAddressBufferSignedAtomic(callExpr->ident), callExpr);
+                return;
+            }
+        }
+    }
+
+    auto keyword = IntrinsicToGLSLKeyword(intrinsic);
+    if (!keyword)
+    {
+        ErrorIntrinsic(callExpr->ident, callExpr);
+        return;
+    }
+
+    auto WriteAtomic = [&]()
+    {
+        Write(*keyword + "(");
+        WriteWord(0);
+        for (std::size_t argIndex = 1; argIndex < numInputArgs; ++argIndex)
+        {
+            Write(", ");
+            Visit(args[argIndex]);
+        }
+        Write(")");
+    };
+
+    if (args.size() > numInputArgs)
+        WriteOutputAssignment(args[numInputArgs], WriteAtomic);
+    else
+        WriteAtomic();
+}
+
 // "CalculateLevelOfDetail"          -> "textureQueryLod(...).y"
 // "CalculateLevelOfDetailUnclamped" -> "textureQueryLod(...).x"
 void GLSLGenerator::WriteCallExprIntrinsicTextureQueryLod(CallExpr* funcCall, bool clamped)
@@ -3840,9 +4049,15 @@ void GLSLGenerator::WriteBufferDeclStorageBuffer(BufferDecl* bufferDecl)
 
             // END BANSHEE CHANGES
 
-            /* Write generic type denoterand identifier */
-            auto genericTypeDen = bufferDecl->declStmntRef->typeDenoter->GetGenericTypeDenoter();
-            WriteTypeDenoter(*genericTypeDen, IsESSL(), bufferDecl);
+            /* Write generic type denoter and identifier; byte address buffers are arrays of 32-bit words */
+            const auto bufferType = bufferDecl->GetBufferType();
+            if (bufferType == BufferType::ByteAddressBuffer || bufferType == BufferType::RWByteAddressBuffer)
+                Write("uint");
+            else
+            {
+                auto genericTypeDen = bufferDecl->declStmntRef->typeDenoter->GetGenericTypeDenoter();
+                WriteTypeDenoter(*genericTypeDen, IsESSL(), bufferDecl);
+            }
             Write(" " + bufferDecl->ident + "[];");
         }
         WriteScopeClose();
@@ -3930,6 +4145,16 @@ void GLSLGenerator::WriteStmntList(const std::vector<T>& stmnts, bool isGlobalSc
 
 void GLSLGenerator::WriteParameter(VarDeclStmnt* ast)
 {
+    /* GLSL can't pass storage buffer blocks to functions */
+    if (auto bufferTypeDen = ast->typeSpecifier->typeDenoter->GetAliased().As<BufferTypeDenoter>())
+    {
+        if (IsStorageBufferType(bufferTypeDen->bufferType))
+        {
+            Error(R_StorageBufferParameter(BufferTypeToString(bufferTypeDen->bufferType)), ast);
+            return;
+        }
+    }
+
     /* Write input modifier */
     if (ast->IsOutput())
     {

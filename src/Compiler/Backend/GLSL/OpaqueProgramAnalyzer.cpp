@@ -4,6 +4,7 @@
 
 #include "OpaqueProgramAnalyzer.h"
 #include "AST.h"
+#include "ASTFactory.h"
 #include "Exception.h"
 #include "ReportIdents.h"
 #include "TypeDenoter.h"
@@ -164,6 +165,57 @@ static bool IsResourceDataAccess(const ExprPtr& expr)
     return false;
 }
 
+// Returns true if the expression marks its value with NonUniformResourceIndex.
+static bool UsesNonUniformResourceIndex(const ExprPtr& expr)
+{
+    if (!expr)
+        return false;
+
+    if (auto call = expr->As<CallExpr>())
+    {
+        if (call->intrinsic == Intrinsic::NonUniformResourceIndex)
+            return true;
+
+        return std::any_of(call->arguments.begin(), call->arguments.end(), UsesNonUniformResourceIndex);
+    }
+
+    if (auto bracket = expr->As<BracketExpr>())
+        return UsesNonUniformResourceIndex(bracket->expr);
+    if (auto binary = expr->As<BinaryExpr>())
+        return UsesNonUniformResourceIndex(binary->lhsExpr) || UsesNonUniformResourceIndex(binary->rhsExpr);
+    if (auto unary = expr->As<UnaryExpr>())
+        return UsesNonUniformResourceIndex(unary->expr);
+    if (auto cast = expr->As<CastExpr>())
+        return UsesNonUniformResourceIndex(cast->expr);
+    if (auto ternary = expr->As<TernaryExpr>())
+        return UsesNonUniformResourceIndex(ternary->thenExpr) || UsesNonUniformResourceIndex(ternary->elseExpr);
+
+    return false;
+}
+
+// Adds every runtime index expression of the binding to 'exportedIndices', once per expression.
+static void CollectExportedIndices(const OpaqueBinding& binding, std::vector<ExportedIndex>& exportedIndices)
+{
+    for (const auto& index : binding.indices)
+    {
+        if (!index.dynamic || !index.expression)
+            continue;
+
+        const bool exported = std::any_of(exportedIndices.begin(), exportedIndices.end(),
+            [&](const ExportedIndex& entry) { return entry.expression.get() == index.expression.get(); }
+        );
+
+        if (exported)
+            continue;
+
+        ExportedIndex exportedIndex;
+        exportedIndex.expression = index.expression;
+        exportedIndex.type       = index.expression->GetTypeDenoter()->Copy();
+        exportedIndex.nonUniform = UsesNonUniformResourceIndex(index.expression);
+        exportedIndices.push_back(exportedIndex);
+    }
+}
+
 
 /* ----- Dataflow lattice helpers (file-local) ----- */
 
@@ -251,9 +303,6 @@ void OpaqueProgramAnalyzer::BuildContracts()
         contract.canonical         = CanonicalFunction(funcDecl);
         contract.originalReturnType = funcDecl->returnType;
         contract.returnLayout      = layouts_.Get(funcDecl->returnType->typeDenoter, funcDecl->returnType.get());
-
-        if (contract.returnLayout && contract.returnLayout->IsNativeOpaqueInput())
-            RuntimeErr(R_OpaqueStructNoReturn(funcDecl->returnType->typeDenoter->ToString()), funcDecl->returnType.get());
 
         for (const auto& param : funcDecl->parameters)
         {
@@ -382,6 +431,23 @@ void OpaqueProgramAnalyzer::AnalyzeFunction(FunctionDecl* funcDecl)
 
             if (joined.Valid())
                 summary.outValues[param.variable] = joined;
+        }
+
+        /* The return value first, then output parameters in declaration order, which fixes the order of the synthesized 'out' parameters */
+        if (summary.hasReturn)
+        {
+            for (const auto& binding : summary.returnValue.bindings)
+                CollectExportedIndices(binding, summary.exportedIndices);
+        }
+
+        for (const auto& param : contract->parameters)
+        {
+            auto outIt = summary.outValues.find(param.variable);
+            if (outIt == summary.outValues.end())
+                continue;
+
+            for (const auto& binding : outIt->second.bindings)
+                CollectExportedIndices(binding, summary.exportedIndices);
         }
     }
 
@@ -1161,8 +1227,30 @@ OpaqueValue OpaqueProgramAnalyzer::EvaluateCall(CallExpr& call, BindingEnvironme
     if (summaryIt != plan_.summaries.end())
     {
         const auto& summary = summaryIt->second;
+
+        /* One expression per temporary, shared by all translated bindings, so bindings that used the same callee expression stay equal */
+        std::vector<ExprPtr> callerIndices;
+        for (const auto& exportedIndex : summary.exportedIndices)
+        {
+            auto temporary = ASTFactory::MakeVarDeclStmnt(
+                ASTFactory::MakeTypeSpecifier(exportedIndex.type->Copy()),
+                "xsc_opaque_index_" + std::to_string(nextTemporaryId_++)
+            );
+            callPlan.exportedIndexTemporaries.push_back(temporary);
+
+            ExprPtr callerIndex = ASTFactory::MakeObjectExpr(temporary->varDecls.front().get());
+            if (exportedIndex.nonUniform)
+            {
+                callerIndex = ASTFactory::MakeIntrinsicCallExpr(
+                    Intrinsic::NonUniformResourceIndex, "NonUniformResourceIndex", exportedIndex.type->Copy(), { callerIndex }
+                );
+            }
+
+            callerIndices.push_back(callerIndex);
+        }
+
         if (summary.hasReturn)
-            callPlan.result = Remap(summary.returnValue, *contract, callPlan.arguments);
+            callPlan.result = Remap(summary.returnValue, summary, callerIndices, callPlan, &call);
 
         for (std::size_t i = 0; i < contract->parameters.size() && i < call.arguments.size(); ++i)
         {
@@ -1174,7 +1262,7 @@ OpaqueValue OpaqueProgramAnalyzer::EvaluateCall(CallExpr& call, BindingEnvironme
             if (outIt == summary.outValues.end())
                 continue;
 
-            OpaqueValue translated = Remap(outIt->second, *contract, callPlan.arguments);
+            OpaqueValue translated = Remap(outIt->second, summary, callerIndices, callPlan, &call);
             AccessDescription destination;
             if (DescribeAccess(call.arguments[i], destination))
             {
@@ -1196,11 +1284,34 @@ OpaqueValue OpaqueProgramAnalyzer::EvaluateCall(CallExpr& call, BindingEnvironme
     return callPlan.result;
 }
 
-OpaqueValue OpaqueProgramAnalyzer::Remap(const OpaqueValue& value, const FunctionContract& contract, const std::vector<OpaqueValue>& arguments)
+OpaqueValue OpaqueProgramAnalyzer::Remap(
+    const OpaqueValue& value,
+    const FunctionSummary& summary,
+    const std::vector<ExprPtr>& callerIndices,
+    const CallSitePlan& callPlan,
+    const AST* context)
 {
+    const FunctionContract& contract = *callPlan.contract;
+    const std::vector<OpaqueValue>& arguments = callPlan.arguments;
+
     OpaqueValue result = value;
     for (auto& binding : result.bindings)
     {
+        for (auto& index : binding.indices)
+        {
+            if (!index.dynamic)
+                continue;
+
+            for (std::size_t i = 0; i < summary.exportedIndices.size() && i < callerIndices.size(); ++i)
+            {
+                if (summary.exportedIndices[i].expression.get() == index.expression.get())
+                {
+                    index.expression = callerIndices[i];
+                    break;
+                }
+            }
+        }
+
         if (binding.kind != OpaqueBinding::Kind::FormalLane && binding.kind != OpaqueBinding::Kind::FormalArrayLane)
             continue;
 
@@ -1210,9 +1321,43 @@ OpaqueValue OpaqueProgramAnalyzer::Remap(const OpaqueValue& value, const Functio
                 continue;
 
             const auto& arg = arguments[p];
-            if (binding.laneIndex < arg.bindings.size())
-                binding = arg.bindings[binding.laneIndex];
+            if (binding.kind == OpaqueBinding::Kind::FormalLane)
+            {
+                if (binding.laneIndex < arg.bindings.size())
+                    binding = arg.bindings[binding.laneIndex];
 
+                break;
+            }
+
+            /* The callee indexed a lane group of this parameter at runtime, so the result is the argument's lanes of
+               that group, generalized over the translated index */
+            std::vector<std::size_t> laneGroup;
+            auto groupsIt = plan_.dynamicLaneGroups.find(binding.formal);
+            if (groupsIt != plan_.dynamicLaneGroups.end())
+            {
+                for (const auto& group : groupsIt->second)
+                {
+                    if (!group.empty() && group.front() == binding.laneIndex)
+                    {
+                        laneGroup = group;
+                        break;
+                    }
+                }
+            }
+
+            if (laneGroup.empty() || binding.indices.empty())
+                RuntimeErr(R_OpaqueTypeInvalidRuntimeIndex("unrelated resource bindings"), context);
+
+            std::vector<OpaqueValue> elementCandidates(laneGroup.size());
+            for (std::size_t element = 0; element < laneGroup.size(); ++element)
+            {
+                if (laneGroup[element] >= arg.bindings.size())
+                    RuntimeErr(R_OpaqueTypeInvalidRuntimeIndex("incomplete resource array"), context);
+
+                elementCandidates[element].bindings.push_back(arg.bindings[laneGroup[element]]);
+            }
+
+            binding = GeneralizeDynamicLane(elementCandidates, 0, binding.indices.back().expression, context);
             break;
         }
     }

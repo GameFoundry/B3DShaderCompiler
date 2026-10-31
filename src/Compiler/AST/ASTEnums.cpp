@@ -1228,6 +1228,73 @@ bool IsImageIntrinsic(const Intrinsic t)
     return (t >= Intrinsic::Image_Load && t <= Intrinsic::Image_Store);
 }
 
+bool IsByteAddressBufferIntrinsic(const Intrinsic t)
+{
+    return (t >= Intrinsic::ByteAddressBuffer_GetDimensions && t <= Intrinsic::ByteAddressBuffer_InterlockedXor);
+}
+
+bool IsByteAddressBufferWriteIntrinsic(const Intrinsic t)
+{
+    return (t >= Intrinsic::ByteAddressBuffer_Store && t <= Intrinsic::ByteAddressBuffer_InterlockedXor);
+}
+
+bool IsByteAddressBufferInterlockedIntrinsic(const Intrinsic t)
+{
+    return (t >= Intrinsic::ByteAddressBuffer_InterlockedAdd && t <= Intrinsic::ByteAddressBuffer_InterlockedXor);
+}
+
+const std::vector<ByteAddressBufferSharedIntrinsic>& GetByteAddressBufferSharedIntrinsics()
+{
+    using T = Intrinsic;
+
+    static const std::vector<ByteAddressBufferSharedIntrinsic> sharedIntrinsics
+    {
+        { T::Texture_GetDimensions,      T::ByteAddressBuffer_GetDimensions              },
+        { T::Texture_Load_1,             T::ByteAddressBuffer_Load                       },
+        { T::InterlockedAdd,             T::ByteAddressBuffer_InterlockedAdd             },
+        { T::InterlockedAnd,             T::ByteAddressBuffer_InterlockedAnd             },
+        { T::InterlockedCompareExchange, T::ByteAddressBuffer_InterlockedCompareExchange },
+        { T::InterlockedCompareStore,    T::ByteAddressBuffer_InterlockedCompareStore    },
+        { T::InterlockedExchange,        T::ByteAddressBuffer_InterlockedExchange        },
+        { T::InterlockedMax,             T::ByteAddressBuffer_InterlockedMax             },
+        { T::InterlockedMin,             T::ByteAddressBuffer_InterlockedMin             },
+        { T::InterlockedOr,              T::ByteAddressBuffer_InterlockedOr              },
+        { T::InterlockedXor,             T::ByteAddressBuffer_InterlockedXor             },
+    };
+
+    return sharedIntrinsics;
+}
+
+Intrinsic ToByteAddressBufferIntrinsic(const Intrinsic t)
+{
+    if (IsByteAddressBufferIntrinsic(t))
+        return t;
+
+    for (const auto& sharedIntrinsic : GetByteAddressBufferSharedIntrinsics())
+    {
+        if (sharedIntrinsic.shared == t)
+            return sharedIntrinsic.byteAddressBuffer;
+    }
+
+    return Intrinsic::Undefined;
+}
+
+int GetByteAddressBufferIntrinsicWordCount(const Intrinsic t)
+{
+    switch (t)
+    {
+        case Intrinsic::ByteAddressBuffer_Load:
+        case Intrinsic::ByteAddressBuffer_Store:    return 1;
+        case Intrinsic::ByteAddressBuffer_Load2:
+        case Intrinsic::ByteAddressBuffer_Store2:   return 2;
+        case Intrinsic::ByteAddressBuffer_Load3:
+        case Intrinsic::ByteAddressBuffer_Store3:   return 3;
+        case Intrinsic::ByteAddressBuffer_Load4:
+        case Intrinsic::ByteAddressBuffer_Store4:   return 4;
+        default:                                    return 0;
+    }
+}
+
 bool IsInterlockedIntristic(const Intrinsic t)
 {
     return (t >= Intrinsic::InterlockedAdd && t <= Intrinsic::InterlockedXor);

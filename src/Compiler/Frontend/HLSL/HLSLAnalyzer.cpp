@@ -1249,6 +1249,9 @@ IMPLEMENT_VISIT_PROC(ReturnStmnt)
     /* Analyze return expression */
     if (ast->expr)
     {
+        if (returnTypeDen)
+            ResolveDescriptorHeapAccess(ast->expr.get(), *returnTypeDen);
+
         Visit(ast->expr);
 
         /* Validate expression type by just calling the getter */
@@ -1632,7 +1635,13 @@ void HLSLAnalyzer::AnalyzeCallExprPrimary(CallExpr* callExpr, const TypeDenoter*
         {
             /* Is this an intrinsic function call? */
             auto intrIt = HLSLIntrinsicAdept::GetIntrinsicMap().find(callExpr->ident);
-            if (intrIt != HLSLIntrinsicAdept::GetIntrinsicMap().end())
+            const bool isIntrinsic =
+            (
+                intrIt != HLSLIntrinsicAdept::GetIntrinsicMap().end() &&
+                (!IsByteAddressBufferIntrinsic(intrIt->second.intrinsic) || (prefixTypeDenoter && prefixTypeDenoter->As<BufferTypeDenoter>()))
+            );
+
+            if (isIntrinsic)
             {
                 /* Analyze function call of intrinsic */
                 AnalyzeCallExprIntrinsic(callExpr, intrIt->second, callExpr->isStatic, prefixTypeDenoter);
@@ -1733,8 +1742,23 @@ void HLSLAnalyzer::AnalyzeCallExprFunction(
     }
 }
 
-void HLSLAnalyzer::AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrinsicEntry& intr, bool isStatic, const TypeDenoter* prefixTypeDenoter)
+void HLSLAnalyzer::AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrinsicEntry& intrinsicEntry, bool isStatic, const TypeDenoter* prefixTypeDenoter)
 {
+    /* Byte address buffer members share their names with texture and global intrinsics */
+    auto intr = intrinsicEntry;
+    if (auto bufferTypeDen = (prefixTypeDenoter ? prefixTypeDenoter->As<BufferTypeDenoter>() : nullptr))
+    {
+        if (bufferTypeDen->bufferType == BufferType::ByteAddressBuffer || bufferTypeDen->bufferType == BufferType::RWByteAddressBuffer)
+        {
+            intr.intrinsic = ToByteAddressBufferIntrinsic(intr.intrinsic);
+            if (intr.intrinsic == Intrinsic::Undefined)
+            {
+                Error(R_InvalidClassIntrinsicForType(callExpr->ident, prefixTypeDenoter->ToString()), callExpr);
+                return;
+            }
+        }
+    }
+
     const auto intrinsic = intr.intrinsic;
 
     if (intrinsic == Intrinsic::NonUniformResourceIndex)
@@ -1994,6 +2018,18 @@ void HLSLAnalyzer::AnalyzeCallExprIntrinsicFromBufferType(const CallExpr* callEx
         /* Check if image load/store intrinsic is used to RW-texture buffer type */
         if (!IsImageIntrinsic(intrinsic))
             Error(R_InvalidIntrinsicForRWTexture(ident), callExpr);
+    }
+    else if (IsByteAddressBufferIntrinsic(intrinsic))
+    {
+        /* Check if byte address buffer intrinsic is used on a byte address buffer that supports it */
+        const bool isSupported =
+        (
+            bufferType == BufferType::RWByteAddressBuffer ||
+            (bufferType == BufferType::ByteAddressBuffer && !IsByteAddressBufferWriteIntrinsic(intrinsic))
+        );
+
+        if (!isSupported)
+            Error(R_InvalidClassIntrinsicForType(ident, BufferTypeToString(bufferType)), callExpr);
     }
     else if (IsStreamBufferType(bufferType))
     {

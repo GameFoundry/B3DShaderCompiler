@@ -113,6 +113,8 @@ list(APPEND XSC_GLSL_ROUNDTRIP_CASES
     "OpaqueTypeArrayContracts|main|frag"
     "OpaqueTypeDirectCallField|main|frag"
     "OpaqueTypeControlFlow|main|frag"
+    "OpaqueTypePlainReturns|main|frag"  # bare resources returned; runtime indices are computed by the callee
+    "OpaqueTypeRuntimeArrayReturn|main|frag" # element of a runtime-indexed array parameter returned
 )
 
 # No PROFILE_DEFINE: glslangValidator infers the stage from the file extension,
@@ -168,6 +170,56 @@ xsc_add_roundtrip_tests(
         "BindlessGeometryStream|GS|geom"
         "BindlessSwizzledCall|CS|comp"
 )
+
+# Heap accesses returned from functions: callees compute the heap indices into 'out' parameters, as their index
+# expressions use the callee's parameters and locals, and callers re-apply NonUniformResourceIndex to them.
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip_bindless
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;bindless;opaque-struct"
+    DEFINES     ${_GLSL_BINDLESS_DEFINES} "-DEXPECT_REGEX=xsc_bindless_1\\[nonuniformEXT\\(xsc_opaque_index_[0-9]+\\)\\]"
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@--bindless-set@2@-Xopaque-struct@ON
+    CASES
+        "BindlessOpaqueReturns|CS|comp"
+)
+
+# Byte address buffers are uint[] storage blocks; loads, stores and atomics address their 32-bit words. Multi-word stores
+# evaluate their address and value once, into temporaries.
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;byte-address-buffer"
+    DEFINES     ${_GLSL_BINDLESS_DEFINES} "-DEXPECT_REGEX=uint xst_temp[0-9]+ = ComputeAddress\\(gl_GlobalInvocationID\\.x\\)"
+    CASES       "ByteAddressBuffer|CS|comp"
+)
+
+xsc_add_roundtrip_tests(
+    PREFIX      glsl_roundtrip_bindless
+    DRIVER      ${_GLSL_TESTS_DIR}/RunGLSLRoundtrip.cmake
+    SHADER_DIR  ${PROJECT_SOURCE_DIR}/test
+    OUT_DIR     ${_GLSL_OUT_DIR}
+    LABELS      "glsl-roundtrip;bindless;byte-address-buffer"
+    DEFINES     ${_GLSL_BINDLESS_DEFINES}
+    EXTRA_FLAGS -Vin@HLSL6@-Xbindless@ON@--bindless-set@2@-Xopaque-struct@ON
+    CASES       "BindlessByteAddressBuffer|CS|comp"
+)
+
+add_expect_error(ByteAddressBufferReadOnlyStore ByteAddressBufferRejectReadOnlyStore CS comp
+    "invalid class intrinsic 'Store' for type 'ByteAddressBuffer'"
+    LABELS "glsl-roundtrip;byte-address-buffer;negative")
+add_expect_error(ByteAddressBufferSideEffects ByteAddressBufferRejectSideEffects CS comp
+    "must not have side effects"
+    LABELS "glsl-roundtrip;byte-address-buffer;negative")
+add_expect_error(ByteAddressBufferSignedMinMax ByteAddressBufferRejectSignedMinMax CS comp
+    "does not support signed values"
+    LABELS "glsl-roundtrip;byte-address-buffer;negative")
+add_expect_error(StorageBufferParameter StorageBufferRejectParameter CS comp
+    "cannot be passed to functions"
+    LABELS "glsl-roundtrip;negative")
 
 # Comparison samplers alias regular samplers on the sampler binding.
 xsc_add_roundtrip_tests(
@@ -396,7 +448,6 @@ add_expect_error(UnrelatedRuntime OpaqueTypeRejectUnrelatedRuntime main frag "ru
 add_expect_error(DynamicWrite     OpaqueTypeRejectDynamicWrite     main frag "runtime-indexed writes to opaque values" EXTRA_FLAGS -Xopaque-struct@ON)
 add_expect_error(UnsizedArray     OpaqueTypeRejectUnsizedArray     main frag "require a fixed, positive compile-time extent" EXTRA_FLAGS -Xopaque-struct@ON)
 add_expect_error(DefaultArgument  OpaqueTypeRejectDefaultArgument  main frag "cannot use default arguments" EXTRA_FLAGS -Xopaque-struct@ON)
-add_expect_error(PlainReturn      OpaqueTypeRejectPlainReturn      main frag "cannot return a structure containing opaque resources" EXTRA_FLAGS -Xopaque-struct@ON)
 add_expect_error(PlainOut         OpaqueTypeRejectPlainOut         main frag "no 'out'/'inout'" EXTRA_FLAGS -Xopaque-struct@ON)
 add_expect_error(LocalExtDisabled OpaqueTypeLocalTexture           main frag "opaque-struct' language extension is enabled")
 

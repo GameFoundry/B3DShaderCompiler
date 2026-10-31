@@ -50,12 +50,14 @@ namespace OpaqueLowering
 // Replacement declarations synthesized while rewriting one function's
 // signature: for each original opaque-bearing formal parameter, the per-lane
 // replacement parameters (indexed by lane; several lanes may share a single
-// array parameter), plus the synthesized 'out' parameter that receives the
-// residual part of a lowered return value.
+// array parameter), the synthesized 'out' parameter that receives the
+// residual part of a lowered return value, and one synthesized 'out'
+// parameter per exported index (in FunctionSummary::exportedIndices order).
 struct SynthesizedSignature
 {
     std::unordered_map<VarDecl*, std::vector<VarDecl*>> laneParameters;
     VarDecl*                                            returnResidual = nullptr;
+    std::vector<VarDecl*>                               exportedIndices;
 };
 
 // Lowering result of one expression: the surviving residual expression (may
@@ -101,7 +103,8 @@ class OpaqueASTLowerer
 
         /* ----- Statement lowering ----- */
 
-        // Lowers every function body in the program.
+        // Lowers every function body in the program. Bodies that can end
+        // without a return statement assign the exported indices at the end.
         void RewriteBodies();
 
         // Rewrites a statement list in place by flat-mapping LowerStatement.
@@ -123,8 +126,13 @@ class OpaqueASTLowerer
 
         // Lowers a return statement; when the function's return type was
         // lowered, the residual value is assigned to the synthesized out
-        // parameter and the return becomes value-less.
+        // parameter and the return becomes value-less. The exported indices
+        // are assigned after the returned value is evaluated.
         std::vector<StmntPtr> LowerReturn(const StmntPtr& statement, ReturnStmnt& ret);
+
+        // Returns the statements assigning every index the active function
+        // exports to its synthesized 'out' parameter.
+        std::vector<StmntPtr> MakeExportedIndexAssignments();
 
         // Wraps LowerStatement's result into a single statement suitable as
         // a loop/if body (null statement, the single statement, or a block).
@@ -160,9 +168,10 @@ class OpaqueASTLowerer
         );
 
         // Rewrites a call according to its CallSitePlan: expands opaque
-        // arguments into per-lane resource references and, for lowered
-        // returns, hoists the call into the prelude with a residual-result
-        // temporary.
+        // arguments into per-lane resource references, passes the caller
+        // temporaries receiving the callee's exported indices and, for
+        // lowered returns, hoists the call into the prelude with a
+        // residual-result temporary.
         LoweredExpression LowerCall(const ExprPtr& expression, CallExpr& call, const CallSitePlan& callPlan);
 
         // Lowers a ternary; if either branch needs prelude statements, the

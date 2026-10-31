@@ -129,6 +129,25 @@ void OpaqueASTLowerer::RewriteSignatures()
                 parameters.push_back(outParam);
             }
         }
+
+        auto summaryIt = plan_.summaries.find(contract.canonical);
+        if (summaryIt != plan_.summaries.end())
+        {
+            const auto& exportedIndices = summaryIt->second.exportedIndices;
+            for (std::size_t i = 0; i < exportedIndices.size(); ++i)
+            {
+                auto indexParam = ASTFactory::MakeVarDeclStmnt(
+                    ASTFactory::MakeTypeSpecifier(exportedIndices[i].type->Copy()),
+                    contract.declaration->ident.Original() + "_opaque_index_" + std::to_string(i)
+                );
+                indexParam->flags << VarDeclStmnt::isParameter;
+                indexParam->typeSpecifier->isInput  = false;
+                indexParam->typeSpecifier->isOutput = true;
+                synthesized.exportedIndices.push_back(indexParam->varDecls.front().get());
+                parameters.push_back(indexParam);
+            }
+        }
+
         contract.declaration->parameters = std::move(parameters);
     }
 }
@@ -143,7 +162,10 @@ void OpaqueASTLowerer::RewriteBodies()
         if (!function->codeBlock)
             return;
         activeFunction_ = function;
-        LowerStatementList(function->codeBlock->stmnts);
+        auto& statements = function->codeBlock->stmnts;
+        LowerStatementList(statements);
+        if (statements.empty() || !statements.back()->As<ReturnStmnt>())
+            Append(statements, MakeExportedIndexAssignments());
         activeFunction_ = nullptr;
     });
 }
@@ -301,16 +323,25 @@ std::vector<StmntPtr> OpaqueASTLowerer::LowerReturn(const StmntPtr& statement, R
 {
     const FunctionContract* contract = FindContract(plan_, activeFunction_);
     const FunctionABI* abi = FindABI(plan_, activeFunction_);
+    std::vector<StmntPtr> exportedIndexAssignments = MakeExportedIndexAssignments();
     if (!contract || !abi || !abi->lowerReturn)
     {
-        if (ret.expr)
+        LoweredExpression value = LowerExpression(ret.expr, nullptr, nullptr);
+        ret.expr = value.residual;
+        if (ret.expr && !exportedIndexAssignments.empty())
         {
-            LoweredExpression value = LowerExpression(ret.expr, nullptr, nullptr);
-            ret.expr = value.residual;
-            value.prelude.push_back(statement);
-            return value.prelude;
+            /* The returned value may write the output parameters the exported indices come from, so evaluate it first */
+            auto tempDecl = ASTFactory::MakeVarDeclStmnt(
+                ASTFactory::MakeTypeSpecifier(activeFunction_->returnType->typeDenoter->Copy()),
+                "xsc_opaque_return_" + std::to_string(nextTempId_++),
+                ret.expr
+            );
+            value.prelude.push_back(tempDecl);
+            ret.expr = ASTFactory::MakeObjectExpr(tempDecl->varDecls.front().get());
         }
-        return SingleStatement(statement);
+        Append(value.prelude, exportedIndexAssignments);
+        value.prelude.push_back(statement);
+        return value.prelude;
     }
 
     LoweredExpression value = LowerExpression(ret.expr, contract->returnLayout, contract->returnLayout->root);
@@ -320,9 +351,26 @@ std::vector<StmntPtr> OpaqueASTLowerer::LowerReturn(const StmntPtr& statement, R
         if (outVar && value.residual)
             value.prelude.push_back(ASTFactory::MakeAssignStmnt(ASTFactory::MakeObjectExpr(outVar), value.residual));
     }
+    Append(value.prelude, exportedIndexAssignments);
     ret.expr.reset();
     value.prelude.push_back(statement);
     return value.prelude;
+}
+
+std::vector<StmntPtr> OpaqueASTLowerer::MakeExportedIndexAssignments()
+{
+    std::vector<StmntPtr> assignments;
+    auto summaryIt = plan_.summaries.find(activeFunction_);
+    auto signatureIt = synthesizedSignatures_.find(activeFunction_);
+    if (summaryIt == plan_.summaries.end() || signatureIt == synthesizedSignatures_.end())
+        return assignments;
+
+    const auto& exportedIndices = summaryIt->second.exportedIndices;
+    const auto& indexParams = signatureIt->second.exportedIndices;
+    for (std::size_t i = 0; i < exportedIndices.size() && i < indexParams.size(); ++i)
+        assignments.push_back(ASTFactory::MakeAssignStmnt(ASTFactory::MakeObjectExpr(indexParams[i]), exportedIndices[i].expression));
+
+    return assignments;
 }
 
 StmntPtr OpaqueASTLowerer::LowerEmbedded(const StmntPtr& statement)
@@ -594,6 +642,10 @@ LoweredExpression OpaqueASTLowerer::LowerCall(const ExprPtr& expression, CallExp
             continue;
         }
 
+        /* An 'out' argument without residual data is neither read nor passed, so reading its uninitialized lanes would be an error */
+        if (!parameter.input && !paramABI.keepResidual)
+            continue;
+
         TypeDenoterPtr argumentType = originalArgument->GetTypeDenoter();
         LoweredExpression lowered = LowerExpression(originalArgument, parameter.layout, parameter.layout->root);
         if (!lowered.prelude.empty())
@@ -633,25 +685,32 @@ LoweredExpression OpaqueASTLowerer::LowerCall(const ExprPtr& expression, CallExp
     }
     call.arguments = std::move(newArguments);
 
+    ExprPtr residualValue;
+    if (abi->returnResidual)
+    {
+        const std::string tempName = "xsc_opaque_result_" + std::to_string(nextTempId_++);
+        auto tempDecl = ASTFactory::MakeVarDeclStmnt(
+            ASTFactory::MakeTypeSpecifier(contract.originalReturnType->typeDenoter->Copy()), tempName
+        );
+        VarDecl* tempVar = tempDecl->varDecls.front().get();
+        result.prelude.push_back(tempDecl);
+        residualValue = ASTFactory::MakeObjectExpr(tempVar);
+        call.arguments.push_back(ASTFactory::MakeObjectExpr(tempVar));
+    }
+
+    for (const auto& temporary : callPlan.exportedIndexTemporaries)
+    {
+        result.prelude.push_back(temporary);
+        call.arguments.push_back(ASTFactory::MakeObjectExpr(temporary->varDecls.front().get()));
+    }
+
     if (abi->lowerReturn)
     {
-        ExprPtr residualValue;
-        if (abi->returnResidual)
-        {
-            const std::string tempName = "xsc_opaque_result_" + std::to_string(nextTempId_++);
-            auto tempDecl = ASTFactory::MakeVarDeclStmnt(
-                ASTFactory::MakeTypeSpecifier(contract.originalReturnType->typeDenoter->Copy()), tempName
-            );
-            VarDecl* tempVar = tempDecl->varDecls.front().get();
-            result.prelude.push_back(tempDecl);
-            residualValue = ASTFactory::MakeObjectExpr(tempVar);
-            call.arguments.push_back(ASTFactory::MakeObjectExpr(tempVar));
-        }
         auto callStatement = std::make_shared<ExprStmnt>(SourcePosition::ignore);
         callStatement->expr = expression;
         result.prelude.push_back(callStatement);
         result.residual = residualValue;
-        return result;
+        return ReplaceOpaqueValue(expression, result);
     }
 
     result.residual = expression;

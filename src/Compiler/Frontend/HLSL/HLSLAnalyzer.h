@@ -130,7 +130,7 @@ class HLSLAnalyzer : public Analyzer
         void AnalyzeCallExpr(CallExpr* callExpr);
         void AnalyzeCallExprPrimary(CallExpr* callExpr, const TypeDenoter* prefixTypeDenoter = nullptr);
         void AnalyzeCallExprFunction(CallExpr* callExpr, bool isStatic = false, const Expr* prefixExpr = nullptr, const TypeDenoter* prefixTypeDenoter = nullptr);
-        void AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrinsicEntry& intr, bool isStatic = false, const TypeDenoter* prefixTypeDenoter = nullptr);
+        void AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrinsicEntry& intrinsicEntry, bool isStatic = false, const TypeDenoter* prefixTypeDenoter = nullptr);
         void AnalyzeCallExprIntrinsicPrimary(CallExpr* callExpr, const HLSLIntrinsicEntry& intr);
         void AnalyzeCallExprIntrinsicFromBufferType(const CallExpr* callExpr, const BufferType bufferType);
 

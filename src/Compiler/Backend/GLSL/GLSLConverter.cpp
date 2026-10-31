@@ -542,6 +542,13 @@ IMPLEMENT_VISIT_PROC(SwitchStmnt)
     CloseScope();
 }
 
+IMPLEMENT_VISIT_PROC(ExprStmnt)
+{
+    activeStmntExpr_ = ast->expr.get();
+    VISIT_DEFAULT(ExprStmnt);
+    activeStmntExpr_ = nullptr;
+}
+
 IMPLEMENT_VISIT_PROC(ReturnStmnt)
 {
     VISIT_DEFAULT(ReturnStmnt);
@@ -895,12 +902,42 @@ void GLSLConverter::ConvertIntrinsicCall(CallExpr* ast)
             ConvertIntrinsicCallTextureLoad(ast);
             break;
 
+        case Intrinsic::ByteAddressBuffer_Store2:
+        case Intrinsic::ByteAddressBuffer_Store3:
+        case Intrinsic::ByteAddressBuffer_Store4:
+            ConvertIntrinsicCallByteAddressBufferStore(ast);
+            break;
+
         default:
             if (IsTextureGatherIntrisic(ast->intrinsic))
                 ConvertIntrinsicCallGather(ast);
             else if (IsTextureCompareIntrinsic(ast->intrinsic))
                 ConvertIntrinsicCallSampleCmp(ast);
             break;
+    }
+}
+
+void GLSLConverter::ConvertIntrinsicCallByteAddressBufferStore(CallExpr* ast)
+{
+    /*
+    The generator writes the address and value of "buffer.Store2(address, value)" once per word, so evaluate them once into temporaries
+    declared before the statement. Only stores that are a whole statement are converted: elsewhere (e.g. a for-loop iteration) the
+    temporaries would be evaluated in the wrong place.
+    */
+    if (ast != activeStmntExpr_ || ast->arguments.size() != 2)
+        return;
+
+    for (auto& arg : ast->arguments)
+    {
+        /* Variables and literals are written as they are */
+        if (arg->Type() == AST::Types::ObjectExpr || arg->Type() == AST::Types::LiteralExpr)
+            continue;
+
+        auto tempVarDeclStmnt = ASTFactory::MakeVarDeclStmnt(ASTFactory::MakeTypeSpecifier(arg->GetTypeDenoter()), MakeTempVarIdent(), arg);
+        InsertStmntBefore(tempVarDeclStmnt);
+        Visit(tempVarDeclStmnt);
+
+        arg = ASTFactory::MakeObjectExpr(tempVarDeclStmnt->varDecls.front().get());
     }
 }
 

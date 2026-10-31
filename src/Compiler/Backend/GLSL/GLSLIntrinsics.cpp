@@ -245,6 +245,16 @@ static std::map<Intrinsic, std::string> GenerateIntrinsicMap()
         { T::StreamOutput_Append,              "EmitVertex"            },
         { T::StreamOutput_RestartStrip,        "EndPrimitive"          },
 
+        { T::ByteAddressBuffer_InterlockedAdd,              "atomicAdd"      },
+        { T::ByteAddressBuffer_InterlockedAnd,              "atomicAnd"      },
+        { T::ByteAddressBuffer_InterlockedCompareExchange,  "atomicCompSwap" },
+        { T::ByteAddressBuffer_InterlockedCompareStore,     "atomicCompSwap" },
+        { T::ByteAddressBuffer_InterlockedExchange,         "atomicExchange" },
+        { T::ByteAddressBuffer_InterlockedMax,              "atomicMax"      },
+        { T::ByteAddressBuffer_InterlockedMin,              "atomicMin"      },
+        { T::ByteAddressBuffer_InterlockedOr,               "atomicOr"       },
+        { T::ByteAddressBuffer_InterlockedXor,              "atomicXor"      },
+
         { T::Image_Load,                       "imageLoad"             }, // GLSL only
         { T::Image_Store,                      "imageStore"            }, // GLSL only
         { T::Image_AtomicAdd,                  "imageAtomicAdd"        }, // GLSL only

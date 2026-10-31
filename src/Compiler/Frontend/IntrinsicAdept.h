@@ -68,7 +68,7 @@ class IntrinsicAdept
 
     private:
 
-        static const std::size_t numIntrinsics = (INTRINSIC_IDX(Intrinsic::StreamOutput_RestartStrip) + 1u);
+        static const std::size_t numIntrinsics = (INTRINSIC_IDX(Intrinsic::ByteAddressBuffer_InterlockedXor) + 1u);
 
         std::array<std::string, numIntrinsics> intrinsicIdents_;
 

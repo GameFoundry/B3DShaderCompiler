@@ -86,10 +86,9 @@ class OpaqueProgramAnalyzer
         /* ----- Contract and ABI construction ----- */
 
         // Builds a FunctionContract for every function in the program.
-        // Rejects opaque-bearing return-by-value declarations of native
-        // opaque types (R_OpaqueStructNoReturn), native opaque out/inout
-        // parameters (R_OpaqueStructNoOutInout), and default arguments on
-        // opaque-bearing parameters (R_OpaqueTypeDefaultArgument).
+        // Rejects native opaque out/inout parameters
+        // (R_OpaqueStructNoOutInout) and default arguments on opaque-bearing
+        // parameters (R_OpaqueTypeDefaultArgument).
         void BuildContracts();
 
         // Derives a FunctionABI per contract: which parameters keep their
@@ -101,9 +100,10 @@ class OpaqueProgramAnalyzer
         /* ----- Statement-level dataflow ----- */
 
         // Analyzes one function body (memoized via plan_.summaries); seeds
-        // input-parameter lanes as FormalLane bindings and joins the output
-        // parameters' values over all exits. Rejects recursion
-        // (R_IllegalRecursiveCall).
+        // input-parameter lanes as FormalLane bindings, joins the output
+        // parameters' values over all exits, and collects the runtime index
+        // expressions the returned and output values export to callers.
+        // Rejects recursion (R_IllegalRecursiveCall).
         void AnalyzeFunction(FunctionDecl* funcDecl);
 
         // Folds AnalyzeStatement over a statement list, threading the
@@ -167,15 +167,25 @@ class OpaqueProgramAnalyzer
         static void AssignProjected(OpaqueValue& destination, const LayoutNodePtr& targetNode, const OpaqueValue& source);
 
         // Evaluates a call: analyzes the callee if needed, records the
-        // CallSitePlan, remaps the callee's return/out values into the
-        // caller's symbolic space, and writes out-parameter bindings back
-        // into 'env'. Rejects calls that rely on default arguments for
-        // opaque-bearing parameters (R_OpaqueTypeDefaultArgument).
+        // CallSitePlan (including one caller temporary per index the callee
+        // exports), remaps the callee's return/out values into the caller's
+        // symbolic space, and writes out-parameter bindings back into 'env'.
+        // Rejects calls that rely on default arguments for opaque-bearing
+        // parameters (R_OpaqueTypeDefaultArgument).
         OpaqueValue EvaluateCall(CallExpr& call, BindingEnvironment& env);
 
-        // Substitutes FormalLane/FormalArrayLane bindings of a callee-relative
-        // value with the corresponding caller-side argument bindings.
-        static OpaqueValue Remap(const OpaqueValue& value, const FunctionContract& contract, const std::vector<OpaqueValue>& arguments
+        // Translates a callee-relative value into the caller's symbolic
+        // space: exported index expressions become 'callerIndices' (one per
+        // summary.exportedIndices entry, reading the caller temporaries),
+        // FormalLane bindings become the corresponding argument bindings, and
+        // FormalArrayLane bindings become the argument's lane group
+        // generalized over the translated runtime index.
+        OpaqueValue Remap(
+            const OpaqueValue& value,
+            const FunctionSummary& summary,
+            const std::vector<ExprPtr>& callerIndices,
+            const CallSitePlan& callPlan,
+            const AST* context
         );
 
     private:
@@ -184,6 +194,7 @@ class OpaqueProgramAnalyzer
         OpaqueTypeLayoutCache&  layouts_;
         OpaqueProgramPlan&      plan_;
         FunctionDecl*           activeFunction_ = nullptr;
+        std::size_t             nextTemporaryId_ = 0;     // Counter for unique exported index temporary names.
 };
 
 

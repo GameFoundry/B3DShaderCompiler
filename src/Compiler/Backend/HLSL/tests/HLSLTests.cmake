@@ -67,6 +67,7 @@ if(FXC_EXECUTABLE)
         "FuncOverloadTest1|PS|ps_5_0|frag"
         "FunctionCallTest1|VS|vs_5_0|vert"
         "SemanticTest3|VS|vs_5_0|vert"
+        "ByteAddressBuffer|CS|cs_5_0|comp"
     )
 
     xsc_add_roundtrip_tests(
@@ -95,6 +96,35 @@ if(DXC_EXECUTABLE)
             "BindlessResources|PS|ps_6_6|frag"
             "BindlessResourceClasses|CS|cs_6_6|comp"
             "BindlessBindingPlanner|PS|ps_6_6|frag"
+    )
+
+    # HLSL returns resources natively; DXC also accepts the runtime resource-array indices FXC rejects.
+    xsc_add_roundtrip_tests(
+        PREFIX         hlsl6_roundtrip
+        DRIVER         ${_HLSL_DRIVER}
+        SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+        OUT_DIR        ${_HLSL_OUT_DIR}
+        LABELS         "hlsl-roundtrip;opaque-struct"
+        DEFINES        -DDXC=${DXC_EXECUTABLE}
+        PROFILE_DEFINE FXC_PROFILE
+        EXTRA_FLAGS    -Xopaque-struct@ON
+        CASES
+            "OpaqueTypePlainReturns|main|ps_6_6|frag"
+            "OpaqueTypeRuntimeArrayReturn|main|ps_6_6|frag"
+    )
+
+    xsc_add_roundtrip_tests(
+        PREFIX         hlsl6_roundtrip
+        DRIVER         ${_HLSL_DRIVER}
+        SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+        OUT_DIR        ${_HLSL_OUT_DIR}
+        LABELS         "hlsl-roundtrip;bindless;opaque-struct"
+        DEFINES        -DDXC=${DXC_EXECUTABLE}
+        PROFILE_DEFINE FXC_PROFILE
+        EXTRA_FLAGS    -Xbindless@ON@-Xopaque-struct@ON
+        CASES
+            "BindlessOpaqueReturns|CS|cs_6_6|comp"
+            "BindlessByteAddressBuffer|CS|cs_6_6|comp"
     )
 else()
     message(STATUS "dxc not found; HLSL 6 bindless round-trip tests will not be registered.")

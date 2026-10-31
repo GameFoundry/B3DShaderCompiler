@@ -181,6 +181,14 @@ static HLSLIntrinsicsMap GenerateIntrinsicMap()
         { "Append",                           { T::StreamOutput_Append,              4, 0 } },
         { "RestartStrip",                     { T::StreamOutput_RestartStrip,        4, 0 } },
 
+        { "Load2",                            { T::ByteAddressBuffer_Load2,          4, 0 } },
+        { "Load3",                            { T::ByteAddressBuffer_Load3,          4, 0 } },
+        { "Load4",                            { T::ByteAddressBuffer_Load4,          4, 0 } },
+        { "Store",                            { T::ByteAddressBuffer_Store,          5, 0 } },
+        { "Store2",                           { T::ByteAddressBuffer_Store2,         5, 0 } },
+        { "Store3",                           { T::ByteAddressBuffer_Store3,         5, 0 } },
+        { "Store4",                           { T::ByteAddressBuffer_Store4,         5, 0 } },
+
         { "Gather",                           { T::Texture_Gather_2,                 4, 1 } },
         { "GatherRed",                        { T::Texture_GatherRed_2,              5, 0 } },
         { "GatherGreen",                      { T::Texture_GatherGreen_2,            5, 0 } },
@@ -664,6 +672,25 @@ static std::map<Intrinsic, IntrinsicSignature> GenerateIntrinsicSignatureMap()
         { T::StreamOutput_Append,              {                   1    } },
         { T::StreamOutput_RestartStrip,        {                        } },
 
+        { T::ByteAddressBuffer_GetDimensions,               {                   1    } },
+        { T::ByteAddressBuffer_Load,                        { Ret::UInt,        1    } },
+        { T::ByteAddressBuffer_Load2,                       { Ret::UInt2,       1    } },
+        { T::ByteAddressBuffer_Load3,                       { Ret::UInt3,       1    } },
+        { T::ByteAddressBuffer_Load4,                       { Ret::UInt4,       1    } },
+        { T::ByteAddressBuffer_Store,                       {                   2    } },
+        { T::ByteAddressBuffer_Store2,                      {                   2    } },
+        { T::ByteAddressBuffer_Store3,                      {                   2    } },
+        { T::ByteAddressBuffer_Store4,                      {                   2    } },
+        { T::ByteAddressBuffer_InterlockedAdd,              {                   2, 3 } },
+        { T::ByteAddressBuffer_InterlockedAnd,              {                   2, 3 } },
+        { T::ByteAddressBuffer_InterlockedCompareExchange,  {                   4    } },
+        { T::ByteAddressBuffer_InterlockedCompareStore,     {                   3    } },
+        { T::ByteAddressBuffer_InterlockedExchange,         {                   3    } },
+        { T::ByteAddressBuffer_InterlockedMax,              {                   2, 3 } },
+        { T::ByteAddressBuffer_InterlockedMin,              {                   2, 3 } },
+        { T::ByteAddressBuffer_InterlockedOr,               {                   2, 3 } },
+        { T::ByteAddressBuffer_InterlockedXor,              {                   2, 3 } },
+
         { T::Image_Load,                       { Ret::Float4,      2    } },
         { T::Image_Store,                      {                   3    } },
         { T::Image_AtomicAdd,                  {                   2, 3 } },
@@ -721,6 +748,10 @@ HLSLIntrinsicAdept::HLSLIntrinsicAdept()
     /* Initialize intrinsic identifiers */
     for (const auto& it : HLSLIntrinsicAdept::GetIntrinsicMap())
         SetIntrinsicIdent(it.second.intrinsic, it.first);
+
+    /* (RW)ByteAddressBuffer members that share their name with other intrinsics take their identifiers */
+    for (const auto& sharedIntrinsic : GetByteAddressBufferSharedIntrinsics())
+        SetIntrinsicIdent(sharedIntrinsic.byteAddressBuffer, GetIntrinsicIdent(sharedIntrinsic.shared));
 
     /* Fill remaining identifiers (for overloaded intrinsics) */
     FillOverloadedIntrinsicIdents();
@@ -809,7 +840,36 @@ std::vector<TypeDenoterPtr> HLSLIntrinsicAdept::GetIntrinsicParameterTypes(const
             }
             break;
         default:
-            DeriveParameterTypes(paramTypeDenoters, intrinsic, args);
+            if (IsByteAddressBufferIntrinsic(intrinsic))
+            {
+                /*
+                Only input parameters, so output arguments are never converted. Min/Max values keep their type, since
+                signed and unsigned comparisons differ.
+                */
+                if (intrinsic == Intrinsic::ByteAddressBuffer_GetDimensions || args.empty())
+                    break;
+
+                paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(DataType::UInt));
+
+                if (const auto wordCount = GetByteAddressBufferIntrinsicWordCount(intrinsic))
+                {
+                    if (IsByteAddressBufferWriteIntrinsic(intrinsic))
+                        paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(VectorDataType(DataType::UInt, wordCount)));
+                }
+                else if (intrinsic != Intrinsic::ByteAddressBuffer_InterlockedMin && intrinsic != Intrinsic::ByteAddressBuffer_InterlockedMax)
+                {
+                    const std::size_t valueCount =
+                    (
+                        intrinsic == Intrinsic::ByteAddressBuffer_InterlockedCompareExchange ||
+                        intrinsic == Intrinsic::ByteAddressBuffer_InterlockedCompareStore ? 2 : 1
+                    );
+
+                    for (std::size_t i = 0; i < valueCount; ++i)
+                        paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(DataType::UInt));
+                }
+            }
+            else
+                DeriveParameterTypes(paramTypeDenoters, intrinsic, args);
             break;
     }
 
@@ -836,6 +896,24 @@ std::vector<std::size_t> HLSLIntrinsicAdept::GetIntrinsicOutputParameterIndices(
 
         // InterlockedCompareExchange(R dest, T compare_value, T value, out T original_value)
         case Intrinsic::InterlockedCompareExchange:
+            return { 3 };
+
+        // GetDimensions(out uint size)
+        case Intrinsic::ByteAddressBuffer_GetDimensions:
+            return { 0 };
+
+        // InterlockedAdd(uint address, uint value, out uint original_value)
+        case Intrinsic::ByteAddressBuffer_InterlockedAdd:
+        case Intrinsic::ByteAddressBuffer_InterlockedAnd:
+        case Intrinsic::ByteAddressBuffer_InterlockedExchange:
+        case Intrinsic::ByteAddressBuffer_InterlockedMax:
+        case Intrinsic::ByteAddressBuffer_InterlockedMin:
+        case Intrinsic::ByteAddressBuffer_InterlockedOr:
+        case Intrinsic::ByteAddressBuffer_InterlockedXor:
+            return { 2 };
+
+        // InterlockedCompareExchange(uint address, uint compare_value, uint value, out uint original_value)
+        case Intrinsic::ByteAddressBuffer_InterlockedCompareExchange:
             return { 3 };
 
         // sincos(x, out s, out c)

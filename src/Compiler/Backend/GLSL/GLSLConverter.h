@@ -71,6 +71,7 @@ class GLSLConverter : public Converter
         DECL_VISIT_PROC( IfStmnt           );
         DECL_VISIT_PROC( ElseStmnt         );
         DECL_VISIT_PROC( SwitchStmnt       );
+        DECL_VISIT_PROC( ExprStmnt         );
         DECL_VISIT_PROC( ReturnStmnt       );
 
         DECL_VISIT_PROC( CastExpr          );
@@ -114,6 +115,7 @@ class GLSLConverter : public Converter
         void ConvertIntrinsicCallGather(CallExpr* ast);
         void ConvertIntrinsicCallSampleCmp(CallExpr* ast);
         void ConvertIntrisicCallF32toF16(CallExpr* ast);
+        void ConvertIntrinsicCallByteAddressBufferStore(CallExpr* ast);
 
         void ConvertFunctionCall(CallExpr* ast);
 
@@ -166,6 +168,9 @@ class GLSLConverter : public Converter
         Options                     options_;
         bool                        autoBinding_        = false;
         bool                        separateSamplers_   = true;
+
+        // Expression of the expression statement being converted, or null outside of one.
+        const Expr*                 activeStmntExpr_    = nullptr;
 
         /*
         List of all variables with reserved identifiers that come from a structure that must be resolved.

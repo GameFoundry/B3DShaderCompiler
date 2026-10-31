@@ -441,6 +441,9 @@ DECL_REPORT( InvalidIntrinsicForRWTexture,      "invalid intrinsic '{0}' for RW 
 DECL_REPORT( InvalidIntrinsicForStreamOutput,   "invalid intrinsic '{0}' for stream-output object"                                                              );
 DECL_REPORT( InvalidGlobalIntrinsicForType,     "invalid global intrinsic '{0}' for type '{1}'"                                                                 );
 DECL_REPORT( InvalidClassIntrinsicForType,      "invalid class intrinsic '{0}' for type '{1}'"                                                                  );
+DECL_REPORT( ByteAddressBufferArgSideEffects,  "arguments of byte address buffer intrinsic '{0}' must not have side effects, since they are evaluated once per word" );
+DECL_REPORT( ByteAddressBufferSignedAtomic,    "byte address buffer intrinsic '{0}' does not support signed values for this output"                          );
+DECL_REPORT( StorageBufferParameter,           "storage buffers ('{0}') cannot be passed to functions for this output"                                          );
 DECL_REPORT( InvalidClassIntrinsic,             "invalid class intrinsic '{0}' for global function call"                                                        );
 DECL_REPORT( InvalidMemberFuncForType,          "invalid member function '{0}' for type '{1}'"                                                                  );
 DECL_REPORT( InvalidTypeModifierForMemberField, "invalid type modifier for structure member field"                                                              );
@@ -499,7 +502,6 @@ DECL_REPORT( OpaqueStructNoGlobal,              "structures containing opaque re
 DECL_REPORT( OpaqueStructNoCBuffer,             "structures containing opaque resources (textures/samplers/buffers) cannot be used as constant-buffer members[: '{0}']");
 DECL_REPORT( OpaqueStructNoEntryParam,          "structures containing opaque resources (textures/samplers/buffers) cannot be used as entry-point parameters or return types[: '{0}']");
 DECL_REPORT( OpaqueStructNoMemberFunc,          "structures containing opaque resources (textures/samplers/buffers) cannot declare member functions[: '{0}']"   );
-DECL_REPORT( OpaqueStructNoReturn,              "functions cannot return a structure containing opaque resources by value[: '{0}']"                              );
 DECL_REPORT( OpaqueStructNoRegister,            "register() bindings cannot be placed on members of an opaque-bearing struct[: '{0}']"                           );
 DECL_REPORT( OpaqueStructAmbiguousAlias,        "opaque resource '{0}' cannot be resolved to a single global; opaque-struct fields must be assigned a known global in straight-line code");
 DECL_REPORT( OpaqueStructUninitialized,         "opaque field '{0}' of struct variable is read before being assigned a known global"                             );

@@ -193,8 +193,20 @@ struct FunctionABI
 
 /* ----- Analysis results ----- */
 
+// One runtime index expression used by a function's returned or 'out' opaque
+// value. The expression lives in the function's scope, so callers can't
+// substitute it; the function writes its value to a synthesized 'out'
+// parameter at every exit instead, and callers index with that value.
+struct ExportedIndex
+{
+    ExprPtr         expression;             // Index expression in the function's scope.
+    TypeDenoterPtr  type;                   // Type of the synthesized 'out' parameter.
+    bool            nonUniform = false;     // Expression uses NonUniformResourceIndex; callers re-apply it.
+};
+
 // Memoized dataflow result of one analyzed function: the joined symbolic
-// return value and the joined symbolic values of its output parameters.
+// return value, the joined symbolic values of its output parameters, and the
+// index expressions those values export to callers.
 struct FunctionSummary
 {
     bool                                        analyzed = false;
@@ -202,15 +214,18 @@ struct FunctionSummary
     bool                                        hasReturn = false;
     OpaqueValue                                 returnValue;
     std::unordered_map<VarDecl*, OpaqueValue>   outValues;
+    std::vector<ExportedIndex>                  exportedIndices;
 };
 
 // Symbolic bindings at one call site: the callee contract, the caller-side
-// value of each argument, and the remapped result value.
+// value of each argument, the remapped result value, and the caller
+// temporaries receiving the callee's exported indices (in exportedIndices order).
 struct CallSitePlan
 {
-    FunctionContract*          contract = nullptr;
-    std::vector<OpaqueValue>   arguments;
-    OpaqueValue                result;
+    FunctionContract*               contract = nullptr;
+    std::vector<OpaqueValue>        arguments;
+    OpaqueValue                     result;
+    std::vector<VarDeclStmntPtr>    exportedIndexTemporaries;
 };
 
 // Everything the analysis learned about the program, produced once by
