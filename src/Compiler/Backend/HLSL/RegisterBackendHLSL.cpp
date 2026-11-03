@@ -33,6 +33,7 @@ void RegisterBackend_HLSL()
 
     registry.Register(TargetLanguage::HLSL5, hlsl5);
     registry.Register(TargetLanguage::HLSL6, hlsl6);
+    registry.Register(TargetLanguage::HLSL6VK, hlsl6);
     registry.Register(TargetLanguage::HLSL,  hlsl);
 }
 

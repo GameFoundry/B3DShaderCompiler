@@ -44,6 +44,7 @@ const char* const VKSL    = "VKSL";
 
 const char* const HLSL5   = "HLSL5";
 const char* const HLSL6   = "HLSL6";
+const char* const HLSL6VK = "HLSL6VK";
 const char* const HLSL    = "HLSL";
 
 } // /namespace TargetLanguage

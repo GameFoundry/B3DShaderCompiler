@@ -145,6 +145,9 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // Writes a portable push-constant structure with explicit padding for HLSL's cbuffer layout.
         void WritePushConstantStructMembers(StructDecl* structDecl);
 
+        // Writes a push-constant buffer as the global struct variable DXC's SPIR-V code generator requires.
+        void WriteVulkanPushConstantBuffer(UniformBufferDecl* bufferDecl);
+
         // Returns the HLSL register-type character ('b', 't', 's', 'u', 'c').
         virtual char RegisterTypeChar(RegisterType type) const;
 
@@ -167,6 +170,7 @@ class XSC_EXPORT HLSLGenerator : public Generator
         int pushConstantHLSLRegister_      = PushConstants::HLSLRegister;
         int pushConstantHLSLRegisterSpace_ = PushConstants::HLSLRegisterSpace;
         bool emitPushConstantHLSLBinding_  = false;
+        bool emitVulkanAttributes_         = false;
 
         /* --- Visit procs derived backends override --- */
 

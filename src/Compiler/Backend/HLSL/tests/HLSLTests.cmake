@@ -130,6 +130,28 @@ else()
     message(STATUS "dxc not found; HLSL 6 bindless round-trip tests will not be registered.")
 endif()
 
+# The HLSL6VK target needs a DXC with SPIR-V code generation, which the Windows SDK copy doesn't have.
+if(DXC_EXECUTABLE)
+    execute_process(COMMAND "${DXC_EXECUTABLE}" -help OUTPUT_VARIABLE _DXC_HELP ERROR_QUIET)
+    if(_DXC_HELP MATCHES "-spirv")
+        xsc_add_roundtrip_tests(
+            PREFIX         hlsl6vk_roundtrip
+            DRIVER         ${_HLSL_DRIVER}
+            SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+            OUT_DIR        ${_HLSL_OUT_DIR}/hlsl6vk
+            LABELS         "hlsl-roundtrip;hlsl6vk;push-constants"
+            DEFINES        -DDXC=${DXC_EXECUTABLE} -DXSC_OUTPUT_TARGET=HLSL6VK
+                           -DDXC_EXTRA_FLAGS=-spirv@-fspv-target-env=vulkan1.3@-WX
+                           "-DEXPECT_REGEX=vk::image_format..rgba16f[^\r\n]*outputTexture.*vk::image_format..unknown[^\r\n]*inputIndices.*vk::push_constant[^\r\n]*PushConstants"
+            PROFILE_DEFINE FXC_PROFILE
+            EXTRA_FLAGS    -Xpush-constants@-Xattr-layout
+            CASES          "VulkanTargetTest|main|cs_6_6|comp"
+        )
+    else()
+        message(STATUS "HLSL6VK round-trip tests skipped: ${DXC_EXECUTABLE} has no SPIR-V code generation")
+    endif()
+endif()
+
 if(NOT FXC_EXECUTABLE)
     return()
 endif()
@@ -264,6 +286,38 @@ add_test(
 )
 set_tests_properties(hlsl_reject.PushConstantBindingCollision
     PROPERTIES LABELS "hlsl-roundtrip;push-constants;negative")
+
+add_test(
+    NAME hlsl_reject.PushConstantInvalidVulkanMatrix
+    COMMAND ${CMAKE_COMMAND}
+        -DXSC=${XSC_BIN}
+        -DSHADER=${PROJECT_SOURCE_DIR}/test/PushConstantInvalidVulkanMatrix.hlsl
+        -DENTRY=main
+        -DXSC_STAGE=vert
+        -DOUT_DIR=${_HLSL_OUT_DIR}
+        -DXSC_VOUT=HLSL6VK
+        "-DEXPECT_REGEX=push-constant matrix 'columns' has two-component columns or rows.*push-constant matrix 'rows' has two-component columns or rows"
+        "-DXSC_EXTRA_FLAGS=-Xpush-constants;--max-push-constant-buffer-size;256"
+        -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests/RunXscExpectError.cmake
+)
+set_tests_properties(hlsl_reject.PushConstantInvalidVulkanMatrix
+    PROPERTIES LABELS "hlsl-roundtrip;hlsl6vk;push-constants;negative")
+
+add_test(
+    NAME hlsl_reject.PushConstantInvalidVulkanNestedStruct
+    COMMAND ${CMAKE_COMMAND}
+        -DXSC=${XSC_BIN}
+        -DSHADER=${PROJECT_SOURCE_DIR}/test/PushConstantInvalidVulkanNestedStruct.hlsl
+        -DENTRY=main
+        -DXSC_STAGE=vert
+        -DOUT_DIR=${_HLSL_OUT_DIR}
+        -DXSC_VOUT=HLSL6VK
+        "-DEXPECT_REGEX=2 ERRORS.*push-constant member 'inner' is a structure inside another structure"
+        "-DXSC_EXTRA_FLAGS=-Xpush-constants;--max-push-constant-buffer-size;256"
+        -P ${PROJECT_SOURCE_DIR}/src/Compiler/Backend/GLSL/tests/RunXscExpectError.cmake
+)
+set_tests_properties(hlsl_reject.PushConstantInvalidVulkanNestedStruct
+    PROPERTIES LABELS "hlsl-roundtrip;hlsl6vk;push-constants;negative")
 
 # --- Opaque-struct pass-through cases ---
 # HLSL natively supports opaque types inside structs (the FXAA bundle pattern),

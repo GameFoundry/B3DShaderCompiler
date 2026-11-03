@@ -87,6 +87,9 @@ IndexedSemantic HLSLKeywordToSemantic(const std::string& ident, bool useD3D10Sem
 ImageLayoutFormat ExtHLSLKeywordToImageLayoutFormat(const std::string& keyword);
 
 // BEGIN BANSHEE CHANGES
+// Returns the spelling of an image format in DXC's vk::image_format attribute, or null if the format is undefined.
+const char* ImageLayoutFormatToDXCKeyword(ImageLayoutFormat format);
+
 int ExtHLSLKeywordToDefaultTexture(const std::string& keyword);
 // END BANSHEE CHANGES
 

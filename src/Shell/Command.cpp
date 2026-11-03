@@ -210,7 +210,7 @@ HelpDescriptor VersionOutCommand::Help() const
             "GLSL[110, 120, 130, 140, 150, 330, 400, 410, 420, 430, 440, 450],\n"   \
             "ESSL[100, 300, 310, 320],\n"                                           \
             "VKSL[450],\n"                                                          \
-            "HLSL[5, 6]\n"                                                          \
+            "HLSL[5, 6, 6VK]\n"                                                     \
             "(plus any additional targets provided by registered backends)"
         ),
         HelpCategory::Main

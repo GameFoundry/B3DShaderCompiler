@@ -1203,6 +1203,55 @@ ImageLayoutFormat ExtHLSLKeywordToImageLayoutFormat(const std::string& keyword)
 
 // BEGIN BANSHEE CHANGES
 
+const char* ImageLayoutFormatToDXCKeyword(ImageLayoutFormat format)
+{
+    using T = ImageLayoutFormat;
+
+    switch (format)
+    {
+        case T::F32X4:         return "rgba32f";
+        case T::F32X2:         return "rg32f";
+        case T::F32X1:         return "r32f";
+        case T::F16X4:         return "rgba16f";
+        case T::F16X2:         return "rg16f";
+        case T::F16X1:         return "r16f";
+        case T::F11R11G10B:    return "r11g11b10f";
+        case T::UN32X4:        return "rgba16";
+        case T::UN16X2:        return "rg16";
+        case T::UN16X1:        return "r16";
+        case T::UN10R10G10B2A: return "rgb10a2";
+        case T::UN8X4:         return "rgba8";
+        case T::UN8X2:         return "rg8";
+        case T::UN8X1:         return "r8";
+        case T::SN16X4:        return "rgba16snorm";
+        case T::SN16X2:        return "rg16snorm";
+        case T::SN16X1:        return "r16snorm";
+        case T::SN8X4:         return "rgba8snorm";
+        case T::SN8X2:         return "rg8snorm";
+        case T::SN8X1:         return "r8snorm";
+        case T::I32X4:         return "rgba32i";
+        case T::I32X2:         return "rg32i";
+        case T::I32X1:         return "r32i";
+        case T::I16X4:         return "rgba16i";
+        case T::I16X2:         return "rg16i";
+        case T::I16X1:         return "r16i";
+        case T::I8X4:          return "rgba8i";
+        case T::I8X2:          return "rg8i";
+        case T::I8X1:          return "r8i";
+        case T::UI32X4:        return "rgba32ui";
+        case T::UI32X2:        return "rg32ui";
+        case T::UI32X1:        return "r32ui";
+        case T::UI16X4:        return "rgba16ui";
+        case T::UI16X2:        return "rg16ui";
+        case T::UI16X1:        return "r16ui";
+        case T::UI10R10G10B2A: return "rgb10a2ui";
+        case T::UI8X4:         return "rgba8ui";
+        case T::UI8X2:         return "rg8ui";
+        case T::UI8X1:         return "r8ui";
+        default:               return nullptr;
+    }
+}
+
 static std::map<std::string, int> GenerateDefaultTextureMap()
 {
     using T = DefaultTexture;

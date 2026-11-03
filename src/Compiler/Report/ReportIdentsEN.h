@@ -421,6 +421,8 @@ DECL_REPORT( PushConstantRegisterNotAllowed,    "push-constant buffers cannot ha
 DECL_REPORT( PushConstantBufferEmpty,           "push-constant buffer cannot be empty"                                                                          );
 DECL_REPORT( PushConstantMembersOnly,           "push-constant buffers can only contain variable declarations"                                                  );
 DECL_REPORT( InvalidPushConstantMember,         "push-constant member '{0}' must be a non-array scalar, vector, matrix, or structure composed only of 32-bit float, int, or uint values; initializers, semantics, unsupported qualifiers, packoffset, and row-major matrices nested in structures are not allowed" );
+DECL_REPORT( PushConstantMatrixStride,          "push-constant matrix '{0}' has two-component columns or rows, which DXC packs into 8 bytes for SPIR-V instead of 16; use three or four components, or separate vectors" );
+DECL_REPORT( PushConstantNestedStruct,          "push-constant member '{0}' is a structure inside another structure, which DXC lays out differently for SPIR-V; move its members into the outer structure" );
 DECL_REPORT( PushConstantSizeExceeded,          "push-constant buffer uses {0} bytes, exceeding the configured maximum of {1} bytes"                             );
 DECL_REPORT( InvalidPushConstantSizeLimit,      "maximum push-constant buffer size must be a non-zero multiple of four bytes"                                     );
 DECL_REPORT( InvalidPushConstantHLSLRegister,   "push-constant HLSL register must be non-negative"                                                             );

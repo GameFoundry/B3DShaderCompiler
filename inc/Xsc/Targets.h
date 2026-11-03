@@ -92,6 +92,7 @@ XSC_DATA extern const char* const VKSL;       //!< "VKSL"    — Auto-detect min
 
 XSC_DATA extern const char* const HLSL5;      //!< "HLSL5"   — HLSL Shader Model 5.0 (DirectX 11). Requires the HLSL backend.
 XSC_DATA extern const char* const HLSL6;      //!< "HLSL6"   — HLSL Shader Model 6.x (DirectX 12). Requires the HLSL backend.
+XSC_DATA extern const char* const HLSL6VK;    //!< "HLSL6VK" — HLSL Shader Model 6.x for DXC's SPIR-V code generator (Vulkan). Requires the HLSL backend.
 XSC_DATA extern const char* const HLSL;       //!< "HLSL"    — Auto-detect HLSL output version. Requires the HLSL backend.
 
 } // /namespace TargetLanguage

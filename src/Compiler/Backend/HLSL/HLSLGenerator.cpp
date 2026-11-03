@@ -234,6 +234,7 @@ void HLSLGenerator::GenerateCodePrimary(
     {
         pushConstantHLSLRegister_ = outputDesc.options.pushConstantHLSLRegister;
         pushConstantHLSLRegisterSpace_ = outputDesc.options.pushConstantHLSLRegisterSpace;
+        emitVulkanAttributes_ = (outputDesc.targetLanguage == TargetLanguage::HLSL6VK);
         emitPushConstantHLSLBinding_ =
         (
             outputDesc.targetLanguage == TargetLanguage::HLSL5 ||
@@ -421,8 +422,8 @@ IMPLEMENT_VISIT_PROC(VarDecl)
     }
     #endif
 
-    /* Initializer */
-    if (ast->initializer)
+    /* Initializer. Vulkan has no default values for uniform buffer members, and DXC warns about each one. */
+    if (ast->initializer && !(emitVulkanAttributes_ && !GetUniformBufferDeclStack().empty()))
     {
         Write(" = ");
         Visit(ast->initializer);
@@ -460,6 +461,12 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
 
 IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 {
+    if (emitVulkanAttributes_ && (ast->extModifiers & ExtModifiers::PushConstant) != 0)
+    {
+        WriteVulkanPushConstantBuffer(ast);
+        return;
+    }
+
     BeginLn();
 
     /* cbuffer or tbuffer */
@@ -506,8 +513,25 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
     {
         BeginLn();
 
-        /* BufferType keyword (e.g. "Texture2D", "RWStructuredBuffer") */
         const auto bufferType = bufferDecl->GetBufferType();
+
+        /* DXC otherwise derives the image format from the element type. A read-only typed buffer needs no format at
+           all: it reads through the format of its buffer view, which may differ from the element type. */
+        if (emitVulkanAttributes_ && ast->typeDenoter)
+        {
+            const char* formatKeyword = nullptr;
+            #ifdef XSC_ENABLE_LANGUAGE_EXT
+            formatKeyword = ImageLayoutFormatToDXCKeyword(ast->typeDenoter->layoutFormat);
+            #endif
+
+            if (!formatKeyword && bufferType == BufferType::Buffer)
+                formatKeyword = "unknown";
+
+            if (formatKeyword)
+                Write("[[vk::image_format(\"" + std::string(formatKeyword) + "\")]] ");
+        }
+
+        /* BufferType keyword (e.g. "Texture2D", "RWStructuredBuffer") */
         Write(BufferTypeKeyword(bufferType));
 
         /* Optional generic-args suffix (e.g. "<float4>" / "<float4, 1>"). */
@@ -914,6 +938,16 @@ IMPLEMENT_VISIT_PROC(ObjectExpr)
         Visit(ast->prefixExpr);
         Write("::");
     }
+    else if (emitVulkanAttributes_)
+    {
+        /* Push-constant members are fields of a global struct variable, see WriteVulkanPushConstantBuffer */
+        auto varDecl = (ast->symbolRef ? ast->symbolRef->As<VarDecl>() : nullptr);
+        if (varDecl && varDecl->bufferDeclRef && (varDecl->bufferDeclRef->extModifiers & ExtModifiers::PushConstant) != 0)
+        {
+            Write(varDecl->bufferDeclRef->ident);
+            Write(".");
+        }
+    }
 
     /* Identifier */
     if (auto symbol = ast->symbolRef)
@@ -1309,6 +1343,40 @@ void HLSLGenerator::WriteStructDecl(StructDecl* structDecl, bool endWithSemicolo
 
     if (!InsideVarDeclStmnt())
         Blank();
+}
+
+void HLSLGenerator::WriteVulkanPushConstantBuffer(UniformBufferDecl* bufferDecl)
+{
+    /* DXC only accepts vk::push_constant on a global variable of struct type, not on a cbuffer */
+    const std::string structName = "xsc_push_constants_" + bufferDecl->ident.Original();
+
+    WriteLn("struct " + structName);
+
+    WriteScopeOpen(false, true);
+    {
+        for (const auto& varDeclStmnt : bufferDecl->varMembers)
+        {
+            for (const auto& varDecl : varDeclStmnt->varDecls)
+            {
+                BeginLn();
+                Write("[[vk::offset(" + std::to_string(varDecl->pushConstantOffset) + ")]] ");
+                WriteTypeModifiers(varDeclStmnt->typeSpecifier->typeModifiers);
+                Visit(varDeclStmnt->typeSpecifier);
+                Write(" ");
+                Write(varDecl->ident);
+                Visit(varDecl->arrayDims);
+                Write(";");
+                EndLn();
+            }
+        }
+    }
+    WriteScopeClose();
+
+    Blank();
+
+    WriteLn("[[vk::push_constant]] " + structName + " " + bufferDecl->ident.Original() + ";");
+
+    Blank();
 }
 
 void HLSLGenerator::WritePushConstantStructMembers(StructDecl* structDecl)

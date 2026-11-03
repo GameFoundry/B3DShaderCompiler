@@ -79,6 +79,7 @@ available in this build.
 
 #define XscTargetHLSL5      "HLSL5"
 #define XscTargetHLSL6      "HLSL6"
+#define XscTargetHLSL6VK    "HLSL6VK"
 #define XscTargetHLSL       "HLSL"
 
 

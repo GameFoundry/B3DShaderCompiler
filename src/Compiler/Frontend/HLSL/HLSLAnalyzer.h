@@ -286,6 +286,7 @@ class HLSLAnalyzer : public Analyzer
 
         UniformBufferDecl*  pushConstantBuffer_        = nullptr;
         unsigned int        maxPushConstantSize_        = PushConstants::DefaultSizeLimit;
+        bool                targetsDXCSpirv_            = false;
 
         #endif
 

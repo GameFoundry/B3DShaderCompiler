@@ -25,6 +25,15 @@ else()
     set(XSC_HLSL_VERSION HLSL5)
 endif()
 
+# XSC_OUTPUT_TARGET is optional, and selects an output target other than the input
+# version. DXC_EXTRA_FLAGS is optional, with '@' as its flag separator.
+if(NOT DEFINED XSC_OUTPUT_TARGET)
+    set(XSC_OUTPUT_TARGET "${XSC_HLSL_VERSION}")
+endif()
+if(DEFINED DXC_EXTRA_FLAGS)
+    string(REPLACE "@" ";" DXC_EXTRA_FLAGS "${DXC_EXTRA_FLAGS}")
+endif()
+
 # XSC_EXTRA_FLAGS is optional. Accept it as a CMake-list (";"-delimited) so
 # multiple flags can be forwarded; passed straight through to xsc.
 if(NOT DEFINED XSC_EXTRA_FLAGS)
@@ -52,7 +61,7 @@ endif()
 set(XSC_OUTPUT "${OUT_DIR}/${SHADER_NAME}.${ENTRY}.${XSC_EXT}")
 
 execute_process(
-    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vin "${XSC_HLSL_VERSION}" -Vout "${XSC_HLSL_VERSION}" -E "${ENTRY}" -T "${XSC_STAGE}" ${XSC_EXTRA_FLAGS} "${SHADER}"
+    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vin "${XSC_HLSL_VERSION}" -Vout "${XSC_OUTPUT_TARGET}" -E "${ENTRY}" -T "${XSC_STAGE}" ${XSC_EXTRA_FLAGS} "${SHADER}"
     RESULT_VARIABLE XSC_RESULT
     OUTPUT_VARIABLE XSC_OUT
     ERROR_VARIABLE  XSC_ERR
@@ -75,7 +84,7 @@ endif()
 
 if(DXC)
     execute_process(
-        COMMAND "${DXC}" -T "${FXC_PROFILE}" -E "${ENTRY}" -Fo "${XSC_OUTPUT}.dxil" "${XSC_OUTPUT}"
+        COMMAND "${DXC}" ${DXC_EXTRA_FLAGS} -T "${FXC_PROFILE}" -E "${ENTRY}" -Fo "${XSC_OUTPUT}.dxil" "${XSC_OUTPUT}"
         RESULT_VARIABLE COMPILER_RESULT
         OUTPUT_VARIABLE COMPILER_OUT
         ERROR_VARIABLE  COMPILER_ERR

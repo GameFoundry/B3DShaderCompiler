@@ -209,6 +209,7 @@ void HLSLAnalyzer::DecorateASTPrimary(
     extensions_             = inputDesc.extensions;
     pushConstantBuffer_     = nullptr;
     maxPushConstantSize_    = outputDesc.options.maxPushConstantSize;
+    targetsDXCSpirv_        = (outputDesc.targetLanguage == TargetLanguage::HLSL6VK);
     #endif // XSC_ENABLE_LANGUAGE_EXT
 
     /* Decorate program AST */
@@ -3616,6 +3617,13 @@ bool HLSLAnalyzer::AnalyzePushConstantType(TypeSpecifier* typeSpecifier, VarDecl
                 return false;
 
             const int majorVectorCount = (rowMajor ? dimensions.first : dimensions.second);
+            const int majorVectorSize = (rowMajor ? dimensions.second : dimensions.first);
+
+            /* The layout below gives each major vector 16 bytes, which is what the generated vk::offset attributes
+               assume. DXC's SPIR-V output packs a two-component major vector into 8 bytes, and those attributes can't
+               change a matrix's stride, so the shader would read the wrong data. */
+            if (targetsDXCSpirv_ && majorVectorSize == 2)
+                Error(R_PushConstantMatrixStride(varDecl->ident), varDecl);
 
             layout.alignment = 16;
             layout.size = majorVectorCount * 16;
@@ -3629,6 +3637,12 @@ bool HLSLAnalyzer::AnalyzePushConstantType(TypeSpecifier* typeSpecifier, VarDecl
     {
         if (!typeSpecifier->typeModifiers.empty())
             return false;
+
+        /* This layout rounds a structure's size up to 16 bytes, while DXC's SPIR-V output places the next member right
+           after the structure's last one. The generated vk::offset attributes only pin members of the buffer itself. */
+        if (targetsDXCSpirv_ && !activeStructs.empty())
+            Error(R_PushConstantNestedStruct(varDecl->ident), varDecl);
+
         return AnalyzePushConstantStruct(structTypeDen->structDeclRef, layout, activeStructs);
     }
 
