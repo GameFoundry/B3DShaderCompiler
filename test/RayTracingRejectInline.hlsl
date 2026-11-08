@@ -75,6 +75,15 @@ struct Holder
 static Callbacks gCallbacks;
 #endif
 
+#ifdef CALLBACKS_TEMPLATE
+template<typename T>
+struct TemplateCallbacks
+{
+    T Value;
+    bool AnyHit(RayCandidate candidate) { return candidate.T > Value; }
+};
+#endif
+
 #ifdef CALLBACKS_NO_METHODS
 struct Typo
 {
@@ -134,6 +143,25 @@ float4 Trace()
     Callbacks list[2];
     list[0].Value = 0.5f;
     hit = RayTraceClosest(gScene, RAY_FLAG_NONE, 0xFF, MakeRay(), list[0]);
+#endif
+#ifdef CALLBACKS_STATIC_LOCAL
+    static Callbacks staticCallbacks;
+    hit = RayTraceClosest(gScene, RAY_FLAG_NONE, 0xFF, MakeRay(), staticCallbacks);
+#endif
+#ifdef CALLBACKS_LOCAL_STRUCT
+    struct LocalCallbacks
+    {
+        float Value;
+        bool AnyHit(RayCandidate candidate) { return candidate.T > Value; }
+    };
+    LocalCallbacks localCallbacks;
+    localCallbacks.Value = 0.5f;
+    hit = RayTraceClosest(gScene, RAY_FLAG_NONE, 0xFF, MakeRay(), localCallbacks);
+#endif
+#ifdef CALLBACKS_TEMPLATE
+    TemplateCallbacks<float> templateCallbacks;
+    templateCallbacks.Value = 0.5f;
+    hit = RayTraceClosest(gScene, RAY_FLAG_NONE, 0xFF, MakeRay(), templateCallbacks);
 #endif
 #ifdef CALLBACKS_NOT_STRUCT
     float notStruct = 0.0f;

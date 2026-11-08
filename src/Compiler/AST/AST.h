@@ -177,6 +177,7 @@ struct AST
         FLAG( isDeadCode,  29 ), // This AST node is dead code (after return path).
         FLAG( isBuiltin,   28 ), // This AST node is a built-in node (not part of the actual program source).
         FLAG( isRayTracingBuiltin, 26 ), // This AST node is a built-in ray tracing declaration (always together with 'isBuiltin').
+        FLAG( isGlobalStmnt,       25 ), // This AST node is a statement in the global scope (Program::globalStmnts).
 
         // This AST node is reachable from an inline ray tracing callback method (see ReferenceAnalyzer).
         FLAG( isReachableFromRayTracingCallback, 27 ),

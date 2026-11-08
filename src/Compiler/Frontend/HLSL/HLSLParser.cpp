@@ -7,11 +7,13 @@
 
 #include "HLSLParser.h"
 #include "HLSLKeywords.h"
+#include "HLSLRayTracing.h"
 #include "Helper.h"
 #include "AST.h"
 #include "ASTFactory.h"
 #include "ReportIdents.h"
 #include "Exception.h"
+#include <sstream>
 
 
 namespace Xsc
@@ -1097,7 +1099,7 @@ BasicDeclStmntPtr HLSLParser::ParseFunctionDeclStmnt(const TypeSpecifierPtr& ret
     if (!returnType)
     {
         /* Parse function attributes */
-        ast->attribs = ParseAttributeList(false, true);
+        ast->attribs = ParseAttributeList();
     }
 
     /* Parse functoin declaration object */

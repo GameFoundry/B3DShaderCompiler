@@ -235,6 +235,42 @@ if(DXC_EXECUTABLE)
                            "RayTracingInline|ClosestHit|lib_6_6|rchit"
         )
 
+        # Helpers fill only the RayCandidate fields each callback reads, in its own branch, and the RayHit fields the program reads
+        set(_RT_FIELDS_TRIMMED
+            "\\{[\r\n ]+RayCandidate candidate = \\(RayCandidate\\)0[^\r\n]*[\r\n ]+candidate\\.T = query\\.CandidateTriangleRayT\\(\\)[^\r\n]*[\r\n ]+if \\(callbacks\\.AnyHit"
+            ".*else[\r\n ]+\\{[\r\n ]+RayCandidate candidate = \\(RayCandidate\\)0[^\r\n]*[\r\n ]+candidate\\.ObjectRayOrigin = query\\.CandidateObjectRayOrigin\\(\\)[^\r\n]*[\r\n ]+float t"
+            ".*hit\\.IsHit = [^\r\n]*[\r\n ]+if \\(hit\\.IsHit\\)[\r\n ]+\\{[\r\n ]+hit\\.T = query\\.CommittedRayT\\(\\)[^\r\n]*[\r\n ]+\\}")
+        string(CONCAT _RT_FIELDS_TRIMMED ${_RT_FIELDS_TRIMMED})
+        xsc_add_roundtrip_tests(
+            PREFIX         ${_rtPrefix}
+            DRIVER         ${_HLSL_DRIVER}
+            SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+            OUT_DIR        ${_rtOutDir}
+            LABELS         "hlsl-roundtrip;raytracing"
+            DEFINES        ${_rtDefines} "-DEXPECT_REGEX=${_RT_FIELDS_TRIMMED}"
+                           "-DEXPECT_ABSENT_REGEX=IsProcedural =|CommittedInstance|CommittedGeometryIndex|CommittedPrimitiveIndex|CommittedObjectToWorld|CommittedWorldToObject|CommittedTriangle"
+            PROFILE_DEFINE FXC_PROFILE
+            CASES          "RayTracingInlineFields|Trimmed|cs_6_6|comp"
+        )
+
+        # A candidate stored in a member and a hit stored in a buffer fill every field
+        set(_RT_FIELDS_ESCAPING
+            "xsc_RayTraceClosest_StoresCandidate.*candidate\\.InstanceIndex = query\\.CandidateInstanceIndex\\(\\)"
+            ".*candidate\\.FrontFace = query\\.CandidateTriangleFrontFace\\(\\)"
+            ".*hit\\.WorldToObject = query\\.CommittedWorldToObject3x4\\(\\)"
+            ".*hit\\.FrontFace = query\\.CommittedTriangleFrontFace\\(\\)")
+        string(CONCAT _RT_FIELDS_ESCAPING ${_RT_FIELDS_ESCAPING})
+        xsc_add_roundtrip_tests(
+            PREFIX         ${_rtPrefix}
+            DRIVER         ${_HLSL_DRIVER}
+            SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+            OUT_DIR        ${_rtOutDir}
+            LABELS         "hlsl-roundtrip;raytracing"
+            DEFINES        ${_rtDefines} "-DEXPECT_REGEX=${_RT_FIELDS_ESCAPING}"
+            PROFILE_DEFINE FXC_PROFILE
+            CASES          "RayTracingInlineFields|Escaping|cs_6_6|comp"
+        )
+
         # Acceleration structures through an array and through ResourceDescriptorHeap
         xsc_add_roundtrip_tests(
             PREFIX         ${_rtPrefix}
@@ -299,6 +335,9 @@ set(XSC_HLSL_RAYTRACING_REJECT_CASES
     "RayTracingRejectInline|CS|comp|CALLBACKS_MEMBER|callbacks argument of 'RayTraceClosest' must be a local variable or a parameter"
     "RayTracingRejectInline|CS|comp|CALLBACKS_TEMPORARY|callbacks argument of 'RayTraceClosest' must be a local variable or a parameter"
     "RayTracingRejectInline|CS|comp|CALLBACKS_ARRAY_ELEMENT|callbacks argument of 'RayTraceClosest' must be a local variable or a parameter"
+    "RayTracingRejectInline|CS|comp|CALLBACKS_STATIC_LOCAL|callbacks argument of 'RayTraceClosest' must be a local variable or a parameter"
+    "RayTracingRejectInline|CS|comp|CALLBACKS_LOCAL_STRUCT|callbacks argument of 'RayTraceClosest' must have a struct type declared at global scope, but it is 'struct LocalCallbacks'"
+    "RayTracingRejectInline|CS|comp|CALLBACKS_TEMPLATE|callbacks argument of 'RayTraceClosest' must have a struct type declared at global scope, but it is 'struct TemplateCallbacks'|-Xhlsl-templates"
     "RayTracingRejectInline|CS|comp|CALLBACKS_NOT_STRUCT|callbacks argument of 'RayTraceClosest' must have a struct type declared at global scope, but it is 'float'"
     "RayTracingRejectInline|CS|comp|CALLBACKS_NO_METHODS|callbacks struct 'Typo' has neither an 'AnyHit' nor an 'Intersection' method"
     "RayTracingRejectInline|CS|comp|ANYHIT_EXTRA_PARAMETER|'BadAnyHit::AnyHit' must be declared as 'bool AnyHit\\(RayCandidate candidate\\)'"
@@ -307,7 +346,7 @@ set(XSC_HLSL_RAYTRACING_REJECT_CASES
     "RayTracingRejectInline|CS|comp|INTERSECTION_WRONG_TYPE|'BadIntersection::Intersection' must be declared as 'bool Intersection\\(RayCandidate candidate, out float t\\)'"
     "RayTracingRejectInline|CS|comp|FLAG_ACCEPT_FIRST_HIT|ray flag RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH can't be used with 'RayTraceClosest'. use RayTraceAny"
     "RayTracingRejectInline|CS|comp|FLAG_SKIP_CLOSEST_HIT|ray flag RAY_FLAG_SKIP_CLOSEST_HIT_SHADER can't be used with 'RayTraceAny'"
-    "RayTracingRejectInline|CS|comp|FLAG_SKIP_TRIANGLES|ray flag RAY_FLAG_SKIP_TRIANGLES can't be used with 'RayTraceClosest'. it has no PS5 equivalent"
+    "RayTracingRejectInline|CS|comp|FLAG_SKIP_TRIANGLES|ray flag RAY_FLAG_SKIP_TRIANGLES can't be used with 'RayTraceClosest'. not supported on all backends"
     "RayTracingRejectInline|CS|comp|FLAG_UNKNOWN|ray flag 0x400 can't be used with 'RayTraceClosest'"
     "RayTracingRejectInline|CS|comp|ARG_COUNT|'RayTraceClosest' takes 4 or 5 arguments.*but got 3"
     "RayTracingRejectInline|CS|comp|ARG_TYPE|argument 4 of 'RayTraceAny' must be 'RayDesc', but it is 'float3'"

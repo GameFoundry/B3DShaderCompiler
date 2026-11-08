@@ -71,6 +71,9 @@ class ReflectionAnalyzer : private Visitor
         void ReflectSamplerValueTextureAddressMode(const std::string& value, Reflection::TextureAddressMode& addressMode, const AST* ast = nullptr);
         void ReflectSamplerValueComparisonFunc(const std::string& value, Reflection::ComparisonFunc& comparisonFunc, const AST* ast = nullptr);
 
+        // Reflects the ray tracing stage and the payload and attribute sizes of the specified function.
+        void ReflectRayTracingFunction(FunctionDecl* funcDecl, Reflection::Function& function);
+
         void ReflectAttributes(const std::vector<AttributePtr>& attribs);
         void ReflectAttributesNumThreads(Attribute* ast);
 

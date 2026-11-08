@@ -590,6 +590,9 @@ IMPLEMENT_VISIT_PROC(Program)
 
     CollectTemplateDeclarations(*ast);
 
+    for (auto& stmnt : ast->globalStmnts)
+        stmnt->flags << AST::isGlobalStmnt;
+
     /* Analyze context of the entire program */
     for (auto it = ast->globalStmnts.begin(); it != ast->globalStmnts.end(); ++it)
     {
@@ -623,6 +626,7 @@ IMPLEMENT_VISIT_PROC(Program)
                     /* Move current sub statement from uniform buffer into global scope */
                     ++it;
                     it = ast->globalStmnts.insert(it, *itSub);
+                    subStmnt->flags << AST::isGlobalStmnt;
                     itSub = uniformBufferDecl->localStmnts.erase(itSub);
                 }
                 else
@@ -2934,30 +2938,18 @@ bool HLSLAnalyzer::IsLocalVariableOrParameter(const VarDecl* varDecl) const
     if (varDecl->IsParameter())
         return true;
 
-    if (varDecl->IsStatic() || varDecl->structDeclRef || varDecl->bufferDeclRef || !varDecl->declStmntRef || !program_)
+    if (varDecl->IsStatic() || varDecl->structDeclRef || varDecl->bufferDeclRef || !varDecl->declStmntRef)
         return false;
 
-    for (const auto& stmnt : program_->globalStmnts)
-    {
-        if (stmnt.get() == varDecl->declStmntRef)
-            return false;
-    }
-
-    return true;
+    return !varDecl->declStmntRef->flags(AST::isGlobalStmnt);
 }
 
 bool HLSLAnalyzer::IsGlobalStructDecl(const StructDecl* structDecl) const
 {
-    if (!structDecl->declStmntRef || structDecl->isTemplate || !structDecl->templateSourceIdent.empty() || !program_)
+    if (!structDecl->declStmntRef || structDecl->isTemplate || !structDecl->templateSourceIdent.empty())
         return false;
 
-    for (const auto& stmnt : program_->globalStmnts)
-    {
-        if (stmnt.get() == structDecl->declStmntRef)
-            return true;
-    }
-
-    return false;
+    return structDecl->declStmntRef->flags(AST::isGlobalStmnt);
 }
 
 bool HLSLAnalyzer::TryEvaluateConstUInt(Expr& expr, unsigned long long& value)
