@@ -447,6 +447,9 @@ enum class BufferType
     PointStream,
     LineStream,
     TriangleStream,
+
+    /* --- Ray tracing --- */
+    RaytracingAccelerationStructure,    // Top-level acceleration structure (bound like a read-only buffer, 't' register).
 };
 
 // Converts the specified BufferType enumeration entry into a string.
@@ -663,6 +666,9 @@ enum class AttributeType
     Partitioning,
     PatchSize,
     PatchConstantFunc,
+
+    /* --- Ray tracing attributes --- */
+    Shader,                             // [shader("<stage>")] marks a ray tracing entry point.
 
     #ifdef XSC_ENABLE_LANGUAGE_EXT
 
@@ -924,6 +930,37 @@ enum class Intrinsic
     Transpose,
     Trunc,
 
+    /* --- Ray tracing (global, shader model 6.0 for the HLSL6 input) --- */
+    TraceRay,
+    ReportHit,
+    CallShader,
+    IgnoreHit,
+    AcceptHitAndEndSearch,
+    DispatchRaysIndex,
+    DispatchRaysDimensions,
+    WorldRayOrigin,
+    WorldRayDirection,
+    ObjectRayOrigin,
+    ObjectRayDirection,
+    RayTMin,
+    RayTCurrent,
+    RayFlags,
+    InstanceIndex,
+    InstanceID,
+    GeometryIndex,
+    PrimitiveIndex,
+    HitKind,
+    ObjectToWorld3x4,
+    ObjectToWorld4x3,
+    WorldToObject3x4,
+    WorldToObject4x3,
+    ObjectToWorld,              // Rejected: DXC's SPIR-V path doesn't implement it; use ObjectToWorld3x4.
+    WorldToObject,              // Rejected: DXC's SPIR-V path doesn't implement it; use WorldToObject3x4.
+
+    /* --- Inline ray tracing built-ins (Xsc extension) --- */
+    RayTraceClosest,            // RayHit RayTraceClosest(scene, rayFlags, instanceMask, ray [, inout callbacks])
+    RayTraceAny,                // RayHit RayTraceAny(scene, rayFlags, instanceMask, ray [, inout callbacks])
+
     Texture_GetDimensions,
     Texture_QueryLod,           // CalculateLevelOfDetail(SamplerState S, float[1,2,3] Location)
     Texture_QueryLodUnclamped,  // CalculateLevelOfDetailUnclamped(SamplerState S, float[1,2,3] Location)
@@ -1071,6 +1108,12 @@ XSC_EXPORT const std::vector<Intrinsic>& GetWrappedWaveIntrinsics();
 
 // Returns true if the specified intrinsic is a global intrinsic.
 bool IsGlobalIntrinsic(const Intrinsic t);
+
+// Returns true if the specified intrinsic belongs to DXR ray tracing (system values, TraceRay and the other functions).
+bool IsRayTracingIntrinsic(const Intrinsic t);
+
+// Returns true if the specified intrinsic is one of the inline ray tracing built-ins (RayTraceClosest, RayTraceAny).
+bool IsInlineRayTracingIntrinsic(const Intrinsic t);
 
 // Returns true if the specified intrinsic belongs to a texture object.
 bool IsTextureIntrinsic(const Intrinsic t);

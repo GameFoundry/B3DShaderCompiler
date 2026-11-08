@@ -126,7 +126,7 @@ HelpDescriptor TargetCommand::Help() const
     return
     {
         "-T, --target TARGET", R_CmdHelpTarget,
-        "vert, tesc, tese, geom, frag, comp",
+        "vert, tesc, tese, geom, frag, comp, rgen, rint, rahit, rchit, rmiss, rcall",
         HelpCategory::Main
     };
 }
@@ -144,6 +144,12 @@ void TargetCommand::Run(CommandLine& cmdLine, ShellState& state)
             { "geom", ShaderTarget::GeometryShader               },
             { "frag", ShaderTarget::FragmentShader               },
             { "comp", ShaderTarget::ComputeShader                },
+            { "rgen", ShaderTarget::RayGenerationShader          },
+            { "rint", ShaderTarget::IntersectionShader           },
+            { "rahit", ShaderTarget::AnyHitShader                },
+            { "rchit", ShaderTarget::ClosestHitShader            },
+            { "rmiss", ShaderTarget::MissShader                  },
+            { "rcall", ShaderTarget::CallableShader              },
         },
         R_InvalidShaderTarget(target)
     );

@@ -176,6 +176,10 @@ struct AST
         FLAG( isReachable, 30 ), // This AST node is reachable from the main entry point.
         FLAG( isDeadCode,  29 ), // This AST node is dead code (after return path).
         FLAG( isBuiltin,   28 ), // This AST node is a built-in node (not part of the actual program source).
+        FLAG( isRayTracingBuiltin, 26 ), // This AST node is a built-in ray tracing declaration (always together with 'isBuiltin').
+
+        // This AST node is reachable from an inline ray tracing callback method (see ReferenceAnalyzer).
+        FLAG( isReachableFromRayTracingCallback, 27 ),
     };
 
     // Returns the AST node as the specified sub class if this AST node has the correct type. Otherwise, null is returned.
@@ -327,6 +331,15 @@ struct BindlessResourceType
     TypeDenoterPtr     type;
 };
 
+// A distinct pair of inline ray tracing built-in and callbacks struct in the program.
+struct InlineRayTraceUsage
+{
+    Intrinsic       intrinsic       = Intrinsic::Undefined; // Intrinsic::RayTraceClosest or Intrinsic::RayTraceAny.
+    StructDecl*     callbacksRef    = nullptr;              // Callbacks struct, or null for calls without callbacks.
+    FunctionDecl*   anyHitRef       = nullptr;              // The callbacks struct's 'AnyHit' method, or null.
+    FunctionDecl*   intersectionRef = nullptr;              // The callbacks struct's 'Intersection' method, or null.
+};
+
 // Program AST root.
 struct Program : public AST
 {   
@@ -389,6 +402,9 @@ struct Program : public AST
 
     std::vector<StmntPtr>               globalStmnts;               // Global declaration statements.
 
+    // Built-in declarations (the HLSL6 ray tracing types and constants), which aren't part of the program source.
+    std::vector<StmntPtr>               builtInStmnts;
+
     std::vector<ASTPtr>                 disabledAST;                // AST nodes that have been disabled for code generation (not part of the default visitor).
 
     SourceCodePtr                       sourceCode;                 // Preprocessed source code.
@@ -397,6 +413,10 @@ struct Program : public AST
     std::set<MatrixSubscriptUsage>      usedMatrixSubscripts;       // Set of all used matrix subscripts (filled by the reference analyzer).
     std::vector<BindlessResourceType>        bindlessResourceTypes; // Context-resolved descriptor views in first-use order.
     std::vector<Reflection::BindlessBinding> bindlessBindings;      // Backend-generated binding ABI, populated during generation.
+
+    bool                                usesRayTracing  = false;    // Ray tracing types, intrinsics, entry points or built-ins appear anywhere in the source.
+    bool                                usesInlineRayTracingTypes = false; // RayCandidate or RayHit is used anywhere in the source.
+    std::vector<InlineRayTraceUsage>    inlineRayTraces;            // Distinct pairs of inline ray tracing built-in and callbacks struct, in first-use order.
 
     LayoutTessControlShader             layoutTessControl;          // Global program layout attributes for a tessellation-control shader.
     LayoutTessEvaluationShader          layoutTessEvaluation;       // Global program layout attributes for a tessellation-evaluation shader.
@@ -780,6 +800,16 @@ struct StructDecl : public Decl
     // END BANSHEE CHANGES
 };
 
+/*
+Returns the size in bytes of the specified type in the scalar layout DXC uses for ray tracing payloads and attributes:
+each member is aligned to its scalar size, a struct to its largest member, and a struct's size rounds up to its alignment.
+Returns -1 if the type holds anything but numeric data. The optional 'alignment' receives the type's alignment.
+*/
+int GetScalarLayoutSize(const TypeDenoter& typeDenoter, int* alignment = nullptr);
+
+// Returns the size in bytes of the specified structure in the scalar layout (see GetScalarLayoutSize), or -1 for non-numeric members.
+int GetScalarLayoutSize(const StructDecl& structDecl, int* alignment = nullptr);
+
 // Type alias declaration.
 struct AliasDecl : public Decl
 {
@@ -891,6 +921,9 @@ struct FunctionDecl : public Decl
     StructDecl*                     structDeclRef       = nullptr;              // Structure declaration reference if this is a member function; may be null
 
     std::vector<ParameterStructure> paramStructs;                               // Parameter with structure type (only for entry point).
+
+    // Ray tracing stage from the [shader("...")] attribute, or ShaderTarget::Undefined if the function has none.
+    ShaderTarget                    rayTracingStage     = ShaderTarget::Undefined;
 };
 
 // Uniform buffer (cbuffer, tbuffer) declaration.

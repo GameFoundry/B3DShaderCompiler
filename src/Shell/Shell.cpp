@@ -197,6 +197,12 @@ static std::string TargetToExtension(const ShaderTarget shaderTarget)
         case ShaderTarget::GeometryShader:                  return "geom";
         case ShaderTarget::FragmentShader:                  return "frag";
         case ShaderTarget::ComputeShader:                   return "comp";
+        case ShaderTarget::RayGenerationShader:             return "rgen";
+        case ShaderTarget::IntersectionShader:              return "rint";
+        case ShaderTarget::AnyHitShader:                    return "rahit";
+        case ShaderTarget::ClosestHitShader:                return "rchit";
+        case ShaderTarget::MissShader:                      return "rmiss";
+        case ShaderTarget::CallableShader:                  return "rcall";
     }
     return "glsl";
 }

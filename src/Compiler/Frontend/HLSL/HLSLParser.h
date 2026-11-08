@@ -158,7 +158,11 @@ class HLSLParser : public SLParser
         std::vector<StmntPtr>           ParseStructStmntList();
         std::vector<VarDeclStmntPtr>    ParseAnnotationList();
         std::vector<RegisterPtr>        ParseRegisterList(bool parseFirstColon = true);
-        std::vector<AttributePtr>       ParseAttributeList(bool allowDynamicOffset = false);
+        // Parses a list of attributes, and reports the attributes only global declarations accept ('shader', 'dynamicOffset').
+        std::vector<AttributePtr>       ParseAttributeList();
+
+        // Parses the specified HLSL declarations into Program::builtInStmnts, and marks them with 'isBuiltin' and the specified AST flags.
+        void                            ParseBuiltInStmnts(Program& ast, const std::string& declarations, unsigned int flags);
         std::vector<BufferDeclPtr>      ParseBufferDeclList(BufferDeclStmnt* declStmntRef, const TokenPtr& identTkn = nullptr);
         std::vector<SamplerDeclPtr>     ParseSamplerDeclList(SamplerDeclStmnt* declStmntRef, const TokenPtr& identTkn = nullptr);
         std::vector<SamplerValuePtr>    ParseSamplerValueList();
@@ -218,6 +222,10 @@ class HLSLParser : public SLParser
         bool                rowMajorAlignment_      = false;
 
         Flags               extensions_;
+
+        // True, if the input declares the ray tracing built-ins (HLSL6).
+        bool                rayTracingBuiltIns_     = false;
+
         std::set<std::string> structTemplateNames_;
         std::set<std::string> functionTemplateNames_;
 

@@ -14,6 +14,8 @@
 // BEGIN BANSHEE CHANGES
 #include <cstring>
 // END BANSHEE CHANGES
+#include <algorithm>
+#include <set>
 
 
 namespace Xsc
@@ -47,6 +49,13 @@ void ReflectionAnalyzer::Reflect(
             data_->bindless.writableResources = data_->bindless.writableResources || IsRWBufferType(buffer->bufferType);
     }
     data_->bindless.bindings = program.bindlessBindings;
+
+    /* 'usedIntrinsics' only holds calls reachable from the entry point (see ReferenceAnalyzer) */
+    data_->usesInlineRayTracing =
+    (
+        program.FetchIntrinsicUsage(Intrinsic::RayTraceClosest) != nullptr ||
+        program.FetchIntrinsicUsage(Intrinsic::RayTraceAny) != nullptr
+    );
 }
 
 
@@ -279,6 +288,7 @@ Reflection::BufferType BufferTypeToReflType(BufferType bufferType)
     CONVERSION_ENTRY(TextureCubeArray)
     CONVERSION_ENTRY(Texture2DMS)
     CONVERSION_ENTRY(Texture2DMSArray)
+    CONVERSION_ENTRY(RaytracingAccelerationStructure)
     default:
         return Reflection::BufferType::Undefined;
     }
@@ -423,6 +433,8 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
 
         function.parameters.push_back(param);
     }
+
+    ReflectRayTracingFunction(ast, function);
 
     data_->functions.push_back(function);
 
@@ -646,7 +658,9 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
                     bindingSlot.set         = GetBindingSet(bufferDecl->slotRegisters);
                 };
 
-                if (!IsStorageBufferType(ast->typeDenoter->bufferType))
+                if (ast->typeDenoter->bufferType == BufferType::RaytracingAccelerationStructure)
+                    data_->accelerationStructures.push_back(bindingSlot);
+                else if (!IsStorageBufferType(ast->typeDenoter->bufferType))
                     data_->textures.push_back(bindingSlot);
                 else
                     data_->storageBuffers.push_back(bindingSlot);
@@ -695,6 +709,76 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
 }
 
 #undef IMPLEMENT_VISIT_PROC
+
+/* --- Ray tracing --- */
+
+// Collects the largest attribute struct passed to ReportHit by a function and everything it calls.
+class ReportHitAttributeCollector final : public Visitor
+{
+
+    public:
+
+        int Collect(FunctionDecl* funcDecl)
+        {
+            Visit(funcDecl);
+            return maxSize_;
+        }
+
+    private:
+
+        void VisitFunctionDecl(FunctionDecl* ast, void* args) override
+        {
+            if (visited_.insert(ast).second)
+                Visitor::VisitFunctionDecl(ast, args);
+        }
+
+        void VisitCallExpr(CallExpr* ast, void* args) override
+        {
+            if (ast->intrinsic == Intrinsic::ReportHit && ast->arguments.size() == 3)
+                maxSize_ = std::max(maxSize_, GetScalarLayoutSize(*ast->arguments[2]->GetTypeDenoter()));
+
+            if (auto funcImpl = ast->GetFunctionImpl())
+                Visit(funcImpl);
+
+            Visitor::VisitCallExpr(ast, args);
+        }
+
+        std::set<FunctionDecl*> visited_;
+        int                     maxSize_    = 0;
+
+};
+
+static int ParameterStructSize(FunctionDecl* funcDecl, std::size_t paramIndex)
+{
+    if (paramIndex >= funcDecl->parameters.size())
+        return 0;
+    return std::max(0, GetScalarLayoutSize(*funcDecl->parameters[paramIndex]->typeSpecifier->GetTypeDenoter()));
+}
+
+void ReflectionAnalyzer::ReflectRayTracingFunction(FunctionDecl* funcDecl, Reflection::Function& function)
+{
+    function.shaderTarget = funcDecl->rayTracingStage;
+
+    switch (funcDecl->rayTracingStage)
+    {
+        case ShaderTarget::MissShader:
+            function.rayPayloadSize     = ParameterStructSize(funcDecl, 0);
+            break;
+        case ShaderTarget::AnyHitShader:
+        case ShaderTarget::ClosestHitShader:
+            function.rayPayloadSize     = ParameterStructSize(funcDecl, 0);
+            function.hitAttributeSize   = ParameterStructSize(funcDecl, 1);
+            break;
+        case ShaderTarget::IntersectionShader:
+        {
+            ReportHitAttributeCollector collector;
+            function.hitAttributeSize   = collector.Collect(funcDecl);
+        }
+        break;
+        default:
+            break;
+    }
+}
 
 /* --- Helper functions for code reflection --- */
 

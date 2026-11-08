@@ -181,6 +181,10 @@ TokenPtr HLSLScanner::ScanIdentifier()
     while (std::isalnum(UChr()) || Is('_'))
         spell += TakeIt();
 
+    /* DXR's RayQuery isn't supported; inline ray tracing goes through the RayTraceClosest/RayTraceAny built-ins */
+    if (spell == "RayQuery")
+        Error(R_RayQueryNotSupported);
+
     /* Scan reserved words */
     auto it = HLSLKeywords().find(spell);
     if (it != HLSLKeywords().end())

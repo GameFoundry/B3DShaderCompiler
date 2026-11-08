@@ -12,6 +12,7 @@
 #include "PreProcessor.h"
 #include "Optimizer.h"
 #include "ReflectionAnalyzer.h"
+#include "ReferenceAnalyzer.h"
 #include "ASTPrinter.h"
 
 #include "GLSLPreProcessor.h"
@@ -217,7 +218,7 @@ bool Compiler::CompileShaderPrimary(
     if (IsLanguageHLSL(inputDesc.shaderVersion))
     {
         /* Establish intrinsic adept */
-        intrinsicAdpet = MakeUnique<HLSLIntrinsicAdept>();
+        auto hlslIntrinsicAdept = MakeUnique<HLSLIntrinsicAdept>();
 
         /* Parse HLSL input code */
         HLSLParser parser(log_);
@@ -229,6 +230,12 @@ bool Compiler::CompileShaderPrimary(
             ((inputDesc.warnings & Warnings::Syntax) != 0),
             inputDesc.extensions
         );
+
+        /* Intrinsics that return built-in structures return this compile's declarations */
+        if (program)
+            hlslIntrinsicAdept->SetBuiltInDecls(program->builtInStmnts);
+
+        intrinsicAdpet = std::move(hlslIntrinsicAdept);
     }
 
     if (!program)
@@ -262,6 +269,18 @@ bool Compiler::CompileShaderPrimary(
         const auto* backend = BackendRegistry::Instance().Find(outputDesc.targetLanguage);
         if (!backend || (backend->features & BackendDescriptor::BindlessResources) == 0)
             return ReturnWithError("the selected output backend does not support bindless resources");
+    }
+
+    if (program->usesRayTracing)
+    {
+        const auto* backend = BackendRegistry::Instance().Find(outputDesc.targetLanguage);
+        if (!backend || (backend->features & BackendDescriptor::RayTracing) == 0)
+            return ReturnWithError(R_RayTracingNotSupportedByTarget(outputDesc.targetLanguage));
+
+        /* Check the ray tracing stage rules on everything the entry point reaches, independently of the output backend */
+        ReferenceAnalyzer referenceAnalyzer(log_);
+        if (!referenceAnalyzer.ValidateRayTracing(*program, inputDesc.shaderTarget))
+            return ReturnWithError(R_AnalyzingSourceFailed);
     }
 
     /* Optimize AST */

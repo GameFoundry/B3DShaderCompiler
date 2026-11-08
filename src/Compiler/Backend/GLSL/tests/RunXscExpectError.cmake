@@ -29,13 +29,19 @@ if(NOT DEFINED XSC_VOUT)
     set(XSC_VOUT VKSL450)
 endif()
 
+# BACKEND_DLL is optional: a backend DLL the shell loads (-Bload) before it parses the output version.
+set(XSC_LOAD_BACKEND "")
+if(BACKEND_DLL)
+    set(XSC_LOAD_BACKEND -Bload "${BACKEND_DLL}")
+endif()
+
 file(MAKE_DIRECTORY "${OUT_DIR}")
 
 get_filename_component(SHADER_NAME "${SHADER}" NAME_WE)
 set(XSC_OUTPUT "${OUT_DIR}/${SHADER_NAME}.${ENTRY}.out")
 
 execute_process(
-    COMMAND "${XSC}" -o "${XSC_OUTPUT}" -Vout "${XSC_VOUT}"
+    COMMAND "${XSC}" ${XSC_LOAD_BACKEND} -o "${XSC_OUTPUT}" -Vout "${XSC_VOUT}"
             -E "${ENTRY}" -T "${XSC_STAGE}" ${XSC_EXTRA_FLAGS} "${SHADER}"
     RESULT_VARIABLE XSC_RESULT
     OUTPUT_VARIABLE XSC_OUT

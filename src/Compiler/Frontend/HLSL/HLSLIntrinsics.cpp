@@ -231,6 +231,35 @@ static HLSLIntrinsicsMap GenerateIntrinsicMap()
         { "QuadReadAcrossX",                        { T::QuadReadAcrossX,                       6, 0 } },
         { "QuadReadAcrossY",                        { T::QuadReadAcrossY,                       6, 0 } },
         { "QuadReadAcrossDiagonal",                 { T::QuadReadAcrossDiagonal,                6, 0 } },
+
+        /* Ray tracing (DXR needs shader model 6.3, but the HLSL6 input maps to 6.0) */
+        { "TraceRay",                               { T::TraceRay,                              6, 0 } },
+        { "ReportHit",                              { T::ReportHit,                             6, 0 } },
+        { "CallShader",                             { T::CallShader,                            6, 0 } },
+        { "IgnoreHit",                              { T::IgnoreHit,                             6, 0 } },
+        { "AcceptHitAndEndSearch",                  { T::AcceptHitAndEndSearch,                 6, 0 } },
+        { "DispatchRaysIndex",                      { T::DispatchRaysIndex,                     6, 0 } },
+        { "DispatchRaysDimensions",                 { T::DispatchRaysDimensions,                6, 0 } },
+        { "WorldRayOrigin",                         { T::WorldRayOrigin,                        6, 0 } },
+        { "WorldRayDirection",                      { T::WorldRayDirection,                     6, 0 } },
+        { "ObjectRayOrigin",                        { T::ObjectRayOrigin,                       6, 0 } },
+        { "ObjectRayDirection",                     { T::ObjectRayDirection,                    6, 0 } },
+        { "RayTMin",                                { T::RayTMin,                               6, 0 } },
+        { "RayTCurrent",                            { T::RayTCurrent,                           6, 0 } },
+        { "RayFlags",                               { T::RayFlags,                              6, 0 } },
+        { "InstanceIndex",                          { T::InstanceIndex,                         6, 0 } },
+        { "InstanceID",                             { T::InstanceID,                            6, 0 } },
+        { "GeometryIndex",                          { T::GeometryIndex,                         6, 0 } },
+        { "PrimitiveIndex",                         { T::PrimitiveIndex,                        6, 0 } },
+        { "HitKind",                                { T::HitKind,                               6, 0 } },
+        { "ObjectToWorld3x4",                       { T::ObjectToWorld3x4,                      6, 0 } },
+        { "ObjectToWorld4x3",                       { T::ObjectToWorld4x3,                      6, 0 } },
+        { "WorldToObject3x4",                       { T::WorldToObject3x4,                      6, 0 } },
+        { "WorldToObject4x3",                       { T::WorldToObject4x3,                      6, 0 } },
+        { "ObjectToWorld",                          { T::ObjectToWorld,                         6, 0 } },
+        { "WorldToObject",                          { T::WorldToObject,                         6, 0 } },
+        { "RayTraceClosest",                        { T::RayTraceClosest,                       6, 0 } },
+        { "RayTraceAny",                            { T::RayTraceAny,                           6, 0 } },
     };
 }
 
@@ -254,6 +283,8 @@ enum class IntrinsicReturnType
     Float2,             // Fixed float2 type
     Float3,             // Fixed float3 type
     Float4,             // Fixed float4 type
+    Float3x4,           // Fixed float3x4 type
+    Float4x3,           // Fixed float4x3 type
     Double,             // Fixed doubel type
 
     GenericArg0,        // Get return type from first argument (index 0)
@@ -288,6 +319,8 @@ static DataType IntrinsicReturnTypeToDataType(const IntrinsicReturnType t)
         case IntrinsicReturnType::Float2:   return DataType::Float2;
         case IntrinsicReturnType::Float3:   return DataType::Float3;
         case IntrinsicReturnType::Float4:   return DataType::Float4;
+        case IntrinsicReturnType::Float3x4: return DataType::Float3x4;
+        case IntrinsicReturnType::Float4x3: return DataType::Float4x3;
         case IntrinsicReturnType::Double:   return DataType::Double;
         default:                            return DataType::Undefined;
     }
@@ -735,6 +768,32 @@ static std::map<Intrinsic, IntrinsicSignature> GenerateIntrinsicSignatureMap()
         { T::QuadReadAcrossX,                       { Ret::GenericArg0,     1 } },
         { T::QuadReadAcrossY,                       { Ret::GenericArg0,     1 } },
         { T::QuadReadAcrossDiagonal,                { Ret::GenericArg0,     1 } },
+
+        { T::TraceRay,                              {                       8 } },
+        { T::ReportHit,                             { Ret::Bool,            3 } },
+        { T::CallShader,                            {                       2 } },
+        { T::IgnoreHit,                             {                       0 } },
+        { T::AcceptHitAndEndSearch,                 {                       0 } },
+        { T::DispatchRaysIndex,                     { Ret::UInt3,           0 } },
+        { T::DispatchRaysDimensions,                { Ret::UInt3,           0 } },
+        { T::WorldRayOrigin,                        { Ret::Float3,          0 } },
+        { T::WorldRayDirection,                     { Ret::Float3,          0 } },
+        { T::ObjectRayOrigin,                       { Ret::Float3,          0 } },
+        { T::ObjectRayDirection,                    { Ret::Float3,          0 } },
+        { T::RayTMin,                               { Ret::Float,           0 } },
+        { T::RayTCurrent,                           { Ret::Float,           0 } },
+        { T::RayFlags,                              { Ret::UInt,            0 } },
+        { T::InstanceIndex,                         { Ret::UInt,            0 } },
+        { T::InstanceID,                            { Ret::UInt,            0 } },
+        { T::GeometryIndex,                         { Ret::UInt,            0 } },
+        { T::PrimitiveIndex,                        { Ret::UInt,            0 } },
+        { T::HitKind,                               { Ret::UInt,            0 } },
+        { T::ObjectToWorld3x4,                      { Ret::Float3x4,        0 } },
+        { T::ObjectToWorld4x3,                      { Ret::Float4x3,        0 } },
+        { T::WorldToObject3x4,                      { Ret::Float3x4,        0 } },
+        { T::WorldToObject4x3,                      { Ret::Float4x3,        0 } },
+        { T::ObjectToWorld,                         { Ret::Float3x4,        0 } },
+        { T::WorldToObject,                         { Ret::Float3x4,        0 } },
     };
 }
 
@@ -776,6 +835,12 @@ TypeDenoterPtr HLSLIntrinsicAdept::GetIntrinsicReturnType(
         case Intrinsic::GreaterThan:
         case Intrinsic::GreaterThanEqual:
             return DeriveReturnTypeVectorCompare(args);
+
+        case Intrinsic::RayTraceClosest:
+        case Intrinsic::RayTraceAny:
+            if (!rayHitDecl_)
+                RuntimeErr(R_FailedToDeriveIntrinsicType(GetIntrinsicIdent(intrinsic)));
+            return std::make_shared<StructTypeDenoter>(rayHitDecl_);
 
         default:
             if (IsTextureLoadIntrinsic(intrinsic) || IsTextureSampleIntrinsic(intrinsic))
@@ -838,6 +903,13 @@ std::vector<TypeDenoterPtr> HLSLIntrinsicAdept::GetIntrinsicParameterTypes(const
                 paramTypeDenoters.push_back(args[0]->GetTypeDenoter()->GetSub());
                 paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(DataType::UInt));
             }
+            break;
+        case Intrinsic::TraceRay:
+        case Intrinsic::ReportHit:
+        case Intrinsic::CallShader:
+        case Intrinsic::RayTraceClosest:
+        case Intrinsic::RayTraceAny:
+            DeriveParameterTypesRayTracing(paramTypeDenoters, intrinsic, args);
             break;
         default:
             if (IsByteAddressBufferIntrinsic(intrinsic))
@@ -920,6 +992,19 @@ std::vector<std::size_t> HLSLIntrinsicAdept::GetIntrinsicOutputParameterIndices(
         case Intrinsic::SinCos:
             return { 1, 2 };
 
+        // TraceRay(scene, rayFlags, instanceMask, rayContribution, geometryMultiplier, missIndex, ray, inout payload)
+        case Intrinsic::TraceRay:
+            return { 7 };
+
+        // CallShader(shaderIndex, inout parameter)
+        case Intrinsic::CallShader:
+            return { 1 };
+
+        // RayTraceClosest/RayTraceAny(scene, rayFlags, instanceMask, ray, inout callbacks)
+        case Intrinsic::RayTraceClosest:
+        case Intrinsic::RayTraceAny:
+            return { 4 };
+
         default:
             break;
     }
@@ -930,6 +1015,19 @@ const HLSLIntrinsicsMap& HLSLIntrinsicAdept::GetIntrinsicMap()
 {
     static const HLSLIntrinsicsMap intrinsicMap = GenerateIntrinsicMap();
     return intrinsicMap;
+}
+
+void HLSLIntrinsicAdept::SetBuiltInDecls(const std::vector<StmntPtr>& builtInStmnts)
+{
+    for (const auto& stmnt : builtInStmnts)
+    {
+        if (auto basicDeclStmnt = stmnt->As<BasicDeclStmnt>())
+        {
+            auto structDecl = basicDeclStmnt->declObject->As<StructDecl>();
+            if (structDecl && structDecl->ident == "RayHit")
+                rayHitDecl_ = structDecl;
+        }
+    }
 }
 
 
@@ -1155,6 +1253,36 @@ void HLSLIntrinsicAdept::DeriveParameterTypes(
             VectorSpace::Copy(paramTypeDenoters[i].get(), args[i]->GetTypeDenoter().get());
             #endif
         }
+    }
+}
+
+void HLSLIntrinsicAdept::DeriveParameterTypesRayTracing(
+    std::vector<TypeDenoterPtr>& paramTypeDenoters, const Intrinsic intrinsic, const std::vector<ExprPtr>& args) const
+{
+    /* Opaque and struct parameters take the argument's type; the others are uint, except the float hit distance of ReportHit */
+    std::vector<DataType> numericParams;
+    switch (intrinsic)
+    {
+        case Intrinsic::TraceRay:
+            numericParams = { DataType::Undefined, DataType::UInt, DataType::UInt, DataType::UInt, DataType::UInt, DataType::UInt };
+            break;
+        case Intrinsic::ReportHit:
+            numericParams = { DataType::Float, DataType::UInt };
+            break;
+        case Intrinsic::CallShader:
+            numericParams = { DataType::UInt };
+            break;
+        default:
+            numericParams = { DataType::Undefined, DataType::UInt, DataType::UInt };
+            break;
+    }
+
+    for (std::size_t i = 0; i < args.size(); ++i)
+    {
+        if (i < numericParams.size() && numericParams[i] != DataType::Undefined)
+            paramTypeDenoters.push_back(std::make_shared<BaseTypeDenoter>(numericParams[i]));
+        else
+            paramTypeDenoters.push_back(args[i]->GetTypeDenoter()->GetSub());
     }
 }
 

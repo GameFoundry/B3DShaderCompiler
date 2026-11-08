@@ -41,13 +41,15 @@ HLSLParser::HLSLParser(Log* log) :
 }
 
 ProgramPtr HLSLParser::ParseSource(
-    const SourceCodePtr& source, const NameMangling& nameMangling, const InputShaderVersion versionIn, bool rowMajorAlignment, bool enableWarnings, const Flags& extensions)
+    const SourceCodePtr& source, const NameMangling& nameMangling, const InputShaderVersion versionIn, bool rowMajorAlignment, bool enableWarnings,
+    const Flags& extensions)
 {
     /* Copy parameters */
     useD3D10Semantics_  = (versionIn >= InputShaderVersion::HLSL4);
     enableCgKeywords_   = (versionIn == InputShaderVersion::Cg);
     rowMajorAlignment_  = rowMajorAlignment;
     extensions_         = extensions;
+    rayTracingBuiltIns_ = (versionIn == InputShaderVersion::HLSL6);
     structTemplateNames_.clear();
     functionTemplateNames_.clear();
 
@@ -289,6 +291,10 @@ ProgramPtr HLSLParser::ParseProgram(const SourceCodePtr& source)
     /* Keep reference to preprocessed source code */
     ast->sourceCode = source;
 
+    /* Parse the built-in declarations first, so their type names are known in the program */
+    if (rayTracingBuiltIns_)
+        ParseBuiltInStmnts(*ast, HLSLRayTracing::BuiltInDeclarations(), AST::isRayTracingBuiltin);
+
     while (true)
     {
         /* Ignore all null statements and techniques */
@@ -305,6 +311,34 @@ ProgramPtr HLSLParser::ParseProgram(const SourceCodePtr& source)
     CloseScope();
 
     return ast;
+}
+
+void HLSLParser::ParseBuiltInStmnts(Program& ast, const std::string& declarations, unsigned int flags)
+{
+    const auto firstStmnt = ast.builtInStmnts.size();
+
+    PushScannerSource(std::make_shared<SourceCode>(std::make_shared<std::stringstream>(declarations)), "<built-in>");
+    {
+        while (!Is(Tokens::EndOfStream))
+            ast.builtInStmnts.push_back(ParseGlobalStmnt());
+    }
+    PopScannerSource();
+
+    flags |= AST::isBuiltin;
+
+    for (auto i = firstStmnt; i < ast.builtInStmnts.size(); ++i)
+    {
+        auto& stmnt = ast.builtInStmnts[i];
+        stmnt->flags << flags;
+
+        if (auto basicDeclStmnt = stmnt->As<BasicDeclStmnt>())
+            basicDeclStmnt->declObject->flags << flags;
+        else if (auto varDeclStmnt = stmnt->As<VarDeclStmnt>())
+        {
+            for (auto& varDecl : varDeclStmnt->varDecls)
+                varDecl->flags << flags;
+        }
+    }
 }
 
 CodeBlockPtr HLSLParser::ParseCodeBlock()
@@ -842,9 +876,24 @@ StmntPtr HLSLParser::ParseGlobalStmnt()
 {
     if (Is(Tokens::LParen))
     {
-        /* Parse attributes and statement */
-        auto attribs = ParseAttributeList(true);
+        /* Parse attributes and statement; attributes only some declarations accept are checked against the statement */
+        std::vector<AttributePtr> attribs;
+        while (Is(Tokens::LParen))
+            attribs.push_back(ParseAttribute());
+
         auto ast = ParseGlobalStmntPrimary();
+
+        /* Only functions can be ray tracing entry points */
+        auto basicDeclStmnt = ast->As<BasicDeclStmnt>();
+        if (basicDeclStmnt == nullptr || basicDeclStmnt->declObject->As<FunctionDecl>() == nullptr)
+        {
+            for (const auto& attrib : attribs)
+            {
+                if (attrib->attributeType == AttributeType::Shader)
+                    Error(R_ShaderAttribOnlyOnFunctions, attrib->area, false);
+            }
+        }
+
         #ifdef XSC_ENABLE_LANGUAGE_EXT
         for (const auto& attrib : attribs)
         {
@@ -1048,7 +1097,7 @@ BasicDeclStmntPtr HLSLParser::ParseFunctionDeclStmnt(const TypeSpecifierPtr& ret
     if (!returnType)
     {
         /* Parse function attributes */
-        ast->attribs = ParseAttributeList();
+        ast->attribs = ParseAttributeList(false, true);
     }
 
     /* Parse functoin declaration object */
@@ -1771,7 +1820,7 @@ std::vector<RegisterPtr> HLSLParser::ParseRegisterList(bool parseFirstColon)
     return registers;
 }
 
-std::vector<AttributePtr> HLSLParser::ParseAttributeList(bool allowDynamicOffset)
+std::vector<AttributePtr> HLSLParser::ParseAttributeList()
 {
     std::vector<AttributePtr> attribs;
 
@@ -1779,8 +1828,11 @@ std::vector<AttributePtr> HLSLParser::ParseAttributeList(bool allowDynamicOffset
     {
         attribs.push_back(ParseAttribute());
 
+        if (attribs.back()->attributeType == AttributeType::Shader)
+            Error(R_ShaderAttribOnlyOnFunctions, attribs.back()->area, false);
+
         #ifdef XSC_ENABLE_LANGUAGE_EXT
-        if (!allowDynamicOffset && attribs.back()->attributeType == AttributeType::DynamicOffset)
+        if (attribs.back()->attributeType == AttributeType::DynamicOffset)
             Error(R_DynamicOffsetOnlyOnCBuffer, attribs.back()->area);
         #endif
     }

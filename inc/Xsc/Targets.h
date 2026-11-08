@@ -32,6 +32,13 @@ enum class ShaderTarget
     GeometryShader,                 //!< Geometry shader.
     FragmentShader,                 //!< Fragment (also Pixel-) shader.
     ComputeShader,                  //!< Compute shader.
+
+    RayGenerationShader,            //!< Ray generation shader ([shader("raygeneration")]).
+    IntersectionShader,             //!< Intersection shader ([shader("intersection")]).
+    AnyHitShader,                   //!< Any-hit shader ([shader("anyhit")]).
+    ClosestHitShader,               //!< Closest-hit shader ([shader("closesthit")]).
+    MissShader,                     //!< Miss shader ([shader("miss")]).
+    CallableShader,                 //!< Callable shader ([shader("callable")]).
 };
 
 //! Input shader version enumeration.
@@ -102,6 +109,9 @@ XSC_DATA extern const char* const HLSL;       //!< "HLSL"    — Auto-detect HLS
 
 //! Returns the specified shader target as string.
 XSC_EXPORT std::string ToString(const ShaderTarget target);
+
+//! Returns true if the specified shader target is one of the six ray tracing pipeline stages.
+XSC_EXPORT bool IsRayTracingShaderTarget(const ShaderTarget target);
 
 //! Returns the specified shader input version as string.
 XSC_EXPORT std::string ToString(const InputShaderVersion shaderVersion);

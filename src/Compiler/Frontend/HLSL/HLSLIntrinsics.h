@@ -56,6 +56,9 @@ class HLSLIntrinsicAdept : public IntrinsicAdept
         // Returns the intrinsics map (Intrinsic name -> Intrinsic ID and minimum HLSL shader model).
         static const HLSLIntrinsicsMap& GetIntrinsicMap();
 
+        // Sets the built-in structures that intrinsics return ('RayHit' for RayTraceClosest and RayTraceAny) from the specified built-in declarations.
+        void SetBuiltInDecls(const std::vector<StmntPtr>& builtInStmnts);
+
     private:
 
         TypeDenoterPtr DeriveReturnType(const Intrinsic intrinsic, const std::vector<ExprPtr>& args) const;
@@ -76,10 +79,15 @@ class HLSLIntrinsicAdept : public IntrinsicAdept
         ) const;
 
         void DeriveParameterTypesMul(std::vector<TypeDenoterPtr>& paramTypeDenoters, const std::vector<ExprPtr>& args) const;
+        void DeriveParameterTypesRayTracing(std::vector<TypeDenoterPtr>& paramTypeDenoters, const Intrinsic intrinsic, const std::vector<ExprPtr>& args) const;
         void DeriveParameterTypesTranspose(std::vector<TypeDenoterPtr>& paramTypeDenoters, const std::vector<ExprPtr>& args) const;
         void DeriveParameterTypesFirstBit(std::vector<TypeDenoterPtr>& paramTypeDenoters, const std::vector<ExprPtr>& args, const Intrinsic intrinsic) const;
 
         BaseTypeDenoterPtr GetGenericTextureTypeFromPrefix(const Intrinsic intrinsic, const TypeDenoterPtr& prefixTypeDenoter) const;
+
+    private:
+
+        StructDecl* rayHitDecl_ = nullptr; // Built-in 'RayHit' structure; null without the HLSL6 built-in declarations.
 
 };
 

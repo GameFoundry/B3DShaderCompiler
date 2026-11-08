@@ -1012,6 +1012,116 @@ VarDecl* StructDecl::IndexToMemberVar(std::size_t idx, bool includeBaseStructs) 
 }
 
 
+/* ----- Scalar layout ----- */
+
+static int AlignScalarLayoutOffset(int offset, int alignment)
+{
+    return (alignment > 1 ? ((offset + alignment - 1) / alignment) * alignment : offset);
+}
+
+int GetScalarLayoutSize(const TypeDenoter& typeDenoter, int* alignment)
+{
+    const auto& type = typeDenoter.GetAliased();
+
+    if (auto baseType = type.As<BaseTypeDenoter>())
+    {
+        /* Without 16-bit types, DXC stores bool, half and min-precision types in 4 bytes */
+        int scalarSize = 0;
+        switch (BaseDataType(baseType->dataType))
+        {
+            case DataType::Bool:
+            case DataType::Int:
+            case DataType::UInt:
+            case DataType::Half:
+            case DataType::Float:
+                scalarSize = 4;
+                break;
+            case DataType::Double:
+                scalarSize = 8;
+                break;
+            default:
+                return -1;
+        }
+
+        int count = 1;
+        if (IsVectorType(baseType->dataType))
+            count = VectorTypeDim(baseType->dataType);
+        else if (IsMatrixType(baseType->dataType))
+        {
+            const auto dim = MatrixTypeDim(baseType->dataType);
+            count = dim.first * dim.second;
+        }
+
+        if (alignment)
+            *alignment = scalarSize;
+        return scalarSize * count;
+    }
+
+    if (auto arrayType = type.As<ArrayTypeDenoter>())
+    {
+        int elementAlignment = 1;
+        const int elementSize = (arrayType->subTypeDenoter ? GetScalarLayoutSize(*arrayType->subTypeDenoter, &elementAlignment) : -1);
+        if (elementSize < 0)
+            return -1;
+
+        int count = 1;
+        for (const auto& dim : arrayType->arrayDims)
+        {
+            if (!dim || dim->size <= 0)
+                return -1;
+            count *= dim->size;
+        }
+
+        if (alignment)
+            *alignment = elementAlignment;
+        return elementSize * count;
+    }
+
+    if (auto structType = type.As<StructTypeDenoter>())
+    {
+        if (structType->structDeclRef)
+            return GetScalarLayoutSize(*structType->structDeclRef, alignment);
+    }
+
+    return -1;
+}
+
+int GetScalarLayoutSize(const StructDecl& structDecl, int* alignment)
+{
+    int offset          = 0;
+    int structAlignment = 1;
+
+    /* Members of a base structure come first */
+    if (structDecl.baseStructRef)
+    {
+        offset = GetScalarLayoutSize(*structDecl.baseStructRef, &structAlignment);
+        if (offset < 0)
+            return -1;
+    }
+
+    for (const auto& varDeclStmnt : structDecl.varMembers)
+    {
+        if (varDeclStmnt->typeSpecifier->HasAnyStorageClassOf({ StorageClass::Static }))
+            continue;
+
+        for (const auto& varDecl : varDeclStmnt->varDecls)
+        {
+            int memberAlignment = 1;
+            const int memberSize = GetScalarLayoutSize(*varDecl->GetTypeDenoter(), &memberAlignment);
+            if (memberSize < 0)
+                return -1;
+
+            offset = AlignScalarLayoutOffset(offset, memberAlignment) + memberSize;
+            structAlignment = std::max(structAlignment, memberAlignment);
+        }
+    }
+
+    if (alignment)
+        *alignment = structAlignment;
+    return AlignScalarLayoutOffset(offset, structAlignment);
+}
+
+
 /* ----- AliasDecl ----- */
 
 TypeDenoterPtr AliasDecl::DeriveTypeDenoter(const TypeDenoter* /*expectedTypeDenoter*/)

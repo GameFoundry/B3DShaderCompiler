@@ -59,6 +59,7 @@ struct BackendDescriptor
     enum Feature : unsigned int
     {
         BindlessResources = (1u << 0),
+        RayTracing        = (1u << 1), // DXR ray tracing: entry points, intrinsics, acceleration structures and the inline built-ins.
     };
 
     // Backend features supported by this target-language variant.

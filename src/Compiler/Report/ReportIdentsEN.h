@@ -695,6 +695,32 @@ DECL_REPORT( InvalidExtensionType,              "invalid extension type[: '{0}']
 DECL_REPORT( ExpectedIdentInInitializer,        "expected identifier as initializer for object '{0}'");
 DECL_REPORT( InvalidTextureInitializerValue,    "invalid value '{0}' provided as initializer for texture '{1}'");
 
+/* ----- Ray tracing ----- */
+
+DECL_REPORT( RayQueryNotSupported,              "'RayQuery' isn't supported; use RayTraceClosest or RayTraceAny");
+DECL_REPORT( ShaderAttribOnlyOnFunctions,       "the 'shader' attribute is only allowed on global functions");
+DECL_REPORT( InvalidShaderAttribStage,          "the 'shader' attribute takes one of \"raygeneration\", \"intersection\", \"anyhit\", \"closesthit\", \"miss\" or \"callable\"");
+DECL_REPORT( DuplicateShaderAttrib,             "function '{0}' has more than one 'shader' attribute");
+DECL_REPORT( RayTracingEntryMissingShaderAttrib, "entry point '{0}' needs the attribute {1} for target '{2}'");
+DECL_REPORT( RayTracingEntryStageMismatch,      "entry point '{0}' is marked {1}, which doesn't match target '{2}'");
+DECL_REPORT( ShaderAttribOnNonRayTracingEntry,  "entry point '{0}' is marked {1}, but target '{2}' isn't a ray tracing stage (use rgen, rint, rahit, rchit, rmiss or rcall)");
+DECL_REPORT( RayTracingEntryMustReturnVoid,     "ray tracing entry point '{0}' must return void");
+DECL_REPORT( RayTracingEntrySignature,          "{0} entry point '{1}' must take {2}");
+DECL_REPORT( RayTracingStructNotNumeric,        "{0} '{1}' must be a struct that holds only numeric data");
+DECL_REPORT( RayTracingAttribTooLarge,          "attribute struct '{0}' is {1} bytes; ray tracing attributes are limited to 32 bytes");
+DECL_REPORT( RayTracingIntrinsicNeedsSuffix,    "'{0}' isn't supported, because DXC can't compile it for SPIR-V; use '{0}3x4' or '{0}4x3'");
+DECL_REPORT( IntrinsicNotAllowedInStage,        "'{0}' isn't available in stage '{1}'");
+DECL_REPORT( IntrinsicNotAllowedInCallback,     "'{0}' can't be used inside the ray tracing callback '{1}', because inline traversal can't nest");
+DECL_REPORT( InlineRayTraceArgCount,            "'{0}' takes 4 or 5 arguments (scene, rayFlags, instanceMask, ray, and optional callbacks), but got {1}");
+DECL_REPORT( InlineRayTraceArgType,             "argument {1} of '{0}' must be {2}, but it is '{3}'");
+DECL_REPORT( InlineRayTraceCallbacksNotLocal,   "the callbacks argument of '{0}' must be a local variable or a parameter");
+DECL_REPORT( InlineRayTraceCallbacksNotStruct,  "the callbacks argument of '{0}' must have a struct type declared at global scope, but it is '{1}'");
+DECL_REPORT( CallbacksStructWithoutMethods,     "callbacks struct '{0}' has neither an 'AnyHit' nor an 'Intersection' method");
+DECL_REPORT( CallbacksMethodSignature,          "'{0}::{1}' must be declared as '{2}'");
+DECL_REPORT( InlineRayTraceFlagNotAllowed,      "ray flag {1} can't be used with '{0}'; {2}");
+DECL_REPORT( RayTracingNotSupportedByTarget,    "ray tracing is not supported by output target '{0}'");
+DECL_REPORT( NotInlineRayTracingIntrinsic,      "expected the inline ray tracing built-in RayTraceClosest or RayTraceAny");
+
 // END BANSHEE CHANGES
 
 #endif

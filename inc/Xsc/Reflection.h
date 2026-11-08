@@ -10,6 +10,7 @@
 
 
 #include "Export.h"
+#include "Targets.h"
 #include <limits>
 #include <string>
 #include <map>
@@ -175,6 +176,8 @@ enum class BufferType
     TextureCubeArray,
     Texture2DMS,
     Texture2DMSArray,
+
+    RaytracingAccelerationStructure,
 };
 
 enum class DataType
@@ -449,6 +452,21 @@ struct Function
 
     //! List of all function parameters
     std::vector<Parameter> parameters;
+
+    //! Ray tracing stage from the function's [shader("...")] attribute, or ShaderTarget::Undefined if it has none.
+    ShaderTarget shaderTarget = ShaderTarget::Undefined;
+
+    /**
+     * Size in bytes of the payload a TraceRay caller passes along, received 'inout' by miss, closest hit and any hit
+     * functions. 0 for other functions.
+     */
+    int rayPayloadSize = 0;
+
+    /**
+     * Size in bytes of the hit attributes passed from the intersection test to closest hit and any hit functions (8 for
+     * triangles), or the largest struct an intersection function passes to ReportHit. 0 for other functions.
+     */
+    int hitAttributeSize = 0;
 };
 
 // END BANSHEE CHANGES
@@ -543,6 +561,12 @@ struct ReflectionData
 
     //! Storage buffer bindings.
     std::vector<BindingSlot>            storageBuffers;
+
+    //! Acceleration structure (RaytracingAccelerationStructure) bindings. They also appear in 'uniforms', but not in 'textures'.
+    std::vector<BindingSlot>            accelerationStructures;
+
+    //! True if RayTraceClosest or RayTraceAny is reachable from the entry point.
+    bool                                usesInlineRayTracing = false;
 
     //! Constant buffer bindings.
     std::vector<BindingSlot>            constantBuffers;

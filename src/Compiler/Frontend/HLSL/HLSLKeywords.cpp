@@ -315,6 +315,8 @@ static KeywordMapType GenerateKeywordMap()
         { "LineStream",              T::Buffer          },
         { "TriangleStream",          T::Buffer          },
 
+        { "RaytracingAccelerationStructure", T::Buffer  },
+
         { "cbuffer",                 T::UniformBuffer   },
         { "tbuffer",                 T::UniformBuffer   },
 
@@ -864,6 +866,8 @@ static Dictionary<BufferType> GenerateBufferTypeDict()
         { "PointStream",             T::PointStream             },
         { "LineStream",              T::LineStream              },
         { "TriangleStream",          T::TriangleStream          },
+
+        { "RaytracingAccelerationStructure", T::RaytracingAccelerationStructure },
     };
 }
 
@@ -954,6 +958,8 @@ static Dictionary<AttributeType> GenerateAttributeTypeDict()
         { "partitioning",              T::Partitioning              },
         { "patchsize",                 T::PatchSize                 },
         { "patchconstantfunc",         T::PatchConstantFunc         },
+
+        { "shader",                    T::Shader                    },
 
         #ifdef XSC_ENABLE_LANGUAGE_EXT
         { "space",                     T::Space                     },

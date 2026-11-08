@@ -51,6 +51,13 @@ public ref class XscCompiler
             GeometryShader,                 //!< Geometry shader.
             FragmentShader,                 //!< Fragment (also Pixel-) shader.
             ComputeShader,                  //!< Compute shader.
+
+            RayGenerationShader,            //!< Ray generation shader.
+            IntersectionShader,             //!< Intersection shader.
+            AnyHitShader,                   //!< Any-hit shader.
+            ClosestHitShader,               //!< Closest-hit shader.
+            MissShader,                     //!< Miss shader.
+            CallableShader,                 //!< Callable shader.
         };
 
         //! Input shader version enumeration.

@@ -30,6 +30,13 @@ enum XscShaderTarget
     XscETargetGeometryShader,               //!< Geometry shader.
     XscETargetFragmentShader,               //!< Fragment (also Pixel-) shader.
     XscETargetComputeShader,                //!< Compute shader.
+
+    XscETargetRayGenerationShader,          //!< Ray generation shader.
+    XscETargetIntersectionShader,           //!< Intersection shader.
+    XscETargetAnyHitShader,                 //!< Any-hit shader.
+    XscETargetClosestHitShader,             //!< Closest-hit shader.
+    XscETargetMissShader,                   //!< Miss shader.
+    XscETargetCallableShader,               //!< Callable shader.
 };
 
 //! Output shader version enumeration.

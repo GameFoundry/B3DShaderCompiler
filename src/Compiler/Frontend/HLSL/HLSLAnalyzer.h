@@ -136,6 +136,23 @@ class HLSLAnalyzer : public Analyzer
 
         void AnalyzeIntrinsicWrapperInlining(CallExpr* callExpr);
 
+        /* ----- Ray tracing ----- */
+
+        void AnalyzeShaderAttribute(FunctionDecl* funcDecl, bool isEntryPoint);
+        void AnalyzeRayTracingEntrySignature(FunctionDecl* funcDecl, const std::string& stageName);
+        void AnalyzeRayTracingStruct(VarDeclStmnt* param, const std::string& role, bool isAttribute);
+        void AnalyzeRayTracingTypeUsage(const TypeDenoter* typeDenoter);
+
+        void AnalyzeCallExprInlineRayTrace(CallExpr* callExpr, const HLSLIntrinsicEntry& intr);
+        bool AnalyzeInlineRayTraceCallbacks(CallExpr* callExpr, Expr* argExpr, InlineRayTraceUsage& usage);
+        FunctionDecl* AnalyzeCallbacksMethod(StructDecl* structDecl, const std::string& ident, bool isIntersection, bool& found);
+        void AnalyzeInlineRayTraceFlags(CallExpr* callExpr, Expr* flagsExpr);
+
+        bool IsLocalVariableOrParameter(const VarDecl* varDecl) const;
+        bool IsGlobalStructDecl(const StructDecl* structDecl) const;
+        bool TryEvaluateConstUInt(Expr& expr, unsigned long long& value);
+        StructDecl* FetchBuiltInStructDecl(const std::string& ident) const;
+
         /* ----- Object expressions ----- */
 
         void AnalyzeObjectExpr(ObjectExpr* expr, PrefixArgs* args);
@@ -271,6 +288,9 @@ class HLSLAnalyzer : public Analyzer
         bool                preferWrappers_             = false;
 
         std::set<VarDecl*>  varDeclSM3Semantics_;
+
+        std::map<std::string, StructDecl*>          builtInStructs_;            // Built-in structures (RayDesc, RayHit, ...) by identifier.
+        std::map<StructDecl*, InlineRayTraceUsage>  inlineRayTraceCallbacks_;   // Checked callbacks structures and their methods.
 
         std::map<std::string, StructDeclPtr>                 structTemplates_;
         std::map<std::string, std::vector<StructDeclPtr>>    structTemplateSpecializations_;

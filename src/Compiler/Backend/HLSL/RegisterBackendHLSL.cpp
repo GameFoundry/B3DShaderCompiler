@@ -28,8 +28,8 @@ void RegisterBackend_HLSL()
     BackendDescriptor hlsl6 { OutputShaderVersion::HLSL6, factory };
     BackendDescriptor hlsl  { OutputShaderVersion::HLSL,  factory };
 
-    hlsl6.features |= BackendDescriptor::BindlessResources;
-    hlsl.features  |= BackendDescriptor::BindlessResources;
+    hlsl6.features |= BackendDescriptor::BindlessResources | BackendDescriptor::RayTracing;
+    hlsl.features  |= BackendDescriptor::BindlessResources | BackendDescriptor::RayTracing;
 
     registry.Register(TargetLanguage::HLSL5, hlsl5);
     registry.Register(TargetLanguage::HLSL6, hlsl6);

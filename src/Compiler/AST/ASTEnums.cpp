@@ -843,6 +843,8 @@ static const std::map<BufferType, std::string> g_mapBufferType
     { BufferType::PointStream,             "PointStream"             },
     { BufferType::LineStream,              "LineStream"              },
     { BufferType::TriangleStream,          "TriangleStream"          },
+
+    { BufferType::RaytracingAccelerationStructure, "RaytracingAccelerationStructure" },
 };
 
 std::string BufferTypeToString(const BufferType t)
@@ -1210,7 +1212,17 @@ const std::vector<Intrinsic>& GetWrappedWaveIntrinsics()
 
 bool IsGlobalIntrinsic(const Intrinsic t)
 {
-    return (t >= Intrinsic::Abort && t <= Intrinsic::Trunc);
+    return (t >= Intrinsic::Abort && t <= Intrinsic::RayTraceAny);
+}
+
+bool IsRayTracingIntrinsic(const Intrinsic t)
+{
+    return (t >= Intrinsic::TraceRay && t <= Intrinsic::WorldToObject);
+}
+
+bool IsInlineRayTracingIntrinsic(const Intrinsic t)
+{
+    return (t == Intrinsic::RayTraceClosest || t == Intrinsic::RayTraceAny);
 }
 
 bool IsTextureIntrinsic(const Intrinsic t)

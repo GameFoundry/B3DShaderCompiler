@@ -34,8 +34,37 @@ void ReflectionPrinter::PrintReflection(const Reflection::ReflectionData& reflec
         PrintReflectionObjects  ( reflectionData.outputAttributes, "Output Attributes" );
         PrintReflectionObjects  ( reflectionData.samplerStates,    "Sampler States"    );
         PrintReflectionAttribute( reflectionData.numThreads,       "Number of Threads" );
+
+        /* Ray tracing sections only appear for programs that use ray tracing, so other output stays unchanged */
+        if (!reflectionData.accelerationStructures.empty())
+            PrintReflectionObjects(reflectionData.accelerationStructures, "Acceleration Structures", true);
+        PrintReflectionRayTracing(reflectionData);
     }
     indentHandler_.DecIndent();
+}
+
+void ReflectionPrinter::PrintReflectionRayTracing(const Reflection::ReflectionData& reflectionData)
+{
+    bool hasRayTracingFunctions = false;
+    for (const auto& function : reflectionData.functions)
+        hasRayTracingFunctions = hasRayTracingFunctions || (function.shaderTarget != ShaderTarget::Undefined);
+
+    if (!hasRayTracingFunctions && !reflectionData.usesInlineRayTracing)
+        return;
+
+    IndentOut() << "Ray Tracing:" << std::endl;
+    ScopedIndent indent(indentHandler_);
+
+    IndentOut() << "Inline ray tracing: " << (reflectionData.usesInlineRayTracing ? "used" : "unused") << std::endl;
+    for (const auto& function : reflectionData.functions)
+    {
+        if (function.shaderTarget != ShaderTarget::Undefined)
+        {
+            IndentOut()
+                << function.ident << ": " << ToString(function.shaderTarget)
+                << ", payload " << function.rayPayloadSize << " bytes, attributes " << function.hitAttributeSize << " bytes" << std::endl;
+        }
+    }
 }
 
 void ReflectionPrinter::PrintReflectionObjects(const Reflection::BindlessUsage& bindless, const std::string& title)

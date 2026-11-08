@@ -7,6 +7,8 @@
 
 #include "HLSLGenerator.h"
 #include "HLSLKeywords.h"
+#include "HLSLRayTracing.h"
+#include "InlineRayTracingHLSL.h"
 #include "TypeDenoter.h"
 #include "Exception.h"
 #include "Helper.h"
@@ -345,6 +347,18 @@ void HLSLGenerator::WriteFileHeader(const ShaderInput& inputDesc)
 
 IMPLEMENT_VISIT_PROC(Program)
 {
+    /* DXC doesn't know RayCandidate and RayHit; helpers without callbacks only need those types */
+    if (ast->usesInlineRayTracingTypes)
+    {
+        WriteLines(HLSLRayTracing::InlineTypes());
+
+        for (const auto& usage : ast->inlineRayTraces)
+        {
+            if (!usage.callbacksRef)
+                WriteLines(InlineRayTracingHLSL::Helper(usage.intrinsic, "", false, false));
+        }
+    }
+
     WriteStmntList(ast->globalStmnts, true);
 }
 
@@ -670,6 +684,22 @@ IMPLEMENT_VISIT_PROC(BasicDeclStmnt)
     {
         StructDeclArgs sa{ true };
         Visit(structDecl, &sa);
+
+        /* Inline ray tracing helpers that take this structure as callbacks follow its declaration */
+        if (auto program = GetProgram())
+        {
+            for (const auto& usage : program->inlineRayTraces)
+            {
+                if (usage.callbacksRef == structDecl)
+                {
+                    WriteLines(
+                        InlineRayTracingHLSL::Helper(
+                            usage.intrinsic, structDecl->ident, (usage.anyHitRef != nullptr), (usage.intersectionRef != nullptr)
+                        )
+                    );
+                }
+            }
+        }
     }
     else
     {
@@ -894,6 +924,20 @@ IMPLEMENT_VISIT_PROC(CallExpr)
     else if (auto loweredBarrierName = WarpBarrierIntrinsicToHLSLKeyword(*ast))
     {
         Write(*loweredBarrierName);
+    }
+    else if (IsInlineRayTracingIntrinsic(ast->intrinsic))
+    {
+        /* Inline ray tracing built-ins call the helper for their callbacks structure */
+        std::string callbacksIdent;
+        if (ast->arguments.size() == 5)
+        {
+            if (auto structTypeDen = ast->arguments[4]->GetTypeDenoter()->GetAliased().As<StructTypeDenoter>())
+            {
+                if (structTypeDen->structDeclRef)
+                    callbacksIdent = structTypeDen->structDeclRef->ident;
+            }
+        }
+        Write(InlineRayTracingHLSL::HelperName(ast->intrinsic, callbacksIdent));
     }
     else
     {
@@ -1134,6 +1178,20 @@ void HLSLGenerator::WriteRegister(const Register& reg)
     Write(")");
 }
 
+void HLSLGenerator::WriteLines(const std::string& text)
+{
+    std::size_t start = 0;
+    while (start < text.size())
+    {
+        const auto end = text.find('\n', start);
+        WriteLn(text.substr(start, (end == std::string::npos ? std::string::npos : end - start)));
+        if (end == std::string::npos)
+            break;
+        start = end + 1;
+    }
+    Blank();
+}
+
 void HLSLGenerator::WriteAttributes(const std::vector<AttributePtr>& attribs)
 {
     for (auto& attr : attribs)
@@ -1263,9 +1321,16 @@ void HLSLGenerator::WriteParameter(VarDeclStmnt* paramStmnt)
 void HLSLGenerator::WriteFunction(FunctionDecl* funcDecl)
 {
     /* Attribute prefix (e.g. [numthreads(8,8,1)] for CS).
-       FunctionDecl attributes live on the wrapping BasicDeclStmnt (Stmnt::attribs). */
+       FunctionDecl attributes live on the wrapping BasicDeclStmnt (Stmnt::attribs).
+       Only the selected entry point keeps [shader("...")]: a library compiled for one entry must export only that one. */
     if (funcDecl->declStmntRef)
-        WriteAttributes(funcDecl->declStmntRef->attribs);
+    {
+        for (auto& attr : funcDecl->declStmntRef->attribs)
+        {
+            if (attr && (attr->attributeType != AttributeType::Shader || funcDecl->flags(FunctionDecl::isEntryPoint)))
+                WriteAttribute(*attr);
+        }
+    }
 
     /* Return type + function name */
     BeginLn();

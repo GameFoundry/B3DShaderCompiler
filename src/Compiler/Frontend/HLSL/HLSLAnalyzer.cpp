@@ -8,6 +8,8 @@
 #include "HLSLAnalyzer.h"
 #include "HLSLIntrinsics.h"
 #include "HLSLKeywords.h"
+#include "HLSLRayTracing.h"
+#include "ExprEvaluator.h"
 #include "ASTCloner.h"
 #include "Exception.h"
 #include "Helper.h"
@@ -574,6 +576,18 @@ bool HLSLAnalyzer::InstantiateFunctionTemplate(CallExpr* callExpr)
 
 IMPLEMENT_VISIT_PROC(Program)
 {
+    /* Analyze the built-in declarations first, so the program resolves against them */
+    for (auto& stmnt : ast->builtInStmnts)
+    {
+        Visit(stmnt);
+
+        if (auto basicDeclStmnt = stmnt->As<BasicDeclStmnt>())
+        {
+            if (auto structDecl = basicDeclStmnt->declObject->As<StructDecl>())
+                builtInStructs_[structDecl->ident] = structDecl;
+        }
+    }
+
     CollectTemplateDeclarations(*ast);
 
     /* Analyze context of the entire program */
@@ -676,6 +690,7 @@ IMPLEMENT_VISIT_PROC(TypeSpecifier)
 {
     AnalyzeTemplateType(ast->typeDenoter, ast);
     AnalyzeTypeSpecifier(ast);
+    AnalyzeRayTracingTypeUsage(ast->typeDenoter.get());
 
     /* Strict-HLSL: reject the 'precise' type modifier. No portable cross-target
        equivalent exists (cross-target backends either lack precise entirely or
@@ -850,6 +865,9 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
         AnalyzeTypeDenoter(param->typeSpecifier->typeDenoter, param->typeSpecifier.get());
     }
 
+    /* Analyze ray tracing entry points ([shader("...")]) */
+    AnalyzeShaderAttribute(ast, isEntryPoint);
+
     /* Disallow opaque-bearing structs in entry-point I/O (in any form). */
     if (isEntryPoint || isSecondaryEntryPoint)
     {
@@ -912,6 +930,7 @@ IMPLEMENT_VISIT_PROC(BufferDeclStmnt)
     /* Analyze generic type */
     AnalyzeTemplateType(ast->typeDenoter->genericTypeDenoter, ast);
     AnalyzeTypeDenoter(ast->typeDenoter->genericTypeDenoter, ast);
+    AnalyzeRayTracingTypeUsage(ast->typeDenoter.get());
 
     /* Analyze buffer declarations */
     Visit(ast->bufferDecls);
@@ -1346,6 +1365,10 @@ IMPLEMENT_VISIT_PROC(AssignExpr)
 IMPLEMENT_VISIT_PROC(ObjectExpr)
 {
     AnalyzeObjectExpr(ast, reinterpret_cast<PrefixArgs*>(args));
+
+    /* The built-in constants (RAY_FLAG_*, HIT_KIND_*) only exist on ray tracing targets */
+    if (program_ && ast->symbolRef && ast->symbolRef->flags(AST::isRayTracingBuiltin))
+        program_->usesRayTracing = true;
 }
 
 IMPLEMENT_VISIT_PROC(ArrayExpr)
@@ -1634,15 +1657,21 @@ void HLSLAnalyzer::AnalyzeCallExprPrimary(CallExpr* callExpr, const TypeDenoter*
         /* Then analyze function name */
         if (!callExpr->ident.empty())
         {
-            /* Is this an intrinsic function call? */
+            /* Is this an intrinsic function call? A structure's member function wins over an intrinsic with the same name */
             auto intrIt = HLSLIntrinsicAdept::GetIntrinsicMap().find(callExpr->ident);
             const bool isIntrinsic =
             (
                 intrIt != HLSLIntrinsicAdept::GetIntrinsicMap().end() &&
+                (prefixTypeDenoter == nullptr || prefixTypeDenoter->As<StructTypeDenoter>() == nullptr) &&
                 (!IsByteAddressBufferIntrinsic(intrIt->second.intrinsic) || (prefixTypeDenoter && prefixTypeDenoter->As<BufferTypeDenoter>()))
             );
 
-            if (isIntrinsic)
+            if (isIntrinsic && IsInlineRayTracingIntrinsic(intrIt->second.intrinsic) && !prefixTypeDenoter)
+            {
+                /* Analyze inline ray tracing built-in, which takes any callbacks structure */
+                AnalyzeCallExprInlineRayTrace(callExpr, intrIt->second);
+            }
+            else if (isIntrinsic)
             {
                 /* Analyze function call of intrinsic */
                 AnalyzeCallExprIntrinsic(callExpr, intrIt->second, callExpr->isStatic, prefixTypeDenoter);
@@ -1780,6 +1809,31 @@ void HLSLAnalyzer::AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrin
 
     /* Decoarte function call with intrinsic ID */
     AnalyzeCallExprIntrinsicPrimary(callExpr, intr);
+
+    if (IsRayTracingIntrinsic(intrinsic) || IsInlineRayTracingIntrinsic(intrinsic))
+    {
+        if (program_)
+            program_->usesRayTracing = true;
+
+        /* DXC's SPIR-V path doesn't implement the unsuffixed forms */
+        if (intrinsic == Intrinsic::ObjectToWorld || intrinsic == Intrinsic::WorldToObject)
+            Error(R_RayTracingIntrinsicNeedsSuffix(callExpr->ident), callExpr);
+
+        /* Hit attributes are numeric and limited to 32 bytes, like the attribute parameters of hit shaders */
+        if (intrinsic == Intrinsic::ReportHit && callExpr->arguments.size() == 3)
+        {
+            auto attribExpr = callExpr->arguments[2].get();
+            const auto& attribType = attribExpr->GetTypeDenoter()->GetAliased();
+            const auto attribStructType = attribType.As<StructTypeDenoter>();
+            const auto attribStructDecl = (attribStructType ? attribStructType->structDeclRef : nullptr);
+            const int size = (attribStructDecl ? GetScalarLayoutSize(*attribStructDecl) : -1);
+            const std::string attribTypeName = (attribStructDecl ? attribStructDecl->ident : attribType.ToString());
+            if (size < 0)
+                Error(R_RayTracingStructNotNumeric("attribute struct", attribTypeName), attribExpr);
+            else if (size > 32)
+                Error(R_RayTracingAttribTooLarge(attribTypeName, std::to_string(size)), attribExpr);
+        }
+    }
 
     /* Strict-HLSL: reject mul(matrix, vector) and mul(vector, matrix) where the
        vector dimension is smaller than the matching matrix inner dimension.
@@ -2428,6 +2482,7 @@ bool HLSLAnalyzer::ResolveDescriptorHeapAccess(Expr* expr, const TypeDenoter& ex
                 case BufferType::TextureCubeArray:
                 case BufferType::Texture2DMS:
                 case BufferType::Texture2DMSArray:
+                case BufferType::RaytracingAccelerationStructure:
                     break;
                 case BufferType::AppendStructuredBuffer:
                 case BufferType::ConsumeStructuredBuffer:
@@ -2452,6 +2507,501 @@ bool HLSLAnalyzer::ResolveDescriptorHeapAccess(Expr* expr, const TypeDenoter& ex
     return true;
 }
 
+/* ----- Ray tracing ----- */
+
+struct RayTracingStageName
+{
+    const char*     name;
+    ShaderTarget    target;
+};
+
+static const RayTracingStageName g_rayTracingStageNames[] =
+{
+    { "raygeneration", ShaderTarget::RayGenerationShader },
+    { "intersection",  ShaderTarget::IntersectionShader  },
+    { "anyhit",        ShaderTarget::AnyHitShader        },
+    { "closesthit",    ShaderTarget::ClosestHitShader    },
+    { "miss",          ShaderTarget::MissShader          },
+    { "callable",      ShaderTarget::CallableShader      },
+};
+
+static std::string RayTracingStageToName(const ShaderTarget target)
+{
+    for (const auto& stage : g_rayTracingStageNames)
+    {
+        if (stage.target == target)
+            return stage.name;
+    }
+    return "";
+}
+
+static std::string ShaderAttributeString(const ShaderTarget target)
+{
+    return "[shader(\"" + RayTracingStageToName(target) + "\")]";
+}
+
+void HLSLAnalyzer::AnalyzeShaderAttribute(FunctionDecl* funcDecl, bool isEntryPoint)
+{
+    /* Find the stage from the 'shader' attribute */
+    std::size_t numShaderAttribs = 0;
+
+    for (const auto& attrib : funcDecl->declStmntRef->attribs)
+    {
+        if (attrib->attributeType != AttributeType::Shader)
+            continue;
+
+        if (program_)
+            program_->usesRayTracing = true;
+
+        if (++numShaderAttribs > 1)
+        {
+            Error(R_DuplicateShaderAttrib(funcDecl->ident), attrib.get());
+            continue;
+        }
+
+        if (funcDecl->IsMemberFunction())
+        {
+            Error(R_ShaderAttribOnlyOnFunctions, attrib.get());
+            continue;
+        }
+
+        const auto literalExpr = (attrib->arguments.size() == 1 ? attrib->arguments.front()->As<LiteralExpr>() : nullptr);
+        const auto stageName = (literalExpr ? literalExpr->GetStringValue() : std::string());
+
+        for (const auto& stage : g_rayTracingStageNames)
+        {
+            if (stageName == stage.name)
+                funcDecl->rayTracingStage = stage.target;
+        }
+
+        if (funcDecl->rayTracingStage == ShaderTarget::Undefined)
+            Error(R_InvalidShaderAttribStage, attrib.get());
+        else
+            AnalyzeRayTracingEntrySignature(funcDecl, stageName);
+    }
+
+    if (!isEntryPoint || funcDecl->IsForwardDecl())
+        return;
+
+    /* The selected entry point must have the 'shader' attribute exactly when the target is a ray tracing stage */
+    if (IsRayTracingShaderTarget(shaderTarget_))
+    {
+        if (program_)
+            program_->usesRayTracing = true;
+
+        if (numShaderAttribs == 0)
+            Error(R_RayTracingEntryMissingShaderAttrib(funcDecl->ident, ShaderAttributeString(shaderTarget_), ToString(shaderTarget_)), funcDecl);
+        else if (funcDecl->rayTracingStage != ShaderTarget::Undefined && funcDecl->rayTracingStage != shaderTarget_)
+            Error(R_RayTracingEntryStageMismatch(funcDecl->ident, ShaderAttributeString(funcDecl->rayTracingStage), ToString(shaderTarget_)), funcDecl);
+    }
+    else if (funcDecl->rayTracingStage != ShaderTarget::Undefined)
+        Error(R_ShaderAttribOnNonRayTracingEntry(funcDecl->ident, ShaderAttributeString(funcDecl->rayTracingStage), ToString(shaderTarget_)), funcDecl);
+}
+
+void HLSLAnalyzer::AnalyzeRayTracingEntrySignature(FunctionDecl* funcDecl, const std::string& stageName)
+{
+    if (!funcDecl->HasVoidReturnType())
+        Error(R_RayTracingEntryMustReturnVoid(funcDecl->ident), funcDecl);
+
+    /* Expected parameters: none, one 'inout' payload, or an 'inout' payload and 'in' attributes */
+    std::size_t numParams = 0;
+    std::string expectation = "no parameters";
+
+    switch (funcDecl->rayTracingStage)
+    {
+        case ShaderTarget::MissShader:
+            numParams   = 1;
+            expectation = "one 'inout' payload struct";
+            break;
+        case ShaderTarget::CallableShader:
+            numParams   = 1;
+            expectation = "one 'inout' parameter struct";
+            break;
+        case ShaderTarget::AnyHitShader:
+        case ShaderTarget::ClosestHitShader:
+            numParams   = 2;
+            expectation = "an 'inout' payload struct, then an 'in' attribute struct";
+            break;
+        default:
+            break;
+    }
+
+    auto& params = funcDecl->parameters;
+    bool valid = (params.size() == numParams);
+
+    auto isStructParam = [](VarDeclStmnt* param)
+    {
+        const auto& typeDen = param->typeSpecifier->GetTypeDenoter()->GetAliased();
+        return (typeDen.As<StructTypeDenoter>() != nullptr && param->varDecls.size() == 1 && param->varDecls.front()->arrayDims.empty());
+    };
+
+    if (valid && numParams >= 1)
+        valid = (params[0]->IsInput() && params[0]->IsOutput() && isStructParam(params[0].get()));
+    if (valid && numParams >= 2)
+        valid = (params[1]->IsInput() && !params[1]->IsOutput() && isStructParam(params[1].get()));
+
+    if (!valid)
+    {
+        Error(R_RayTracingEntrySignature(stageName, funcDecl->ident, expectation), funcDecl);
+        return;
+    }
+
+    /* Payloads and attributes are copied between stages, so they can only hold numeric data */
+    if (numParams >= 1)
+        AnalyzeRayTracingStruct(params[0].get(), (funcDecl->rayTracingStage == ShaderTarget::CallableShader ? "callable parameter" : "payload"), false);
+    if (numParams >= 2)
+        AnalyzeRayTracingStruct(params[1].get(), "attribute struct", true);
+}
+
+void HLSLAnalyzer::AnalyzeRayTracingStruct(VarDeclStmnt* param, const std::string& role, bool isAttribute)
+{
+    const auto& typeDen = param->typeSpecifier->GetTypeDenoter()->GetAliased();
+    const auto structTypeDen = typeDen.As<StructTypeDenoter>();
+    if (!structTypeDen || !structTypeDen->structDeclRef)
+        return;
+
+    const auto structDecl = structTypeDen->structDeclRef;
+    const int size = GetScalarLayoutSize(*structDecl);
+
+    if (size < 0)
+        Error(R_RayTracingStructNotNumeric(role, structDecl->ident), param);
+    else if (isAttribute && size > 32)
+        Error(R_RayTracingAttribTooLarge(structDecl->ident, std::to_string(size)), param);
+}
+
+void HLSLAnalyzer::AnalyzeRayTracingTypeUsage(const TypeDenoter* typeDenoter)
+{
+    if (!typeDenoter || !program_)
+        return;
+
+    try
+    {
+        const auto* type = &(typeDenoter->GetAliased());
+        if (auto arrayType = type->As<ArrayTypeDenoter>())
+            type = (arrayType->subTypeDenoter ? &(arrayType->subTypeDenoter->GetAliased()) : nullptr);
+
+        if (!type)
+            return;
+
+        /* Acceleration structures and the built-in structures (RayDesc, RayHit, ...) only exist on ray tracing targets */
+        if (auto bufferType = type->As<BufferTypeDenoter>())
+        {
+            if (bufferType->bufferType == BufferType::RaytracingAccelerationStructure)
+                program_->usesRayTracing = true;
+        }
+        else if (auto structType = type->As<StructTypeDenoter>())
+        {
+            if (auto structDecl = structType->structDeclRef)
+            {
+                if (structDecl->flags(AST::isRayTracingBuiltin))
+                {
+                    program_->usesRayTracing = true;
+                    if (structDecl->ident == "RayCandidate" || structDecl->ident == "RayHit")
+                        program_->usesInlineRayTracingTypes = true;
+                }
+            }
+        }
+    }
+    catch (const std::exception&)
+    {
+        /* Unresolved types are reported elsewhere */
+    }
+}
+
+void HLSLAnalyzer::AnalyzeCallExprInlineRayTrace(CallExpr* callExpr, const HLSLIntrinsicEntry& intr)
+{
+    const auto& ident = callExpr->ident;
+
+    if (program_)
+        program_->usesRayTracing = true;
+
+    if (callExpr->isStatic)
+        Error(R_IllegalStaticIntrinsicCall(ident), callExpr);
+
+    /* Check the shader model and decorate the call with the intrinsic ID */
+    AnalyzeCallExprIntrinsicPrimary(callExpr, intr);
+
+    /* The built-ins take and return built-in structures, which only HLSL6 input declares */
+    if (!FetchBuiltInStructDecl("RayHit"))
+        return;
+
+    if (program_)
+        program_->usesInlineRayTracingTypes = true;
+
+    auto& args = callExpr->arguments;
+    if (args.size() < 4 || args.size() > 5)
+    {
+        Error(R_InlineRayTraceArgCount(ident, std::to_string(args.size())), callExpr);
+        return;
+    }
+
+    /* Check the scene, flags, instance mask and ray */
+    {
+        const auto& sceneType = args[0]->GetTypeDenoter()->GetAliased();
+        const auto sceneBufferType = sceneType.As<BufferTypeDenoter>();
+        if (!sceneBufferType || sceneBufferType->bufferType != BufferType::RaytracingAccelerationStructure)
+            Error(R_InlineRayTraceArgType(ident, "1", "'RaytracingAccelerationStructure'", sceneType.ToString()), args[0].get());
+    }
+
+    for (std::size_t i = 1; i <= 2; ++i)
+    {
+        const auto& argType = args[i]->GetTypeDenoter()->GetAliased();
+        const auto baseType = argType.As<BaseTypeDenoter>();
+        if (!baseType || !IsScalarType(baseType->dataType) || !IsIntegralType(baseType->dataType))
+            Error(R_InlineRayTraceArgType(ident, std::to_string(i + 1), "a scalar integer", argType.ToString()), args[i].get());
+    }
+
+    {
+        const auto& rayType = args[3]->GetTypeDenoter()->GetAliased();
+        const auto rayStructType = rayType.As<StructTypeDenoter>();
+        if (!rayStructType || rayStructType->structDeclRef == nullptr || rayStructType->structDeclRef != FetchBuiltInStructDecl("RayDesc"))
+            Error(R_InlineRayTraceArgType(ident, "4", "'RayDesc'", rayType.ToString()), args[3].get());
+    }
+
+    /* Check the optional callbacks */
+    InlineRayTraceUsage usage;
+    usage.intrinsic = callExpr->intrinsic;
+
+    if (args.size() == 5 && !AnalyzeInlineRayTraceCallbacks(callExpr, args[4].get(), usage))
+        return;
+
+    AnalyzeInlineRayTraceFlags(callExpr, args[1].get());
+
+    /* Record one helper per built-in and callbacks structure */
+    if (program_)
+    {
+        for (const auto& existing : program_->inlineRayTraces)
+        {
+            if (existing.intrinsic == usage.intrinsic && existing.callbacksRef == usage.callbacksRef)
+                return;
+        }
+        program_->inlineRayTraces.push_back(usage);
+    }
+}
+
+bool HLSLAnalyzer::AnalyzeInlineRayTraceCallbacks(CallExpr* callExpr, Expr* argExpr, InlineRayTraceUsage& usage)
+{
+    const auto& ident = callExpr->ident;
+
+    /* The callbacks must be a local variable or a parameter, so they can be passed 'inout' and captured by reference */
+    const auto objectExpr = argExpr->As<ObjectExpr>();
+    const auto varDecl = (objectExpr && !objectExpr->prefixExpr ? objectExpr->FetchSymbol<VarDecl>() : nullptr);
+    if (!varDecl || !IsLocalVariableOrParameter(varDecl))
+    {
+        Error(R_InlineRayTraceCallbacksNotLocal(ident), argExpr);
+        return false;
+    }
+
+    /* Their type must be a structure declared at global scope, so the helpers can follow its declaration */
+    const auto& typeDen = argExpr->GetTypeDenoter()->GetAliased();
+    const auto structTypeDen = typeDen.As<StructTypeDenoter>();
+    const auto structDecl = (structTypeDen ? structTypeDen->structDeclRef : nullptr);
+    if (!structDecl || !IsGlobalStructDecl(structDecl))
+    {
+        Error(R_InlineRayTraceCallbacksNotStruct(ident, typeDen.ToString()), argExpr);
+        return false;
+    }
+
+    /* Check each structure once */
+    auto it = inlineRayTraceCallbacks_.find(structDecl);
+    if (it == inlineRayTraceCallbacks_.end())
+    {
+        InlineRayTraceUsage methods;
+        methods.callbacksRef = structDecl;
+
+        bool foundAnyHit = false, foundIntersection = false;
+        methods.anyHitRef       = AnalyzeCallbacksMethod(structDecl, "AnyHit", false, foundAnyHit);
+        methods.intersectionRef = AnalyzeCallbacksMethod(structDecl, "Intersection", true, foundIntersection);
+
+        if (!foundAnyHit && !foundIntersection)
+            Error(R_CallbacksStructWithoutMethods(structDecl->ident), argExpr);
+
+        it = inlineRayTraceCallbacks_.insert({ structDecl, methods }).first;
+    }
+
+    usage.callbacksRef      = structDecl;
+    usage.anyHitRef         = it->second.anyHitRef;
+    usage.intersectionRef   = it->second.intersectionRef;
+
+    return (usage.anyHitRef != nullptr || usage.intersectionRef != nullptr);
+}
+
+FunctionDecl* HLSLAnalyzer::AnalyzeCallbacksMethod(StructDecl* structDecl, const std::string& ident, bool isIntersection, bool& found)
+{
+    std::vector<FunctionDecl*> methods;
+    for (const auto& funcDecl : structDecl->funcMembers)
+    {
+        if (funcDecl->ident == ident)
+            methods.push_back(funcDecl.get());
+    }
+
+    found = !methods.empty();
+    if (!found)
+        return nullptr;
+
+    /* Exactly one non-static overload: bool AnyHit(RayCandidate) or bool Intersection(RayCandidate, out float) */
+    auto funcDecl = methods.front();
+    bool valid = (methods.size() == 1 && !funcDecl->IsStatic() && funcDecl->parameters.size() == (isIntersection ? 2u : 1u));
+
+    if (valid)
+    {
+        const auto returnType = funcDecl->returnType->typeDenoter->GetAliased().As<BaseTypeDenoter>();
+        valid = (returnType != nullptr && returnType->dataType == DataType::Bool);
+    }
+
+    if (valid)
+    {
+        auto candidateParam = funcDecl->parameters[0].get();
+        const auto candidateType = candidateParam->typeSpecifier->GetTypeDenoter()->GetAliased().As<StructTypeDenoter>();
+        valid =
+        (
+            candidateParam->IsInput() && !candidateParam->IsOutput() &&
+            candidateType != nullptr && candidateType->structDeclRef != nullptr &&
+            candidateType->structDeclRef == FetchBuiltInStructDecl("RayCandidate") &&
+            candidateParam->varDecls.size() == 1 && candidateParam->varDecls.front()->arrayDims.empty()
+        );
+    }
+
+    if (valid && isIntersection)
+    {
+        auto distanceParam = funcDecl->parameters[1].get();
+        const auto distanceType = distanceParam->typeSpecifier->GetTypeDenoter()->GetAliased().As<BaseTypeDenoter>();
+        valid =
+        (
+            !distanceParam->IsInput() && distanceParam->IsOutput() &&
+            distanceType != nullptr && distanceType->dataType == DataType::Float &&
+            distanceParam->varDecls.size() == 1 && distanceParam->varDecls.front()->arrayDims.empty()
+        );
+    }
+
+    if (!valid)
+    {
+        const std::string expected =
+        (
+            isIntersection
+                ? "bool Intersection(RayCandidate candidate, out float t)"
+                : "bool AnyHit(RayCandidate candidate)"
+        );
+        Error(R_CallbacksMethodSignature(structDecl->ident, ident, expected), funcDecl);
+        return nullptr;
+    }
+
+    return funcDecl;
+}
+
+void HLSLAnalyzer::AnalyzeInlineRayTraceFlags(CallExpr* callExpr, Expr* flagsExpr)
+{
+    /* Runtime flags are masked by the generated code; only constant flags can be checked here */
+    unsigned long long flags = 0;
+    if (!TryEvaluateConstUInt(*flagsExpr, flags))
+        return;
+
+    struct DisallowedFlag
+    {
+        unsigned long long  bit;
+        const char*         name;
+        const char*         reason;
+    };
+
+    static const DisallowedFlag disallowedFlags[] =
+    {
+        { 0x004, "RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH", "use RayTraceAny to stop at the first hit"          },
+        { 0x008, "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER",         "inline ray tracing runs no closest-hit shader"     },
+        { 0x100, "RAY_FLAG_SKIP_TRIANGLES",                  "not supported on all backends"                     },
+    };
+
+    auto disallowed = (flags & ~static_cast<unsigned long long>(HLSLRayTracing::allowedRayFlags));
+
+    for (const auto& flag : disallowedFlags)
+    {
+        if ((disallowed & flag.bit) != 0)
+        {
+            Error(R_InlineRayTraceFlagNotAllowed(callExpr->ident, flag.name, flag.reason), flagsExpr);
+            disallowed &= ~flag.bit;
+        }
+    }
+
+    if (disallowed != 0)
+    {
+        std::stringstream bits;
+        bits << "0x" << std::hex << std::uppercase << disallowed;
+        Error(R_InlineRayTraceFlagNotAllowed(callExpr->ident, bits.str(), "it isn't one of the RAY_FLAG_* values the inline built-ins accept"), flagsExpr);
+    }
+}
+
+bool HLSLAnalyzer::IsLocalVariableOrParameter(const VarDecl* varDecl) const
+{
+    if (varDecl->IsParameter())
+        return true;
+
+    if (varDecl->IsStatic() || varDecl->structDeclRef || varDecl->bufferDeclRef || !varDecl->declStmntRef || !program_)
+        return false;
+
+    for (const auto& stmnt : program_->globalStmnts)
+    {
+        if (stmnt.get() == varDecl->declStmntRef)
+            return false;
+    }
+
+    return true;
+}
+
+bool HLSLAnalyzer::IsGlobalStructDecl(const StructDecl* structDecl) const
+{
+    if (!structDecl->declStmntRef || structDecl->isTemplate || !structDecl->templateSourceIdent.empty() || !program_)
+        return false;
+
+    for (const auto& stmnt : program_->globalStmnts)
+    {
+        if (stmnt.get() == structDecl->declStmntRef)
+            return true;
+    }
+
+    return false;
+}
+
+bool HLSLAnalyzer::TryEvaluateConstUInt(Expr& expr, unsigned long long& value)
+{
+    /* Constants are literals, 'const' variables with constant initializers, and expressions of them */
+    ExprEvaluator::OnObjectExprCallback evaluateObject;
+    evaluateObject = [&evaluateObject](ObjectExpr* objectExpr) -> Variant
+    {
+        if (auto varDecl = objectExpr->FetchVarDecl())
+        {
+            auto varDeclStmnt = varDecl->declStmntRef;
+            if (varDeclStmnt && !varDeclStmnt->flags(VarDeclStmnt::isParameter) && varDeclStmnt->typeSpecifier->IsConst() && varDecl->initializer)
+            {
+                ExprEvaluator initializerEvaluator;
+                return initializerEvaluator.Evaluate(*varDecl->initializer, evaluateObject);
+            }
+        }
+        throw std::runtime_error("not a constant expression");
+    };
+
+    try
+    {
+        ExprEvaluator evaluator;
+        auto result = evaluator.Evaluate(expr, evaluateObject);
+
+        /* Not '!result': Variant's operator! is the logical NOT of its value */
+        if (result.Type() == Variant::Types::Undefined)
+            return false;
+
+        value = static_cast<unsigned long long>(result.ToInt());
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+StructDecl* HLSLAnalyzer::FetchBuiltInStructDecl(const std::string& ident) const
+{
+    auto it = builtInStructs_.find(ident);
+    return (it != builtInStructs_.end() ? it->second : nullptr);
+}
+
 /* ----- Entry point ----- */
 
 void HLSLAnalyzer::AnalyzeEntryPoint(FunctionDecl* funcDecl)
@@ -2461,6 +3011,10 @@ void HLSLAnalyzer::AnalyzeEntryPoint(FunctionDecl* funcDecl)
     {
         /* Decorate AST root node with reference to entry point */
         program_->entryPointRef = funcDecl;
+
+        /* Ray tracing stages have no semantics, and their payload and attribute parameters aren't stage inputs or outputs */
+        if (IsRayTracingShaderTarget(shaderTarget_))
+            return;
 
         /* Add all parameter structures to entry point */
         for (auto& param : funcDecl->parameters)

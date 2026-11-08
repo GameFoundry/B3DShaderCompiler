@@ -115,6 +115,9 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // Writes any attached attributes preceding a declaration (e.g. "[unroll]", "[numthreads(8,8,1)]").
         virtual void WriteAttributes(const std::vector<AttributePtr>& attribs);
 
+        // Writes the specified multi-line text at the current indentation, followed by a blank line.
+        void WriteLines(const std::string& text);
+
         // Writes one attribute (e.g. "[unroll]", "[branch]", "[numthreads(8,8,1)]").
         virtual void WriteAttribute(const Attribute& attrib);
 

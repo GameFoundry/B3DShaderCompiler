@@ -61,8 +61,19 @@ XSC_EXPORT std::string ToString(const ShaderTarget target)
         case ShaderTarget::TessellationControlShader:       return "Tessellation-Control Shader";
         case ShaderTarget::TessellationEvaluationShader:    return "Tessellation-Evaluation Shader";
         case ShaderTarget::ComputeShader:                   return "Compute Shader";
+        case ShaderTarget::RayGenerationShader:             return "Ray Generation Shader";
+        case ShaderTarget::IntersectionShader:              return "Intersection Shader";
+        case ShaderTarget::AnyHitShader:                    return "Any-Hit Shader";
+        case ShaderTarget::ClosestHitShader:                return "Closest-Hit Shader";
+        case ShaderTarget::MissShader:                      return "Miss Shader";
+        case ShaderTarget::CallableShader:                  return "Callable Shader";
     }
     return "";
+}
+
+XSC_EXPORT bool IsRayTracingShaderTarget(const ShaderTarget target)
+{
+    return (target >= ShaderTarget::RayGenerationShader && target <= ShaderTarget::CallableShader);
 }
 
 XSC_EXPORT std::string ToString(const InputShaderVersion shaderVersion)

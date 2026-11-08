@@ -40,6 +40,16 @@ if(NOT DEFINED XSC_EXTRA_FLAGS)
     set(XSC_EXTRA_FLAGS "")
 endif()
 
+# Optional checks of the generated source and of the printed reflection:
+#   EXPECT_REGEX                   must match the generated source
+#   EXPECT_ABSENT_REGEX            must not match the generated source
+#   EXPECT_ENTRY_SHADER_ATTRIBUTE  ON: a ray tracing entry point has the only [shader("...")] attribute in the source,
+#                                  and other entry points leave none
+#   REFLECT_REGEX                  xsc runs with --reflect, and its output must match
+if(DEFINED REFLECT_REGEX)
+    list(APPEND XSC_EXTRA_FLAGS --reflect)
+endif()
+
 file(MAKE_DIRECTORY "${OUT_DIR}")
 
 get_filename_component(SHADER_NAME "${SHADER}" NAME_WE)
@@ -75,11 +85,32 @@ if(NOT EXISTS "${XSC_OUTPUT}")
     message(FATAL_ERROR "xsc did not produce expected file: ${XSC_OUTPUT}")
 endif()
 
-if(DEFINED EXPECT_REGEX)
-    file(READ "${XSC_OUTPUT}" GENERATED_HLSL)
-    if(NOT GENERATED_HLSL MATCHES "${EXPECT_REGEX}")
-        message(FATAL_ERROR "generated HLSL did not match /${EXPECT_REGEX}/:\n${GENERATED_HLSL}")
+file(READ "${XSC_OUTPUT}" GENERATED_HLSL)
+if(DEFINED EXPECT_REGEX AND NOT GENERATED_HLSL MATCHES "${EXPECT_REGEX}")
+    message(FATAL_ERROR "generated HLSL did not match /${EXPECT_REGEX}/:\n${GENERATED_HLSL}")
+endif()
+
+if(DEFINED EXPECT_ABSENT_REGEX AND GENERATED_HLSL MATCHES "${EXPECT_ABSENT_REGEX}")
+    message(FATAL_ERROR "generated HLSL unexpectedly matched /${EXPECT_ABSENT_REGEX}/:\n${GENERATED_HLSL}")
+endif()
+
+if(EXPECT_ENTRY_SHADER_ATTRIBUTE)
+    # Counted by length: a list of "[shader(" matches is one element, since '[' stops ';' from separating them
+    string(REPLACE "[shader(" "" _withoutShaderAttributes "${GENERATED_HLSL}")
+    string(LENGTH "${GENERATED_HLSL}" _sourceLength)
+    string(LENGTH "${_withoutShaderAttributes}" _sourceLengthWithout)
+    math(EXPR _shaderAttributeCount "(${_sourceLength} - ${_sourceLengthWithout}) / 8")
+    if(XSC_STAGE MATCHES "^(rgen|rint|rahit|rchit|rmiss|rcall)$")
+        if(NOT _shaderAttributeCount EQUAL 1 OR NOT GENERATED_HLSL MATCHES "\\[shader\\(\"[a-z]+\"\\)\\][\r\n\t ]*void ${ENTRY}\\(")
+            message(FATAL_ERROR "expected exactly one [shader] attribute, on '${ENTRY}', but found ${_shaderAttributeCount}:\n${GENERATED_HLSL}")
+        endif()
+    elseif(NOT _shaderAttributeCount EQUAL 0)
+        message(FATAL_ERROR "expected no [shader] attribute for stage '${XSC_STAGE}', but found ${_shaderAttributeCount}:\n${GENERATED_HLSL}")
     endif()
+endif()
+
+if(DEFINED REFLECT_REGEX AND NOT XSC_OUT MATCHES "${REFLECT_REGEX}")
+    message(FATAL_ERROR "xsc reflection did not match /${REFLECT_REGEX}/:\n${XSC_OUT}")
 endif()
 
 if(DXC)
