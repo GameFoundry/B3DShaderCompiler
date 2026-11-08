@@ -28,7 +28,10 @@ namespace InlineRayTracingHLSL
 struct FieldUsage
 {
     // Returns true if the field with the specified identifier is read.
-    bool Reads(const std::string& field) const;
+    bool Reads(const std::string& field) const
+    {
+        return (allFields || fields.find(field) != fields.end());
+    }
 
     bool                    allFields = false;  // Every field is read.
     std::set<std::string>   fields;             // Identifiers of the fields read by member access.
@@ -38,7 +41,7 @@ struct FieldUsage
 Returns the name of the helper for the specified built-in and optional callbacks struct. 'intrinsic' must be
 Intrinsic::RayTraceClosest or Intrinsic::RayTraceAny; any other intrinsic throws std::invalid_argument.
 */
-std::string HelperName(const Intrinsic intrinsic, const std::string& callbacksIdent);
+XSC_EXPORT std::string HelperName(const Intrinsic intrinsic, const std::string& callbacksIdent);
 
 /*
 Returns the helper function that implements the specified built-in with a RayQuery loop. 'intrinsic' must be

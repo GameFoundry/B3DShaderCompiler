@@ -104,11 +104,6 @@ void AppendCandidate(std::string& s, const FieldUsage& usage, bool isTriangle)
 } // /namespace
 
 
-bool FieldUsage::Reads(const std::string& field) const
-{
-    return (allFields || fields.find(field) != fields.end());
-}
-
 std::string HelperName(const Intrinsic intrinsic, const std::string& callbacksIdent)
 {
     std::string name;

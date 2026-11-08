@@ -1817,7 +1817,11 @@ void HLSLAnalyzer::AnalyzeCallExprIntrinsic(CallExpr* callExpr, const HLSLIntrin
     if (IsRayTracingIntrinsic(intrinsic) || IsInlineRayTracingIntrinsic(intrinsic))
     {
         if (program_)
+        {
             program_->usesRayTracing = true;
+            if (IsRayTracingIntrinsic(intrinsic))
+                program_->usesRayTracingPipelines = true;
+        }
 
         /* DXC's SPIR-V path doesn't implement the unsuffixed forms */
         if (intrinsic == Intrinsic::ObjectToWorld || intrinsic == Intrinsic::WorldToObject)
@@ -2555,7 +2559,10 @@ void HLSLAnalyzer::AnalyzeShaderAttribute(FunctionDecl* funcDecl, bool isEntryPo
             continue;
 
         if (program_)
+        {
             program_->usesRayTracing = true;
+            program_->usesRayTracingPipelines = true;
+        }
 
         if (++numShaderAttribs > 1)
         {
@@ -2591,7 +2598,10 @@ void HLSLAnalyzer::AnalyzeShaderAttribute(FunctionDecl* funcDecl, bool isEntryPo
     if (IsRayTracingShaderTarget(shaderTarget_))
     {
         if (program_)
+        {
             program_->usesRayTracing = true;
+            program_->usesRayTracingPipelines = true;
+        }
 
         if (numShaderAttribs == 0)
             Error(R_RayTracingEntryMissingShaderAttrib(funcDecl->ident, ShaderAttributeString(shaderTarget_), ToString(shaderTarget_)), funcDecl);

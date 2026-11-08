@@ -416,6 +416,7 @@ struct Program : public AST
     std::vector<Reflection::BindlessBinding> bindlessBindings;      // Backend-generated binding ABI, populated during generation.
 
     bool                                usesRayTracing  = false;    // Ray tracing types, intrinsics, entry points or built-ins appear anywhere in the source.
+    bool                                usesRayTracingPipelines = false; // Ray tracing entry points ('shader' attributes or stages) or DXR pipeline intrinsics appear anywhere in the source.
     bool                                usesInlineRayTracingTypes = false; // RayCandidate or RayHit is used anywhere in the source.
     std::vector<InlineRayTraceUsage>    inlineRayTraces;            // Distinct pairs of inline ray tracing built-in and callbacks struct, in first-use order.
 

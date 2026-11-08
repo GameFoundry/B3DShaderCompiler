@@ -719,7 +719,9 @@ DECL_REPORT( CallbacksStructWithoutMethods,     "callbacks struct '{0}' has neit
 DECL_REPORT( CallbacksMethodSignature,          "'{0}::{1}' must be declared as '{2}'");
 DECL_REPORT( InlineRayTraceFlagNotAllowed,      "ray flag {1} can't be used with '{0}'; {2}");
 DECL_REPORT( RayTracingNotSupportedByTarget,    "ray tracing is not supported by output target '{0}'");
+DECL_REPORT( RayTracingPipelinesNotSupportedByTarget, "ray tracing pipelines (ray tracing stages, the 'shader' attribute and TraceRay-style intrinsics) are not supported by output target '{0}'; only RayTraceClosest and RayTraceAny are");
 DECL_REPORT( NotInlineRayTracingIntrinsic,      "expected the inline ray tracing built-in RayTraceClosest or RayTraceAny");
+DECL_REPORT( MissingCandidateFieldUsage,        "missing RayCandidate field usage of callback method '{0}'");
 
 // END BANSHEE CHANGES
 

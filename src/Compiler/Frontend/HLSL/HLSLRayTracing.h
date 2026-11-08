@@ -9,6 +9,7 @@
 #define XSC_HLSL_RAY_TRACING_H
 
 
+#include <Xsc/Export.h>
 #include <string>
 
 
@@ -24,7 +25,7 @@ namespace HLSLRayTracing
 static const unsigned int allowedRayFlags = 0x2F3;
 
 // Returns the predeclared ray tracing declarations as HLSL text.
-const std::string& BuiltInDeclarations();
+XSC_EXPORT const std::string& BuiltInDeclarations();
 
 // Returns the declarations of RayCandidate and RayHit as HLSL text, a part of BuiltInDeclarations().
 const std::string& InlineTypes();

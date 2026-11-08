@@ -274,8 +274,10 @@ bool Compiler::CompileShaderPrimary(
     if (program->usesRayTracing)
     {
         const auto* backend = BackendRegistry::Instance().Find(outputDesc.targetLanguage);
-        if (!backend || (backend->features & BackendDescriptor::RayTracing) == 0)
+        if (!backend || (backend->features & BackendDescriptor::InlineRayTracing) == 0)
             return ReturnWithError(R_RayTracingNotSupportedByTarget(outputDesc.targetLanguage));
+        if (program->usesRayTracingPipelines && (backend->features & BackendDescriptor::RayTracingPipelines) == 0)
+            return ReturnWithError(R_RayTracingPipelinesNotSupportedByTarget(outputDesc.targetLanguage));
 
         /* Check the ray tracing stage rules on everything the entry point reaches, independently of the output backend */
         ReferenceAnalyzer referenceAnalyzer(log_);

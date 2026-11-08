@@ -177,6 +177,23 @@ class XSC_EXPORT HLSLGenerator : public Generator
         bool emitPushConstantHLSLBinding_  = false;
         bool emitVulkanAttributes_         = false;
 
+        /* === Inline ray tracing === */
+
+        // Writes the declarations the inline ray tracing helpers and the program need before the first global statement.
+        virtual void WriteRayTracingDeclarations(const Program& program);
+
+        /*
+        Returns the helper function that implements the specified inline ray tracing built-in call. 'anyHitFields' and
+        'intersectionFields' are the RayCandidate fields that the callbacks struct's AnyHit and Intersection methods read,
+        or null if the struct has no such method. 'hitFields' are the RayHit fields that the program reads.
+        */
+        virtual std::string InlineRayTraceHelperText(
+            const InlineRayTraceUsage&              usage,
+            const InlineRayTracingHLSL::FieldUsage* anyHitFields,
+            const InlineRayTracingHLSL::FieldUsage* intersectionFields,
+            const InlineRayTracingHLSL::FieldUsage& hitFields
+        ) const;
+
         /* --- Visit procs derived backends override --- */
 
         DECL_VISIT_PROC( UniformBufferDecl );
@@ -238,8 +255,8 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // Hidden nodes should be skipped during HLSL emission to keep round-trip output close to the input.
         bool IsHidden(const AST* ast) const;
 
-        // Returns the helper function for the specified inline ray tracing built-in and callbacks struct.
-        std::string InlineRayTraceHelper(const InlineRayTraceUsage& usage) const;
+        // Writes the helper function for the specified inline ray tracing built-in and callbacks struct.
+        void WriteInlineRayTraceHelper(const InlineRayTraceUsage& usage);
 
         /* --- Inline ray tracing --- */
 
