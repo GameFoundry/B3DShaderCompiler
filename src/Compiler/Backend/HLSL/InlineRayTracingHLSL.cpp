@@ -19,6 +19,96 @@ namespace InlineRayTracingHLSL
 {
 
 
+namespace
+{
+
+// A field of RayCandidate or RayHit, and the RayQuery method that returns its value.
+struct FieldQuery
+{
+    const char* field;
+    const char* query;
+};
+
+// RayCandidate fields of every candidate.
+const FieldQuery candidateFields[] =
+{
+    { "InstanceIndex",                       "CandidateInstanceIndex"                       },
+    { "InstanceID",                          "CandidateInstanceID"                          },
+    { "InstanceContributionToHitGroupIndex", "CandidateInstanceContributionToHitGroupIndex" },
+    { "GeometryIndex",                       "CandidateGeometryIndex"                       },
+    { "PrimitiveIndex",                      "CandidatePrimitiveIndex"                      },
+    { "ObjectRayOrigin",                     "CandidateObjectRayOrigin"                     },
+    { "ObjectRayDirection",                  "CandidateObjectRayDirection"                  },
+};
+
+// RayCandidate fields of triangle candidates only.
+const FieldQuery candidateTriangleFields[] =
+{
+    { "T",                                   "CandidateTriangleRayT"                        },
+    { "Barycentrics",                        "CandidateTriangleBarycentrics"                },
+    { "FrontFace",                           "CandidateTriangleFrontFace"                   },
+};
+
+// RayHit fields of every committed hit (besides 'IsHit' and 'IsProcedural').
+const FieldQuery hitFieldQueries[] =
+{
+    { "T",                                   "CommittedRayT"                                },
+    { "InstanceIndex",                       "CommittedInstanceIndex"                       },
+    { "InstanceID",                          "CommittedInstanceID"                          },
+    { "InstanceContributionToHitGroupIndex", "CommittedInstanceContributionToHitGroupIndex" },
+    { "GeometryIndex",                       "CommittedGeometryIndex"                       },
+    { "PrimitiveIndex",                      "CommittedPrimitiveIndex"                      },
+    { "ObjectToWorld",                       "CommittedObjectToWorld3x4"                    },
+    { "WorldToObject",                       "CommittedWorldToObject3x4"                    },
+};
+
+// RayHit fields of committed triangle hits only.
+const FieldQuery hitTriangleFieldQueries[] =
+{
+    { "Barycentrics",                        "CommittedTriangleBarycentrics"                },
+    { "FrontFace",                           "CommittedTriangleFrontFace"                   },
+};
+
+// Appends an assignment for each of the specified fields that is read.
+template <std::size_t N>
+void AppendFieldQueries(std::string& s, const std::string& indent, const char* ident, const FieldQuery (&queries)[N], const FieldUsage& usage)
+{
+    for (const auto& query : queries)
+    {
+        if (usage.Reads(query.field))
+            s += indent + ident + "." + query.field + " = query." + query.query + "();\n";
+    }
+}
+
+template <std::size_t N>
+bool ReadsAny(const FieldQuery (&queries)[N], const FieldUsage& usage)
+{
+    for (const auto& query : queries)
+    {
+        if (usage.Reads(query.field))
+            return true;
+    }
+    return false;
+}
+
+// Appends the declaration of the candidate and the assignments of the fields that are read.
+void AppendCandidate(std::string& s, const FieldUsage& usage, bool isTriangle)
+{
+    const std::string indent = "            ";
+    s += indent + "RayCandidate candidate = (RayCandidate)0;\n";
+    AppendFieldQueries(s, indent, "candidate", candidateFields, usage);
+    if (isTriangle)
+        AppendFieldQueries(s, indent, "candidate", candidateTriangleFields, usage);
+}
+
+} // /namespace
+
+
+bool FieldUsage::Reads(const std::string& field) const
+{
+    return (allFields || fields.find(field) != fields.end());
+}
+
 std::string HelperName(const Intrinsic intrinsic, const std::string& callbacksIdent)
 {
     std::string name;
@@ -39,10 +129,17 @@ std::string HelperName(const Intrinsic intrinsic, const std::string& callbacksId
     return name;
 }
 
-std::string Helper(const Intrinsic intrinsic, const std::string& callbacksIdent, bool hasAnyHit, bool hasIntersection)
+std::string Helper(
+    const Intrinsic     intrinsic,
+    const std::string&  callbacksIdent,
+    const FieldUsage*   anyHitFields,
+    const FieldUsage*   intersectionFields,
+    const FieldUsage&   hitFields)
 {
     /* Also checks that the intrinsic is one of the two built-ins */
     const std::string name = HelperName(intrinsic, callbacksIdent);
+
+    const bool hasIntersection = (intersectionFields != nullptr);
 
     /* RayTraceAny stops at the first accepted hit; without an Intersection callback, procedural primitives are skipped */
     std::string templateFlags;
@@ -68,27 +165,13 @@ std::string Helper(const Intrinsic intrinsic, const std::string& callbacksIdent,
     s += "    while (query.Proceed())\n";
     s += "    {\n";
 
-    // TODO - We should verify that the compiler will optimize away unused entries.
-    if (hasAnyHit || hasIntersection)
-    {
-        s += "        RayCandidate candidate = (RayCandidate)0;\n";
-        s += "        candidate.InstanceIndex = query.CandidateInstanceIndex();\n";
-        s += "        candidate.InstanceID = query.CandidateInstanceID();\n";
-        s += "        candidate.InstanceContributionToHitGroupIndex = query.CandidateInstanceContributionToHitGroupIndex();\n";
-        s += "        candidate.GeometryIndex = query.CandidateGeometryIndex();\n";
-        s += "        candidate.PrimitiveIndex = query.CandidatePrimitiveIndex();\n";
-        s += "        candidate.ObjectRayOrigin = query.CandidateObjectRayOrigin();\n";
-        s += "        candidate.ObjectRayDirection = query.CandidateObjectRayDirection();\n";
-    }
-
+    /* Each branch fills only the candidate fields its callback reads (DXC's SPIR-V output keeps unused queries) */
     s += "        if (query.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)\n";
     s += "        {\n";
 
-    if (hasAnyHit)
+    if (anyHitFields)
     {
-        s += "            candidate.T = query.CandidateTriangleRayT();\n";
-        s += "            candidate.Barycentrics = query.CandidateTriangleBarycentrics();\n";
-        s += "            candidate.FrontFace = query.CandidateTriangleFrontFace();\n";
+        AppendCandidate(s, *anyHitFields, true);
         s += "            if (callbacks.AnyHit(candidate))\n";
         s += "                query.CommitNonOpaqueTriangleHit();\n";
     }
@@ -97,10 +180,11 @@ std::string Helper(const Intrinsic intrinsic, const std::string& callbacksIdent,
 
     s += "        }\n";
 
-    if (hasIntersection)
+    if (intersectionFields)
     {
         s += "        else\n";
         s += "        {\n";
+        AppendCandidate(s, *intersectionFields, false);
         s += "            float t;\n";
         s += "            if (callbacks.Intersection(candidate, t) && t >= query.RayTMin() && t <= query.CommittedRayT())\n";
         s += "                query.CommitProceduralPrimitiveHit(t);\n";
@@ -109,25 +193,37 @@ std::string Helper(const Intrinsic intrinsic, const std::string& callbacksIdent,
 
     s += "    }\n";
     s += "\n";
+    /* Fill only the hit fields the program reads; 'IsHit' and 'IsProcedural' also guard the fields that depend on them */
+    const bool readsTriangleFields  = ReadsAny(hitTriangleFieldQueries, hitFields);
+    const bool readsProcedural      = (readsTriangleFields || hitFields.Reads("IsProcedural"));
+    const bool readsCommittedFields = (readsProcedural || ReadsAny(hitFieldQueries, hitFields));
+
     s += "    RayHit hit = (RayHit)0;\n";
-    s += "    hit.IsHit = query.CommittedStatus() != COMMITTED_NOTHING;\n";
-    s += "    if (hit.IsHit)\n";
-    s += "    {\n";
-    s += "        hit.IsProcedural = query.CommittedStatus() == COMMITTED_PROCEDURAL_PRIMITIVE_HIT;\n";
-    s += "        hit.T = query.CommittedRayT();\n";
-    s += "        hit.InstanceIndex = query.CommittedInstanceIndex();\n";
-    s += "        hit.InstanceID = query.CommittedInstanceID();\n";
-    s += "        hit.InstanceContributionToHitGroupIndex = query.CommittedInstanceContributionToHitGroupIndex();\n";
-    s += "        hit.GeometryIndex = query.CommittedGeometryIndex();\n";
-    s += "        hit.PrimitiveIndex = query.CommittedPrimitiveIndex();\n";
-    s += "        hit.ObjectToWorld = query.CommittedObjectToWorld3x4();\n";
-    s += "        hit.WorldToObject = query.CommittedWorldToObject3x4();\n";
-    s += "        if (!hit.IsProcedural)\n";
-    s += "        {\n";
-    s += "            hit.Barycentrics = query.CommittedTriangleBarycentrics();\n";
-    s += "            hit.FrontFace = query.CommittedTriangleFrontFace();\n";
-    s += "        }\n";
-    s += "    }\n";
+
+    if (readsCommittedFields || hitFields.Reads("IsHit"))
+        s += "    hit.IsHit = query.CommittedStatus() != COMMITTED_NOTHING;\n";
+
+    if (readsCommittedFields)
+    {
+        s += "    if (hit.IsHit)\n";
+        s += "    {\n";
+
+        if (readsProcedural)
+            s += "        hit.IsProcedural = query.CommittedStatus() == COMMITTED_PROCEDURAL_PRIMITIVE_HIT;\n";
+
+        AppendFieldQueries(s, "        ", "hit", hitFieldQueries, hitFields);
+
+        if (readsTriangleFields)
+        {
+            s += "        if (!hit.IsProcedural)\n";
+            s += "        {\n";
+            AppendFieldQueries(s, "            ", "hit", hitTriangleFieldQueries, hitFields);
+            s += "        }\n";
+        }
+
+        s += "    }\n";
+    }
+
     s += "    return hit;\n";
     s += "}\n";
 

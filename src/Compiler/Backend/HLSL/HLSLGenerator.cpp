@@ -8,7 +8,7 @@
 #include "HLSLGenerator.h"
 #include "HLSLKeywords.h"
 #include "HLSLRayTracing.h"
-#include "InlineRayTracingHLSL.h"
+#include "InlineRayTracingFieldAnalyzer.h"
 #include "TypeDenoter.h"
 #include "Exception.h"
 #include "Helper.h"
@@ -350,12 +350,26 @@ IMPLEMENT_VISIT_PROC(Program)
     /* DXC doesn't know RayCandidate and RayHit; helpers without callbacks only need those types */
     if (ast->usesInlineRayTracingTypes)
     {
+        /* The helpers fill only the RayCandidate and RayHit fields that are read */
+        InlineRayTracingFieldAnalyzer fieldAnalyzer(*ast);
+        inlineRayTraceHitFields_ = fieldAnalyzer.AnalyzeHitFields();
+        inlineRayTraceCandidateFields_.clear();
+
+        for (const auto& usage : ast->inlineRayTraces)
+        {
+            for (auto method : { usage.anyHitRef, usage.intersectionRef })
+            {
+                if (method && inlineRayTraceCandidateFields_.find(method) == inlineRayTraceCandidateFields_.end())
+                    inlineRayTraceCandidateFields_[method] = fieldAnalyzer.AnalyzeCandidateFields(method);
+            }
+        }
+
         WriteLines(HLSLRayTracing::InlineTypes());
 
         for (const auto& usage : ast->inlineRayTraces)
         {
             if (!usage.callbacksRef)
-                WriteLines(InlineRayTracingHLSL::Helper(usage.intrinsic, "", false, false));
+                WriteLines(InlineRayTraceHelper(usage));
         }
     }
 
@@ -691,13 +705,7 @@ IMPLEMENT_VISIT_PROC(BasicDeclStmnt)
             for (const auto& usage : program->inlineRayTraces)
             {
                 if (usage.callbacksRef == structDecl)
-                {
-                    WriteLines(
-                        InlineRayTracingHLSL::Helper(
-                            usage.intrinsic, structDecl->ident, (usage.anyHitRef != nullptr), (usage.intersectionRef != nullptr)
-                        )
-                    );
-                }
+                    WriteLines(InlineRayTraceHelper(usage));
             }
         }
     }
@@ -1518,6 +1526,29 @@ void HLSLGenerator::WriteScopedStmnt(Stmnt* ast)
 bool HLSLGenerator::IsHidden(const AST* /*ast*/) const
 {
     return false;
+}
+
+std::string HLSLGenerator::InlineRayTraceHelper(const InlineRayTraceUsage& usage) const
+{
+    auto FetchCandidateFields = [this](const FunctionDecl* method) -> const InlineRayTracingHLSL::FieldUsage*
+    {
+        if (!method)
+            return nullptr;
+
+        auto it = inlineRayTraceCandidateFields_.find(method);
+        if (it == inlineRayTraceCandidateFields_.end())
+            throw std::logic_error(R_MissingCandidateFieldUsage(method->ident));
+
+        return &(it->second);
+    };
+
+    return InlineRayTracingHLSL::Helper(
+        usage.intrinsic,
+        (usage.callbacksRef ? usage.callbacksRef->ident : std::string()),
+        FetchCandidateFields(usage.anyHitRef),
+        FetchCandidateFields(usage.intersectionRef),
+        inlineRayTraceHitFields_
+    );
 }
 
 

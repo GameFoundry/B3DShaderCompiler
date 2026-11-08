@@ -16,6 +16,8 @@
 #include "Visitor.h"
 #include "Token.h"
 #include "ASTEnums.h"
+#include "InlineRayTracingHLSL.h"
+#include <map>
 
 
 namespace Xsc
@@ -235,6 +237,14 @@ class XSC_EXPORT HLSLGenerator : public Generator
         // Returns whether the given AST node is a hidden "compiler-built" node (e.g. dummy entry-points).
         // Hidden nodes should be skipped during HLSL emission to keep round-trip output close to the input.
         bool IsHidden(const AST* ast) const;
+
+        // Returns the helper function for the specified inline ray tracing built-in and callbacks struct.
+        std::string InlineRayTraceHelper(const InlineRayTraceUsage& usage) const;
+
+        /* --- Inline ray tracing --- */
+
+        InlineRayTracingHLSL::FieldUsage                                inlineRayTraceHitFields_;       // RayHit fields the program reads.
+        std::map<const FunctionDecl*, InlineRayTracingHLSL::FieldUsage> inlineRayTraceCandidateFields_; // RayCandidate fields each callback method reads.
 
 };
 
