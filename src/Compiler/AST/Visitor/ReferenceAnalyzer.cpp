@@ -148,6 +148,7 @@ ReferenceAnalyzer::ReferenceAnalyzer(Log* log) :
 bool ReferenceAnalyzer::ValidateRayTracing(Program& program, const ShaderTarget shaderTarget)
 {
     validateRayTracing_ = true;
+    usesRayTracingPipelines_ = IsRayTracingShaderTarget(shaderTarget);
 
     try
     {
@@ -193,6 +194,18 @@ void ReferenceAnalyzer::MarkReferencesFromEntryPoint(Program& program, const Sha
     /* Visit types required by compiler-generated bindless declarations. */
     for (const auto& resource : program.bindlessResourceTypes)
         MarkTypeDenoterReferences(resource.type.get());
+}
+
+void ReferenceAnalyzer::MarkReferencesFromGlobalVariables(Program& program, const ShaderTarget shaderTarget)
+{
+    program_        = (&program);
+    shaderTarget_   = shaderTarget;
+
+    for (const auto& stmt : program.globalStmnts)
+    {
+        if (auto varDeclStmnt = stmt->As<VarDeclStmnt>())
+            Visit(varDeclStmnt);
+    }
 }
 
 
@@ -410,6 +423,9 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
                 Visit(funcForwardDecl);
         }
 
+        if (validateRayTracing_ && ast->rayTracingStage != ShaderTarget::Undefined)
+            usesRayTracingPipelines_ = true;
+
         PushFunctionDecl(ast);
         {
             VISIT_DEFAULT(FunctionDecl);
@@ -485,14 +501,18 @@ IMPLEMENT_VISIT_PROC(PostUnaryExpr)
 
 IMPLEMENT_VISIT_PROC(CallExpr)
 {
-    /* Check the ray tracing rules, then visit the callback methods of inline ray tracing calls as if they were called here */
+    /* Check the ray tracing rules */
     if (validateRayTracing_ && ast->intrinsic != Intrinsic::Undefined)
     {
         CheckRayTracingIntrinsic(ast->intrinsic, ast->ident, ast);
 
-        if (IsInlineRayTracingIntrinsic(ast->intrinsic) && callbackStack_.empty())
-            VisitInlineRayTraceCallbacks(ast);
+        if (IsRayTracingIntrinsic(ast->intrinsic))
+            usesRayTracingPipelines_ = true;
     }
+
+    /* Inline ray tracing calls run the methods of their callbacks structure, so visit those as if they were called here */
+    if (IsInlineRayTracingIntrinsic(ast->intrinsic) && callbackStack_.empty())
+        VisitInlineRayTraceCallbacks(ast);
 
     /* Don't use forward declaration for call stack */
     if (auto funcDecl = ast->GetFunctionImpl())

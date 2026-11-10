@@ -130,9 +130,8 @@ float4 PS(float4 position : SV_Position) : SV_Target0
     return TraceAll(MakeRay(position.xy));
 }
 
-// Targets without ray tracing pipelines compile only the inline tracing entries
-#ifndef INLINE_RAY_TRACING_ONLY
-
+// A pipeline entry next to the inline ones. Targets without ray tracing pipelines still compile the inline entries,
+// because only what the compiled entry point reaches counts.
 struct Payload
 {
     float4 color;
@@ -149,5 +148,3 @@ void ClosestHit(inout Payload payload, in BuiltInTriangleIntersectionAttributes 
 
     payload.color = TraceAll(ray) * attribs.barycentrics.x;
 }
-
-#endif

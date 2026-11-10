@@ -9,6 +9,7 @@
 #include "HLSLKeywords.h"
 #include "HLSLRayTracing.h"
 #include "InlineRayTracingFieldAnalyzer.h"
+#include "ReferenceAnalyzer.h"
 #include "TypeDenoter.h"
 #include "Exception.h"
 #include "Helper.h"
@@ -249,6 +250,14 @@ void HLSLGenerator::GenerateCodePrimary(
         if (emitPushConstantHLSLBinding_)
             ValidatePushConstantHLSLBinding(program);
 
+        /*
+        Only the functions the entry point reaches are written. Global variables are all written, so the functions
+        their initializers call are kept too.
+        */
+        ReferenceAnalyzer referenceAnalyzer;
+        referenceAnalyzer.MarkReferencesFromEntryPoint(program, inputDesc.shaderTarget);
+        referenceAnalyzer.MarkReferencesFromGlobalVariables(program, inputDesc.shaderTarget);
+
         WriteFileHeader(inputDesc);
 
         /* Visit program AST as-is (no further AST rewriting is performed for HLSL output) */
@@ -486,6 +495,9 @@ IMPLEMENT_VISIT_PROC(SamplerDecl)
 
 IMPLEMENT_VISIT_PROC(FunctionDecl)
 {
+    if (!ast->flags(AST::isReachable))
+        return;
+
     WriteFunction(ast);
     Blank();
 }
@@ -1555,6 +1567,13 @@ std::string HLSLGenerator::InlineRayTraceHelperText(
 
 void HLSLGenerator::WriteInlineRayTraceHelper(const InlineRayTraceUsage& usage)
 {
+    /* The helper calls the callbacks struct's methods, which are only written for a call the entry point reaches */
+    for (auto method : { usage.anyHitRef, usage.intersectionRef })
+    {
+        if (method && !method->flags(AST::isReachable))
+            return;
+    }
+
     auto FetchCandidateFields = [this](const FunctionDecl* method) -> const InlineRayTracingHLSL::FieldUsage*
     {
         if (!method)

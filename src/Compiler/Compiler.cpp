@@ -276,12 +276,17 @@ bool Compiler::CompileShaderPrimary(
         const auto* backend = BackendRegistry::Instance().Find(outputDesc.targetLanguage);
         if (!backend || (backend->features & BackendDescriptor::InlineRayTracing) == 0)
             return ReturnWithError(R_RayTracingNotSupportedByTarget(outputDesc.targetLanguage));
-        if (program->usesRayTracingPipelines && (backend->features & BackendDescriptor::RayTracingPipelines) == 0)
-            return ReturnWithError(R_RayTracingPipelinesNotSupportedByTarget(outputDesc.targetLanguage));
 
-        /* Check the ray tracing stage rules on everything the entry point reaches, independently of the output backend */
+        /*
+        Check the ray tracing stage rules on everything the entry point reaches, independently of the output backend.
+        Pipeline constructs only count when the entry point reaches them, so a source can hold entries of both kinds.
+        */
         ReferenceAnalyzer referenceAnalyzer(log_);
-        if (!referenceAnalyzer.ValidateRayTracing(*program, inputDesc.shaderTarget))
+        const bool rayTracingValid = referenceAnalyzer.ValidateRayTracing(*program, inputDesc.shaderTarget);
+
+        if (referenceAnalyzer.UsesRayTracingPipelines() && (backend->features & BackendDescriptor::RayTracingPipelines) == 0)
+            return ReturnWithError(R_RayTracingPipelinesNotSupportedByTarget(outputDesc.targetLanguage));
+        if (!rayTracingValid)
             return ReturnWithError(R_AnalyzingSourceFailed);
     }
 

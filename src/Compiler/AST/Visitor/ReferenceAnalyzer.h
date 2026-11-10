@@ -27,7 +27,8 @@ which are used (or rather referenced) from the beginning of the shader entry poi
 All other functions will be ignored by the code generator.
 
 For ray tracing programs it also checks, on everything the entry point reaches, which intrinsics each stage allows and
-what inline ray tracing callbacks can't do. It works on the AST the HLSL front end builds, independently of the output backend.
+what inline ray tracing callbacks can't do, and whether the entry point needs ray tracing pipelines. It works on the AST
+the HLSL front end builds, independently of the output backend.
 */
 class ReferenceAnalyzer : private VisitorTracker
 {
@@ -36,14 +37,32 @@ class ReferenceAnalyzer : private VisitorTracker
 
         ReferenceAnalyzer(Log* log = nullptr);
 
-        // Marks all declarational AST nodes (i.e. function decl, structure decl etc.) that are reachable from the specififed entry point.
+        /*
+        Marks all declarational AST nodes (i.e. function decl, structure decl etc.) that are reachable from the specified entry point,
+        including the callback methods that RayTraceClosest and RayTraceAny calls run.
+        */
         void MarkReferencesFromEntryPoint(Program& program, const ShaderTarget shaderTarget);
 
         /*
-        Marks references like MarkReferencesFromEntryPoint, and checks the ray tracing rules on everything the entry point reaches,
-        including the callback methods of RayTraceClosest and RayTraceAny calls. Returns false if an error was reported.
+        Marks all declarational AST nodes that the global variables of the program reference, such as a function an initializer calls.
+        For outputs that also write the variables the entry point doesn't reach.
+        */
+        void MarkReferencesFromGlobalVariables(Program& program, const ShaderTarget shaderTarget);
+
+        /*
+        Marks references like MarkReferencesFromEntryPoint, and checks the ray tracing rules on everything the entry point reaches.
+        Returns false if an error was reported.
         */
         bool ValidateRayTracing(Program& program, const ShaderTarget shaderTarget);
+
+        /*
+        Returns true if the target of the last ValidateRayTracing call is a ray tracing stage, or its entry point reaches a
+        'shader' attribute or DXR pipeline intrinsic.
+        */
+        inline bool UsesRayTracingPipelines() const
+        {
+            return usesRayTracingPipelines_;
+        }
 
     private:
 
@@ -105,6 +124,7 @@ class ReferenceAnalyzer : private VisitorTracker
         Program*                    program_            = nullptr;
         ShaderTarget                shaderTarget_       = ShaderTarget::VertexShader;
         bool                        validateRayTracing_ = false;
+        bool                        usesRayTracingPipelines_ = false;
 
         std::vector<CallExpr*>      callExprStack_;
         std::vector<FunctionDecl*>  callbackStack_;     // Inline ray tracing callback methods being visited, innermost last.

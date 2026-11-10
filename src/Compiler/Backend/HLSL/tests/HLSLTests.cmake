@@ -300,6 +300,51 @@ if(DXC_EXECUTABLE)
     endforeach()
 endif()
 
+# --- Reachable functions ---
+# The output holds only the functions the entry point reaches, plus those the initializers of global variables call.
+if(DXC_EXECUTABLE)
+    set(_REACHABLE_TARGETS HLSL6)
+    if(_DXC_HELP MATCHES "-spirv")
+        list(APPEND _REACHABLE_TARGETS HLSL6VK)
+    endif()
+
+    foreach(_target IN LISTS _REACHABLE_TARGETS)
+        string(TOLOWER "${_target}" _reachablePrefix)
+        set(_reachablePrefix "${_reachablePrefix}_roundtrip")
+        if(_target STREQUAL "HLSL6VK")
+            set(_reachableOutDir "${_HLSL_OUT_DIR}/hlsl6vk")
+            set(_reachableDefines -DDXC=${DXC_EXECUTABLE} -DXSC_OUTPUT_TARGET=HLSL6VK -DDXC_EXTRA_FLAGS=-spirv@-fspv-target-env=vulkan1.3)
+        else()
+            set(_reachableOutDir "${_HLSL_OUT_DIR}")
+            set(_reachableDefines -DDXC=${DXC_EXECUTABLE})
+        endif()
+
+        xsc_add_roundtrip_tests(
+            PREFIX         ${_reachablePrefix}
+            DRIVER         ${_HLSL_DRIVER}
+            SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+            OUT_DIR        ${_reachableOutDir}
+            LABELS         "hlsl-roundtrip;reachable"
+            DEFINES        ${_reachableDefines} "-DEXPECT_REGEX=float Scale\\(.*float InitializerValue\\(.*float4 PS\\("
+                           "-DEXPECT_ABSENT_REGEX=OtherHelper|PSOther"
+            PROFILE_DEFINE FXC_PROFILE
+            CASES          "ReachableFunctions|PS|ps_6_6|frag"
+        )
+
+        xsc_add_roundtrip_tests(
+            PREFIX         ${_reachablePrefix}
+            DRIVER         ${_HLSL_DRIVER}
+            SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+            OUT_DIR        ${_reachableOutDir}
+            LABELS         "hlsl-roundtrip;reachable"
+            DEFINES        ${_reachableDefines} "-DEXPECT_REGEX=float InitializerValue\\(.*float4 OtherHelper\\(.*float4 PSOther\\("
+                           "-DEXPECT_ABSENT_REGEX=float Scale\\(|float4 PS\\("
+            PROFILE_DEFINE FXC_PROFILE
+            CASES          "ReachableFunctions|PSOther|ps_6_6|frag"
+        )
+    endforeach()
+endif()
+
 # Ray tracing rejections, one diagnostic per compile. Pipe-delimited: shader|entry|stage|case macro|expected diagnostic
 # regex[|extra xsc flags, '@'-separated]. The regex can't contain '|' or ';'.
 set(XSC_HLSL_RAYTRACING_REJECT_CASES
