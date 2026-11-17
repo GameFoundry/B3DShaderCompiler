@@ -10,6 +10,8 @@
 #include "ReportHandler.h"
 #include "AST.h"
 #include "ReportIdents.h"
+#include "ExprEvaluator.h"
+#include "HLSLRayTracing.h"
 #include <algorithm>
 
 
@@ -149,6 +151,10 @@ bool ReferenceAnalyzer::ValidateRayTracing(Program& program, const ShaderTarget 
 {
     validateRayTracing_ = true;
     usesRayTracingPipelines_ = IsRayTracingShaderTarget(shaderTarget);
+    usesRayTracingCallables_ = (shaderTarget == ShaderTarget::CallableShader);
+    usesRayTracingIntersection_ = (shaderTarget == ShaderTarget::IntersectionShader);
+    usesRayTracingRecursion_ = false;
+    usesRayTracingSkipTriangles_ = false;
 
     try
     {
@@ -508,6 +514,22 @@ IMPLEMENT_VISIT_PROC(CallExpr)
 
         if (IsRayTracingIntrinsic(ast->intrinsic))
             usesRayTracingPipelines_ = true;
+
+        if (ast->intrinsic == Intrinsic::CallShader)
+            usesRayTracingCallables_ = true;
+        else if (ast->intrinsic == Intrinsic::ReportHit)
+            usesRayTracingIntersection_ = true;
+        else if (ast->intrinsic == Intrinsic::TraceRay)
+        {
+            if (shaderTarget_ != ShaderTarget::RayGenerationShader)
+                usesRayTracingRecursion_ = true;
+
+            /* Only constant flags can be checked; backends without the flag mask dynamic ones */
+            unsigned long long rayFlags = 0;
+            if (ast->arguments.size() > 1 && ExprEvaluator::TryEvaluateConstUInt(*ast->arguments[1], rayFlags) &&
+                (rayFlags & HLSLRayTracing::RayFlags::SkipTriangles) != 0)
+                usesRayTracingSkipTriangles_ = true;
+        }
     }
 
     /* Inline ray tracing calls run the methods of their callbacks structure, so visit those as if they were called here */

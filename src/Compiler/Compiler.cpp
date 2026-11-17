@@ -286,6 +286,14 @@ bool Compiler::CompileShaderPrimary(
 
         if (referenceAnalyzer.UsesRayTracingPipelines() && (backend->features & BackendDescriptor::RayTracingPipelines) == 0)
             return ReturnWithError(R_RayTracingPipelinesNotSupportedByTarget(outputDesc.targetLanguage));
+        if (referenceAnalyzer.UsesRayTracingCallables() && (backend->features & BackendDescriptor::RayTracingCallables) == 0)
+            return ReturnWithError(R_RayTracingCallablesNotSupportedByTarget(outputDesc.targetLanguage));
+        if (referenceAnalyzer.UsesRayTracingIntersection() && (backend->features & BackendDescriptor::RayTracingIntersection) == 0)
+            return ReturnWithError(R_RayTracingIntersectionNotSupportedByTarget(outputDesc.targetLanguage));
+        if (referenceAnalyzer.UsesRayTracingRecursion() && (backend->features & BackendDescriptor::RayTracingRecursion) == 0)
+            return ReturnWithError(R_RayTracingRecursionNotSupportedByTarget(outputDesc.targetLanguage));
+        if (referenceAnalyzer.UsesRayTracingSkipTriangles() && (backend->features & BackendDescriptor::RayTracingSkipTriangles) == 0)
+            return ReturnWithError(R_RayTracingSkipTrianglesNotSupportedByTarget(outputDesc.targetLanguage));
         if (!rayTracingValid)
             return ReturnWithError(R_AnalyzingSourceFailed);
     }

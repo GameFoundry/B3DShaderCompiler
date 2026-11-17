@@ -2909,9 +2909,9 @@ void HLSLAnalyzer::AnalyzeInlineRayTraceFlags(CallExpr* callExpr, Expr* flagsExp
 
     static const DisallowedFlag disallowedFlags[] =
     {
-        { 0x004, "RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH", "use RayTraceAny to stop at the first hit"          },
-        { 0x008, "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER",         "inline ray tracing runs no closest-hit shader"     },
-        { 0x100, "RAY_FLAG_SKIP_TRIANGLES",                  "not supported on all backends"                     },
+        { HLSLRayTracing::RayFlags::AcceptFirstHitAndEndSearch, "RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH", "use RayTraceAny to stop at the first hit"      },
+        { HLSLRayTracing::RayFlags::SkipClosestHitShader,       "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER",         "inline ray tracing runs no closest-hit shader" },
+        { HLSLRayTracing::RayFlags::SkipTriangles,              "RAY_FLAG_SKIP_TRIANGLES",                  "not supported on all backends"                 },
     };
 
     auto disallowed = (flags & ~static_cast<unsigned long long>(HLSLRayTracing::allowedRayFlags));
@@ -2954,38 +2954,7 @@ bool HLSLAnalyzer::IsGlobalStructDecl(const StructDecl* structDecl) const
 
 bool HLSLAnalyzer::TryEvaluateConstUInt(Expr& expr, unsigned long long& value)
 {
-    /* Constants are literals, 'const' variables with constant initializers, and expressions of them */
-    ExprEvaluator::OnObjectExprCallback evaluateObject;
-    evaluateObject = [&evaluateObject](ObjectExpr* objectExpr) -> Variant
-    {
-        if (auto varDecl = objectExpr->FetchVarDecl())
-        {
-            auto varDeclStmnt = varDecl->declStmntRef;
-            if (varDeclStmnt && !varDeclStmnt->flags(VarDeclStmnt::isParameter) && varDeclStmnt->typeSpecifier->IsConst() && varDecl->initializer)
-            {
-                ExprEvaluator initializerEvaluator;
-                return initializerEvaluator.Evaluate(*varDecl->initializer, evaluateObject);
-            }
-        }
-        throw std::runtime_error("not a constant expression");
-    };
-
-    try
-    {
-        ExprEvaluator evaluator;
-        auto result = evaluator.Evaluate(expr, evaluateObject);
-
-        /* Not '!result': Variant's operator! is the logical NOT of its value */
-        if (result.Type() == Variant::Types::Undefined)
-            return false;
-
-        value = static_cast<unsigned long long>(result.ToInt());
-        return true;
-    }
-    catch (...)
-    {
-        return false;
-    }
+    return ExprEvaluator::TryEvaluateConstUInt(expr, value);
 }
 
 StructDecl* HLSLAnalyzer::FetchBuiltInStructDecl(const std::string& ident) const

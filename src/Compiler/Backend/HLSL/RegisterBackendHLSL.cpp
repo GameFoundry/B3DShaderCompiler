@@ -28,8 +28,14 @@ void RegisterBackend_HLSL()
     BackendDescriptor hlsl6 { OutputShaderVersion::HLSL6, factory };
     BackendDescriptor hlsl  { OutputShaderVersion::HLSL,  factory };
 
-    hlsl6.features |= BackendDescriptor::BindlessResources | BackendDescriptor::InlineRayTracing | BackendDescriptor::RayTracingPipelines;
-    hlsl.features  |= BackendDescriptor::BindlessResources | BackendDescriptor::InlineRayTracing | BackendDescriptor::RayTracingPipelines;
+    const unsigned int rayTracingPipelines =
+    (
+        BackendDescriptor::RayTracingPipelines | BackendDescriptor::RayTracingCallables | BackendDescriptor::RayTracingIntersection |
+        BackendDescriptor::RayTracingRecursion | BackendDescriptor::RayTracingSkipTriangles
+    );
+
+    hlsl6.features |= BackendDescriptor::BindlessResources | BackendDescriptor::InlineRayTracing | rayTracingPipelines;
+    hlsl.features  |= BackendDescriptor::BindlessResources | BackendDescriptor::InlineRayTracing | rayTracingPipelines;
 
     registry.Register(TargetLanguage::HLSL5, hlsl5);
     registry.Register(TargetLanguage::HLSL6, hlsl6);

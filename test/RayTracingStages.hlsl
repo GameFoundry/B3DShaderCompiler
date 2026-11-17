@@ -1,5 +1,5 @@
 // One entry point per ray tracing stage. Each compile keeps [shader] only on its own entry, and reflection reports
-// every stage with its payload and attribute sizes.
+// every stage with its payload and attribute sizes, and the system values of the compiled entry.
 
 struct Payload
 {
@@ -68,7 +68,7 @@ void ClosestHit(inout Payload payload, in BuiltInTriangleIntersectionAttributes 
 
     float3x4 objectToWorld = ObjectToWorld3x4();
     float4x3 worldToObject = WorldToObject4x3();
-    payload.color = float4(bary * hit.HitKind, objectToWorld[0][0] + worldToObject[0][0]);
+    payload.color = float4(bary * hit.HitKind, objectToWorld[0][0] + worldToObject[0][0] + ObjectToWorld4x3()[0][0] + WorldToObject3x4()[0][0]);
     payload.depth = hit.InstanceID + PrimitiveIndex() + GeometryIndex();
 }
 

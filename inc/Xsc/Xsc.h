@@ -164,8 +164,8 @@ struct Formatting
 \brief Slot assignment of compiler-generated bindless bindings.
 \remarks Every shader compiled with the same layout, set and start slot uses the same bindings, regardless of which
 descriptor heap types it accesses. Typed views of one heap that share a slot alias the same descriptors. Explicit
-source bindings must not use these slots. Backends that lower each heap to one descriptor buffer (PSSL) always use
-the start slot for the sampler heap and the slot after it for the resource heap.
+source bindings must not use these slots. Backends that lower each heap to one descriptor buffer always use the start
+slot for the sampler heap and the slot after it for the resource heap.
 */
 enum class BindlessBindingLayout
 {

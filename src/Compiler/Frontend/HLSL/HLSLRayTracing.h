@@ -20,9 +20,36 @@ namespace HLSLRayTracing
 {
 
 
-// Mask of the ray flags the inline built-ins (RayTraceClosest, RayTraceAny) accept: FORCE_OPAQUE, FORCE_NON_OPAQUE,
-// CULL_BACK_FACING_TRIANGLES, CULL_FRONT_FACING_TRIANGLES, CULL_OPAQUE, CULL_NON_OPAQUE and SKIP_PROCEDURAL_PRIMITIVES.
-static const unsigned int allowedRayFlags = 0x2F3;
+// Values of the RAY_FLAG_* constants, which match DXR.
+struct RayFlags
+{
+    enum : unsigned int
+    {
+        None                        = 0,
+        ForceOpaque                 = (1u << 0),
+        ForceNonOpaque              = (1u << 1),
+        AcceptFirstHitAndEndSearch  = (1u << 2),
+        SkipClosestHitShader        = (1u << 3),
+        CullBackFacingTriangles     = (1u << 4),
+        CullFrontFacingTriangles    = (1u << 5),
+        CullOpaque                  = (1u << 6),
+        CullNonOpaque               = (1u << 7),
+        SkipTriangles               = (1u << 8),
+        SkipProceduralPrimitives    = (1u << 9),
+    };
+};
+
+// Mask of the ray flags the inline built-ins (RayTraceClosest, RayTraceAny) accept.
+static const unsigned int allowedRayFlags =
+(
+    RayFlags::ForceOpaque               |
+    RayFlags::ForceNonOpaque            |
+    RayFlags::CullBackFacingTriangles   |
+    RayFlags::CullFrontFacingTriangles  |
+    RayFlags::CullOpaque                |
+    RayFlags::CullNonOpaque             |
+    RayFlags::SkipProceduralPrimitives
+);
 
 // Returns the predeclared ray tracing declarations as HLSL text.
 XSC_EXPORT const std::string& BuiltInDeclarations();

@@ -220,6 +220,34 @@ if(DXC_EXECUTABLE)
                            "RayTracingStages|Callable|lib_6_6|rcall"
         )
 
+        # The system values each entry reads, including the hit attributes, and none of the other entries'
+        foreach(_systemValues
+            "RayGen|rgen|DispatchRaysIndex DispatchRaysDimensions"
+            "Miss|rmiss|WorldRayOrigin WorldRayDirection RayTMin RayTCurrent RayFlags"
+            "ClosestHit|rchit|InstanceIndex InstanceID GeometryIndex PrimitiveIndex HitKind ObjectToWorld WorldToObject HitAttributes"
+            "AnyHit|rahit|HitKind HitAttributes"
+            "Intersection|rint|ObjectRayOrigin ObjectRayDirection RayTMin"
+            "Callable|rcall|DispatchRaysIndex")
+            string(REPLACE "|" ";" _parts "${_systemValues}")
+            list(GET _parts 0 _entry)
+            list(GET _parts 1 _stage)
+            list(GET _parts 2 _values)
+
+            xsc_add_roundtrip_tests(
+                PREFIX         ${_rtPrefix}_system_values
+                DRIVER         ${_HLSL_DRIVER}
+                SHADER_DIR     ${PROJECT_SOURCE_DIR}/test
+                OUT_DIR        ${_rtOutDir}/system_values
+                LABELS         "hlsl-roundtrip;raytracing;reflection"
+                DEFINES        ${_rtDefines} "-DREFLECT_REGEX=Callable Shader[^
+]*[
+ ]+System values of ${_entry}: ${_values}[
+]"
+                PROFILE_DEFINE FXC_PROFILE
+                CASES          "RayTracingStages|${_entry}|lib_6_6|${_stage}"
+            )
+        endforeach()
+
         # RayTraceClosest and RayTraceAny in compute, pixel and closest hit entries
         xsc_add_roundtrip_tests(
             PREFIX         ${_rtPrefix}

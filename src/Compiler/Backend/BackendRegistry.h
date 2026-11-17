@@ -61,6 +61,10 @@ struct BackendDescriptor
         BindlessResources   = (1u << 0),
         InlineRayTracing    = (1u << 1), // Acceleration structures, the ray tracing built-in types and constants, and the inline built-ins (RayTraceClosest, RayTraceAny).
         RayTracingPipelines = (1u << 2), // Ray tracing entry points (the shader attribute and stages) and the DXR pipeline intrinsics (TraceRay, ReportHit, ...).
+        RayTracingCallables = (1u << 3), // Callable entry points and CallShader. Needs RayTracingPipelines.
+        RayTracingIntersection = (1u << 4), // Intersection entry points and ReportHit. Needs RayTracingPipelines.
+        RayTracingRecursion = (1u << 5), // TraceRay outside ray generation entry points (from closest hit and miss). Needs RayTracingPipelines.
+        RayTracingSkipTriangles = (1u << 6), // RAY_FLAG_SKIP_TRIANGLES in TraceRay. Constant uses are rejected without it, and the backend masks dynamic ones.
     };
 
     // Backend features supported by this target-language variant.

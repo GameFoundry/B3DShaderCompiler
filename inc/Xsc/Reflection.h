@@ -441,6 +441,31 @@ struct Parameter
     int flags;
 };
 
+//! Ray tracing system values a ray tracing entry point reads, other than its payload, named after the DXR intrinsics.
+struct RayTracingSystemValues
+{
+    enum : unsigned int
+    {
+        DispatchRaysIndex       = (1u << 0),
+        DispatchRaysDimensions  = (1u << 1),
+        WorldRayOrigin          = (1u << 2),
+        WorldRayDirection       = (1u << 3),
+        ObjectRayOrigin         = (1u << 4),
+        ObjectRayDirection      = (1u << 5),
+        RayTMin                 = (1u << 6),
+        RayTCurrent             = (1u << 7),
+        RayFlags                = (1u << 8),
+        InstanceIndex           = (1u << 9),
+        InstanceID              = (1u << 10),
+        GeometryIndex           = (1u << 11),
+        PrimitiveIndex          = (1u << 12),
+        HitKind                 = (1u << 13),
+        ObjectToWorld           = (1u << 14), //!< ObjectToWorld3x4() or ObjectToWorld4x3().
+        WorldToObject           = (1u << 15), //!< WorldToObject3x4() or WorldToObject4x3().
+        HitAttributes           = (1u << 16), //!< The hit attributes parameter of a closest hit or any hit function.
+    };
+};
+
 //! A single function defined in the program
 struct Function
 {
@@ -467,6 +492,12 @@ struct Function
      * triangles), or the largest struct an intersection function passes to ReportHit. 0 for other functions.
      */
     int hitAttributeSize = 0;
+
+    /**
+     * Ray tracing system values (RayTracingSystemValues bits) the function and everything it calls read. Only filled for the
+     * entry point of a ray tracing stage; 0 for other functions.
+     */
+    unsigned int rayTracingSystemValues = 0;
 };
 
 // END BANSHEE CHANGES

@@ -64,6 +64,30 @@ class ReferenceAnalyzer : private VisitorTracker
             return usesRayTracingPipelines_;
         }
 
+        // Returns true if the target of the last ValidateRayTracing call is the callable stage, or its entry point reaches CallShader.
+        inline bool UsesRayTracingCallables() const
+        {
+            return usesRayTracingCallables_;
+        }
+
+        // Returns true if the target of the last ValidateRayTracing call is the intersection stage, or its entry point reaches ReportHit.
+        inline bool UsesRayTracingIntersection() const
+        {
+            return usesRayTracingIntersection_;
+        }
+
+        // Returns true if the entry point of the last ValidateRayTracing call reaches TraceRay, and its target isn't the ray generation stage.
+        inline bool UsesRayTracingRecursion() const
+        {
+            return usesRayTracingRecursion_;
+        }
+
+        // Returns true if the entry point of the last ValidateRayTracing call reaches a TraceRay call with constant flags that hold RAY_FLAG_SKIP_TRIANGLES.
+        inline bool UsesRayTracingSkipTriangles() const
+        {
+            return usesRayTracingSkipTriangles_;
+        }
+
     private:
 
         /*
@@ -125,6 +149,10 @@ class ReferenceAnalyzer : private VisitorTracker
         ShaderTarget                shaderTarget_       = ShaderTarget::VertexShader;
         bool                        validateRayTracing_ = false;
         bool                        usesRayTracingPipelines_ = false;
+        bool                        usesRayTracingCallables_ = false;
+        bool                        usesRayTracingIntersection_ = false;
+        bool                        usesRayTracingRecursion_ = false;
+        bool                        usesRayTracingSkipTriangles_ = false;
 
         std::vector<CallExpr*>      callExprStack_;
         std::vector<FunctionDecl*>  callbackStack_;     // Inline ray tracing callback methods being visited, innermost last.

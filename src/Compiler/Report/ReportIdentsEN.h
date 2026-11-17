@@ -720,6 +720,10 @@ DECL_REPORT( CallbacksMethodSignature,          "'{0}::{1}' must be declared as 
 DECL_REPORT( InlineRayTraceFlagNotAllowed,      "ray flag {1} can't be used with '{0}'; {2}");
 DECL_REPORT( RayTracingNotSupportedByTarget,    "ray tracing is not supported by output target '{0}'");
 DECL_REPORT( RayTracingPipelinesNotSupportedByTarget, "ray tracing pipelines (ray tracing stages, the 'shader' attribute and TraceRay-style intrinsics) are not supported by output target '{0}'; only RayTraceClosest and RayTraceAny are");
+DECL_REPORT( RayTracingCallablesNotSupportedByTarget, "callable programs (the 'callable' stage and CallShader) are not supported by output target '{0}'");
+DECL_REPORT( RayTracingIntersectionNotSupportedByTarget, "intersection programs (the 'intersection' stage and ReportHit) are not supported by output target '{0}'");
+DECL_REPORT( RayTracingRecursionNotSupportedByTarget, "TraceRay can only be called from ray generation programs on output target '{0}', which doesn't support recursion");
+DECL_REPORT( RayTracingSkipTrianglesNotSupportedByTarget, "ray flag RAY_FLAG_SKIP_TRIANGLES can't be used with 'TraceRay' on output target '{0}'");
 DECL_REPORT( NotInlineRayTracingIntrinsic,      "expected the inline ray tracing built-in RayTraceClosest or RayTraceAny");
 DECL_REPORT( MissingCandidateFieldUsage,        "missing RayCandidate field usage of callback method '{0}'");
 

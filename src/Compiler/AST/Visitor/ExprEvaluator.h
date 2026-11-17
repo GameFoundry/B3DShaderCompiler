@@ -36,6 +36,12 @@ class ExprEvaluator : private Visitor
         // Abort expression evaluation process.
         void Abort();
 
+        /*
+        Evaluates the specified expression as an unsigned integer, if it is constant: literals, 'const' variables with constant
+        initializers, and expressions of them. Returns false if it isn't constant.
+        */
+        static bool TryEvaluateConstUInt(Expr& expr, unsigned long long& value);
+
     private:
         
         /* === Functions === */

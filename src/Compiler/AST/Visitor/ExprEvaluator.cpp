@@ -32,6 +32,41 @@ Variant ExprEvaluator::Evaluate(Expr& expr, const OnObjectExprCallback& onObject
     return Pop();
 }
 
+bool ExprEvaluator::TryEvaluateConstUInt(Expr& expr, unsigned long long& value)
+{
+    OnObjectExprCallback evaluateObject;
+    evaluateObject = [&evaluateObject](ObjectExpr* objectExpr) -> Variant
+    {
+        if (auto varDecl = objectExpr->FetchVarDecl())
+        {
+            auto varDeclStmnt = varDecl->declStmntRef;
+            if (varDeclStmnt && !varDeclStmnt->flags(VarDeclStmnt::isParameter) && varDeclStmnt->typeSpecifier->IsConst() && varDecl->initializer)
+            {
+                ExprEvaluator initializerEvaluator;
+                return initializerEvaluator.Evaluate(*varDecl->initializer, evaluateObject);
+            }
+        }
+        throw std::runtime_error("not a constant expression");
+    };
+
+    try
+    {
+        ExprEvaluator evaluator;
+        auto result = evaluator.Evaluate(expr, evaluateObject);
+
+        /* Not '!result': Variant's operator! is the logical NOT of its value */
+        if (result.Type() == Variant::Types::Undefined)
+            return false;
+
+        value = static_cast<unsigned long long>(result.ToInt());
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 Variant ExprEvaluator::EvaluateOrDefault(Expr& expr, const Variant& defaultValue, const OnObjectExprCallback& onObjectExprCallback)
 {
     /* Reset internal state (without exceptions) */

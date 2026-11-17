@@ -65,6 +65,48 @@ void ReflectionPrinter::PrintReflectionRayTracing(const Reflection::ReflectionDa
                 << ", payload " << function.rayPayloadSize << " bytes, attributes " << function.hitAttributeSize << " bytes" << std::endl;
         }
     }
+
+    struct SystemValue
+    {
+        unsigned int    bit;
+        const char*     name;
+    };
+
+    using SystemValues = Reflection::RayTracingSystemValues;
+    static const SystemValue systemValues[] =
+    {
+        { SystemValues::DispatchRaysIndex,      "DispatchRaysIndex"      },
+        { SystemValues::DispatchRaysDimensions, "DispatchRaysDimensions" },
+        { SystemValues::WorldRayOrigin,         "WorldRayOrigin"         },
+        { SystemValues::WorldRayDirection,      "WorldRayDirection"      },
+        { SystemValues::ObjectRayOrigin,        "ObjectRayOrigin"        },
+        { SystemValues::ObjectRayDirection,     "ObjectRayDirection"     },
+        { SystemValues::RayTMin,                "RayTMin"                },
+        { SystemValues::RayTCurrent,            "RayTCurrent"            },
+        { SystemValues::RayFlags,               "RayFlags"               },
+        { SystemValues::InstanceIndex,          "InstanceIndex"          },
+        { SystemValues::InstanceID,             "InstanceID"             },
+        { SystemValues::GeometryIndex,          "GeometryIndex"          },
+        { SystemValues::PrimitiveIndex,         "PrimitiveIndex"         },
+        { SystemValues::HitKind,                "HitKind"                },
+        { SystemValues::ObjectToWorld,          "ObjectToWorld"          },
+        { SystemValues::WorldToObject,          "WorldToObject"          },
+        { SystemValues::HitAttributes,          "HitAttributes"          },
+    };
+
+    for (const auto& function : reflectionData.functions)
+    {
+        if (function.rayTracingSystemValues == 0)
+            continue;
+
+        IndentOut() << "System values of " << function.ident << ":";
+        for (const auto& systemValue : systemValues)
+        {
+            if ((function.rayTracingSystemValues & systemValue.bit) != 0)
+                output_ << " " << systemValue.name;
+        }
+        output_ << std::endl;
+    }
 }
 
 void ReflectionPrinter::PrintReflectionObjects(const Reflection::BindlessUsage& bindless, const std::string& title)

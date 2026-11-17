@@ -748,6 +748,36 @@ class ReportHitAttributeCollector final : public Visitor
 
 };
 
+// Returns the system value bit of the specified intrinsic, or 0 if it doesn't read a system value.
+static unsigned int RayTracingSystemValue(const Intrinsic intrinsic)
+{
+    using T = Intrinsic;
+    using V = Reflection::RayTracingSystemValues;
+
+    switch (intrinsic)
+    {
+        case T::DispatchRaysIndex:      return V::DispatchRaysIndex;
+        case T::DispatchRaysDimensions: return V::DispatchRaysDimensions;
+        case T::WorldRayOrigin:         return V::WorldRayOrigin;
+        case T::WorldRayDirection:      return V::WorldRayDirection;
+        case T::ObjectRayOrigin:        return V::ObjectRayOrigin;
+        case T::ObjectRayDirection:     return V::ObjectRayDirection;
+        case T::RayTMin:                return V::RayTMin;
+        case T::RayTCurrent:            return V::RayTCurrent;
+        case T::RayFlags:               return V::RayFlags;
+        case T::InstanceIndex:          return V::InstanceIndex;
+        case T::InstanceID:             return V::InstanceID;
+        case T::GeometryIndex:          return V::GeometryIndex;
+        case T::PrimitiveIndex:         return V::PrimitiveIndex;
+        case T::HitKind:                return V::HitKind;
+        case T::ObjectToWorld3x4:
+        case T::ObjectToWorld4x3:       return V::ObjectToWorld;
+        case T::WorldToObject3x4:
+        case T::WorldToObject4x3:       return V::WorldToObject;
+        default:                        return 0;
+    }
+}
+
 static int ParameterStructSize(FunctionDecl* funcDecl, std::size_t paramIndex)
 {
     if (paramIndex >= funcDecl->parameters.size())
@@ -777,6 +807,29 @@ void ReflectionAnalyzer::ReflectRayTracingFunction(FunctionDecl* funcDecl, Refle
         break;
         default:
             break;
+    }
+
+    /* 'usedIntrinsics' only holds calls the entry point reaches (see ReferenceAnalyzer), so only the entry gets system values */
+    if (funcDecl->rayTracingStage != ShaderTarget::Undefined && funcDecl == program_->entryPointRef)
+    {
+        for (const auto& usage : program_->usedIntrinsics)
+            function.rayTracingSystemValues |= RayTracingSystemValue(usage.first);
+
+        /* The hit attributes are the second parameter of closest hit and any hit functions; parameters are only read */
+        const bool isHitStage =
+        (
+            funcDecl->rayTracingStage == ShaderTarget::ClosestHitShader ||
+            funcDecl->rayTracingStage == ShaderTarget::AnyHitShader
+        );
+
+        if (isHitStage && funcDecl->parameters.size() > 1)
+        {
+            for (const auto& varDecl : funcDecl->parameters[1]->varDecls)
+            {
+                if (varDecl->flags(Decl::isReadFrom))
+                    function.rayTracingSystemValues |= Reflection::RayTracingSystemValues::HitAttributes;
+            }
+        }
     }
 }
 

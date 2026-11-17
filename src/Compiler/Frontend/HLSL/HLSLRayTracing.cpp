@@ -50,6 +50,37 @@ const std::string& InlineTypes()
     return text;
 }
 
+// Returns the declarations of the RAY_FLAG_* constants as HLSL text.
+static std::string RayFlagDeclarations()
+{
+    struct RayFlag
+    {
+        const char*     name;
+        unsigned int    value;
+    };
+
+    static const RayFlag rayFlags[] =
+    {
+        { "RAY_FLAG_NONE",                              RayFlags::None                       },
+        { "RAY_FLAG_FORCE_OPAQUE",                      RayFlags::ForceOpaque                },
+        { "RAY_FLAG_FORCE_NON_OPAQUE",                  RayFlags::ForceNonOpaque             },
+        { "RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH",   RayFlags::AcceptFirstHitAndEndSearch },
+        { "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER",           RayFlags::SkipClosestHitShader       },
+        { "RAY_FLAG_CULL_BACK_FACING_TRIANGLES",        RayFlags::CullBackFacingTriangles    },
+        { "RAY_FLAG_CULL_FRONT_FACING_TRIANGLES",       RayFlags::CullFrontFacingTriangles   },
+        { "RAY_FLAG_CULL_OPAQUE",                       RayFlags::CullOpaque                 },
+        { "RAY_FLAG_CULL_NON_OPAQUE",                   RayFlags::CullNonOpaque              },
+        { "RAY_FLAG_SKIP_TRIANGLES",                    RayFlags::SkipTriangles              },
+        { "RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES",        RayFlags::SkipProceduralPrimitives   },
+    };
+
+    std::string s;
+    for (const auto& flag : rayFlags)
+        s += std::string("static const uint ") + flag.name + " = " + std::to_string(flag.value) + ";\n";
+
+    return s;
+}
+
 const std::string& BuiltInDeclarations()
 {
     /* Values match DXC's built-in declarations */
@@ -68,18 +99,8 @@ const std::string& BuiltInDeclarations()
         "};\n"
         "\n" +
         InlineTypes() +
-        "\n"
-        "static const uint RAY_FLAG_NONE = 0;\n"
-        "static const uint RAY_FLAG_FORCE_OPAQUE = 1;\n"
-        "static const uint RAY_FLAG_FORCE_NON_OPAQUE = 2;\n"
-        "static const uint RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH = 4;\n"
-        "static const uint RAY_FLAG_SKIP_CLOSEST_HIT_SHADER = 8;\n"
-        "static const uint RAY_FLAG_CULL_BACK_FACING_TRIANGLES = 16;\n"
-        "static const uint RAY_FLAG_CULL_FRONT_FACING_TRIANGLES = 32;\n"
-        "static const uint RAY_FLAG_CULL_OPAQUE = 64;\n"
-        "static const uint RAY_FLAG_CULL_NON_OPAQUE = 128;\n"
-        "static const uint RAY_FLAG_SKIP_TRIANGLES = 256;\n"
-        "static const uint RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES = 512;\n"
+        "\n" +
+        RayFlagDeclarations() +
         "\n"
         "static const uint HIT_KIND_TRIANGLE_FRONT_FACE = 254;\n"
         "static const uint HIT_KIND_TRIANGLE_BACK_FACE = 255;\n";
